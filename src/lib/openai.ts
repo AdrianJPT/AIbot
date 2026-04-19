@@ -1,5 +1,5 @@
 import OpenAI from "openai";
-import { ChatCompletionMessageParam } from "openai/resources/chat/completions";
+import type { ChatCompletionMessageParam } from "openai/resources/chat/completions";
 
 const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -21,5 +21,8 @@ export async function generateResponse(
     max_tokens: 500,
   });
 
-  return response.choices[0]?.message?.content?.trim() || "Lo siento, no pude generar una respuesta.";
+  return (
+    response.choices[0]?.message?.content?.trim() ||
+    "Lo siento, no pude generar una respuesta."
+  );
 }

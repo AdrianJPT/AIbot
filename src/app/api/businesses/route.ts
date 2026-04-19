@@ -1,0 +1,41 @@
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/db";
+
+export async function GET() {
+  const list = await prisma.business.findMany({ orderBy: { name: "asc" } });
+  return NextResponse.json(list);
+}
+
+export async function POST(req: NextRequest) {
+  const body = await req.json();
+  const {
+    name,
+    phoneNumberId,
+    whatsappToken,
+    systemPrompt,
+    welcomeMessage,
+    businessInfo,
+    model,
+    maxHistoryMessages,
+    isActive,
+  } = body;
+
+  if (!name || !phoneNumberId || !whatsappToken || !systemPrompt || !welcomeMessage) {
+    return NextResponse.json({ error: "Faltan campos requeridos" }, { status: 400 });
+  }
+
+  const b = await prisma.business.create({
+    data: {
+      name,
+      phoneNumberId,
+      whatsappToken,
+      systemPrompt,
+      welcomeMessage,
+      businessInfo: businessInfo ?? {},
+      model: model || "gpt-4o-mini",
+      maxHistoryMessages: maxHistoryMessages ?? 20,
+      isActive: isActive !== false,
+    },
+  });
+  return NextResponse.json(b);
+}

@@ -1,203 +1,112 @@
-# WhatsApp AI Bot
+# WhatsApp AI Bot V2
 
-Bot de WhatsApp que usa la API oficial de Meta y OpenAI para responder mensajes automáticamente. Configurable para cualquier tipo de negocio (restaurante, barbería, hotel, inmobiliaria, etc.) cambiando un solo archivo JSON.
+Plataforma multi-tenant: Next.js + PostgreSQL (Prisma) + Meta WhatsApp Cloud API + OpenAI. Panel admin para negocios, conversaciones, citas y traspaso a humano.
 
-## Cómo funciona
+## Requisitos
 
-1. Un cliente escribe por WhatsApp
-2. Meta envía el mensaje a tu servidor vía webhook
-3. El bot carga la configuración del negocio activo
-4. Envía el mensaje + historial a OpenAI para generar una respuesta
-5. Responde al cliente por WhatsApp
+- Node.js 20+
+- PostgreSQL 16 (local o Docker)
+- Cuenta Meta Business + WhatsApp Cloud API
+- API key de OpenAI
 
-## Requisitos previos
+## Variables de entorno
 
-- **Node.js** v18+
-- **Cuenta de Meta Business** con WhatsApp Business API configurada
-- **API Key de OpenAI**
-- **URL pública** para el webhook (puedes usar [ngrok](https://ngrok.com) para pruebas locales)
+Copia `.env.example` a `.env`:
 
----
+```env
+DATABASE_URL=postgresql://bot:password@localhost:5432/whatsapp_bot
+OPENAI_API_KEY=sk-...
+WEBHOOK_VERIFY_TOKEN=un_token_secreto_para_el_webhook
+```
 
-## Setup paso a paso
+Cada **negocio** guarda su propio `phoneNumberId` y `whatsappToken` en la base de datos (panel **Negocios**).
 
-### 1. Instalar dependencias
+## Desarrollo local
 
 ```bash
 npm install
-```
-
-### 2. Configurar variables de entorno
-
-Copia el archivo de ejemplo y llena los valores:
-
-```bash
-cp .env.example .env
-```
-
-Edita `.env`:
-
-```env
-WHATSAPP_TOKEN=tu_token_de_meta
-WHATSAPP_PHONE_ID=tu_phone_number_id
-WEBHOOK_VERIFY_TOKEN=un_token_secreto_que_tu_elijas
-OPENAI_API_KEY=tu_api_key_de_openai
-ACTIVE_CONFIG=restaurante
-PORT=3000
-```
-
-### 3. Iniciar el servidor
-
-**Desarrollo:**
-```bash
+# Crea la base y tablas
+npx prisma db push
+# Datos de ejemplo (opcional). Puedes poner SEED_PHONE_NUMBER_ID y SEED_WHATSAPP_TOKEN para el primer negocio
+npm run db:seed
 npm run dev
 ```
 
-**Producción:**
-```bash
-npm run build
-npm start
-```
+Abre [http://localhost:3000](http://localhost:3000).
 
----
+1. En **Negocios**, edita un negocio y pon el **Phone Number ID** y **token** reales de Meta.
+2. En Meta Developers, webhook **Callback URL**: `https://tu-dominio-o-ngrok/api/webhook` y el mismo **Verify token** que `WEBHOOK_VERIFY_TOKEN`.
+3. Suscríbete al campo **messages**.
 
-## Cómo obtener las credenciales de Meta
-
-### Paso 1: Crear app en Meta Developers
-
-1. Ve a [developers.facebook.com](https://developers.facebook.com)
-2. Crea una nueva app → Selecciona "Business" como tipo
-3. En el dashboard, agrega el producto "WhatsApp"
-
-### Paso 2: Obtener el Token y Phone ID
-
-1. En el panel de WhatsApp → API Setup
-2. Copia el **Temporary access token** (o genera uno permanente) → este es tu `WHATSAPP_TOKEN`
-3. Copia el **Phone number ID** → este es tu `WHATSAPP_PHONE_ID`
-
-### Paso 3: Configurar el Webhook
-
-1. En WhatsApp → Configuration → Webhook
-2. Primero inicia tu servidor y expón la URL con ngrok:
-   ```bash
-   ngrok http 3000
-   ```
-3. En Meta, configura:
-   - **Callback URL:** `https://tu-url-ngrok.ngrok-free.app/webhook`
-   - **Verify token:** el mismo valor que pusiste en `WEBHOOK_VERIFY_TOKEN`
-4. Suscríbete al campo **messages**
-
----
-
-## Cómo obtener la API Key de OpenAI
-
-1. Ve a [platform.openai.com](https://platform.openai.com)
-2. Ve a API Keys → Create new secret key
-3. Copia la key → este es tu `OPENAI_API_KEY`
-
----
-
-## Configuración del negocio
-
-Los archivos de configuración están en la carpeta `configs/`. Cada archivo define el comportamiento del bot para un tipo de negocio.
-
-**Configs incluidas:**
-- `restaurante.json` - Reservaciones, menú, horarios
-- `barberia.json` - Citas, servicios, precios
-- `hotel.json` - Reservas de habitación, amenidades
-- `inmobiliaria.json` - Propiedades, visitas, zonas
-
-Para cambiar el negocio activo, modifica `ACTIVE_CONFIG` en tu `.env`:
-
-```env
-ACTIVE_CONFIG=barberia
-```
-
-### Crear tu propia configuración
-
-Crea un archivo JSON en `configs/` con esta estructura:
-
-```json
-{
-  "businessName": "Nombre de tu negocio",
-  "systemPrompt": "Instrucciones para el bot. Usa {businessName} y {businessInfo} como placeholders.",
-  "welcomeMessage": "Mensaje de bienvenida para el cliente.",
-  "businessInfo": {
-    "Horario": "...",
-    "Dirección": "...",
-    "Teléfono": "..."
-  },
-  "model": "gpt-4o-mini",
-  "maxHistoryMessages": 20
-}
-```
-
-- `{businessName}` se reemplaza con el valor de `businessName`
-- `{businessInfo}` se reemplaza con toda la info del negocio formateada
-
----
-
-## Probar localmente
-
-### 1. Inicia el servidor
-```bash
-npm run dev
-```
-
-### 2. Expón tu servidor con ngrok
-```bash
-ngrok http 3000
-```
-
-### 3. Configura el webhook en Meta (ver sección arriba)
-
-### 4. Envía un mensaje al número de WhatsApp Business desde tu celular
-
-### Probar sin WhatsApp (simular un mensaje)
-
-Puedes probar el webhook localmente con curl:
+## Docker
 
 ```bash
-curl -X POST http://localhost:3000/webhook \
-  -H "Content-Type: application/json" \
-  -d '{
-    "entry": [{
-      "changes": [{
-        "value": {
-          "messages": [{
-            "from": "5215551234567",
-            "type": "text",
-            "text": { "body": "Hola, quiero hacer una reservación" }
-          }]
-        }
-      }]
-    }]
-  }'
+# .env en la raíz o exporta variables
+set DB_PASSWORD=tu_password
+set OPENAI_API_KEY=sk-...
+set WEBHOOK_VERIFY_TOKEN=tu_token
+
+docker compose up --build
 ```
 
-Esto procesará el mensaje con OpenAI (necesitas la API key configurada). La respuesta de WhatsApp fallará si no tienes el token configurado, pero verás la respuesta del bot en la consola.
+La app ejecuta `prisma db push` al arrancar. Crea negocios desde el panel (o `npm run db:seed` contra la URL de la base si expones el puerto 5432).
 
----
+## Panel admin
 
-## Estructura del proyecto
+| Ruta | Uso |
+|------|-----|
+| `/` | Resumen: negocios activos, conversaciones hoy, citas pendientes |
+| `/businesses` | CRUD negocios, prompts, `businessInfo` JSON |
+| `/conversations` | Lista con filtros; detalle con historial, **pasar a humano**, envío manual a WhatsApp |
+| `/appointments` | Citas/reservas: filtros, confirmar/cancelar/borrar, **Nueva cita** |
+
+## Webhook
+
+- `GET /api/webhook` — verificación Meta (`hub.verify_token`).
+- `POST /api/webhook` — mensajes entrantes. Responde 200 al instante y procesa en segundo plano.
+
+El negocio se resuelve por `metadata.phone_number_id` del payload.
+
+## Tipos de mensaje
+
+- **Texto** e **interactivo** (botones/listas): respuesta con el modelo configurado.
+- **Imagen**: descripción con visión (gpt-4o-mini) y luego el chat.
+- **Audio/voz**: transcripción con Whisper.
+- **Ubicación**: texto con coordenadas.
+- **Documento**: respuesta fija indicando que no se leen archivos.
+
+Si la conversación está en **handed_off**, el bot no responde; el admin puede escribir desde el panel.
+
+## API REST (admin)
+
+- `GET/POST /api/businesses`, `GET/PATCH/DELETE /api/businesses/[id]`
+- `GET /api/conversations?businessId=&status=`
+- `GET /api/conversations/[id]`
+- `POST /api/conversations/[id]/handoff` body `{ "status": "active" | "handed_off" | "closed" }`
+- `POST /api/conversations/[id]/send` body `{ "text": "..." }`
+- `GET/POST /api/appointments`, `PATCH/DELETE /api/appointments/[id]`
+
+## Estructura principal
 
 ```
-AIBot/
-├── src/
-│   ├── index.ts                 # Servidor Express + webhook routes
-│   ├── services/
-│   │   ├── whatsapp.ts          # Envío de mensajes via Meta API
-│   │   └── openai.ts            # Generación de respuestas con OpenAI
-│   ├── config/
-│   │   └── business-config.ts   # Loader de configuración de negocio
-│   └── store/
-│       └── conversation.ts      # Memoria de conversaciones (in-memory)
-├── configs/
-│   ├── restaurante.json
-│   ├── barberia.json
-│   ├── hotel.json
-│   └── inmobiliaria.json
-├── .env.example
-├── package.json
-└── tsconfig.json
+prisma/schema.prisma    # Modelos Business, Conversation, Message, Appointment
+src/app/                # Rutas App Router + API
+src/lib/                # db, whatsapp, openai, media, message-handler, prompt
+src/components/         # Sidebar, formularios, vistas
+configs/                # JSON de ejemplo (referencia; el sistema usa la BD)
 ```
+
+## Scripts
+
+| Comando | Descripción |
+|---------|-------------|
+| `npm run dev` | Next.js en desarrollo |
+| `npm run build` | `prisma generate` + `next build` |
+| `npm start` | Producción (`next start`) |
+| `npm run db:push` | Sincronizar schema con la BD |
+| `npm run db:seed` | Seed de negocios de ejemplo |
+| `npm run db:studio` | Prisma Studio |
+
+## Seguridad
+
+El panel no incluye autenticación todavía; no expongas el admin a internet sin VPN, Basic Auth o similar. `NEXTAUTH_SECRET` está reservado para una futura auth.

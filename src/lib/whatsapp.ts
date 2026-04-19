@@ -2,12 +2,14 @@ import axios from "axios";
 
 const API_VERSION = "v21.0";
 
-export async function sendMessage(to: string, text: string): Promise<void> {
-  const phoneId = process.env.WHATSAPP_PHONE_ID;
-  const token = process.env.WHATSAPP_TOKEN;
-
+export async function sendMessage(
+  phoneNumberId: string,
+  token: string,
+  to: string,
+  text: string
+): Promise<void> {
   await axios.post(
-    `https://graph.facebook.com/${API_VERSION}/${phoneId}/messages`,
+    `https://graph.facebook.com/${API_VERSION}/${phoneNumberId}/messages`,
     {
       messaging_product: "whatsapp",
       to,
