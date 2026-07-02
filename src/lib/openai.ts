@@ -1,7 +1,14 @@
 import OpenAI from "openai";
 import type { ChatCompletionMessageParam } from "openai/resources/chat/completions";
 
-const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+let client: OpenAI | undefined;
+
+function getClient(): OpenAI {
+  if (!client) {
+    client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  }
+  return client;
+}
 
 export async function generateResponse(
   systemPrompt: string,
@@ -15,7 +22,7 @@ export async function generateResponse(
     { role: "user", content: userMessage },
   ];
 
-  const response = await client.chat.completions.create({
+  const response = await getClient().chat.completions.create({
     model,
     messages,
     max_tokens: 500,

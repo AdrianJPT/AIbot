@@ -28,7 +28,14 @@ export async function downloadMediaBuffer(
   return { buffer: Buffer.from(res.data), mimeType };
 }
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+let openai: OpenAI | undefined;
+
+function getClient(): OpenAI {
+  if (!openai) {
+    openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  }
+  return openai;
+}
 
 export async function describeImageFromBuffer(
   buffer: Buffer,
@@ -36,7 +43,7 @@ export async function describeImageFromBuffer(
 ): Promise<string> {
   const base64 = buffer.toString("base64");
   const dataUrl = `data:${mimeType};base64,${base64}`;
-  const response = await openai.chat.completions.create({
+  const response = await getClient().chat.completions.create({
     model: "gpt-4o-mini",
     messages: [
       {
@@ -60,7 +67,7 @@ export async function describeImageFromBuffer(
 
 export async function transcribeAudioBuffer(buffer: Buffer): Promise<string> {
   const file = await toFile(buffer, "audio.ogg", { type: "audio/ogg" });
-  const response = await openai.audio.transcriptions.create({
+  const response = await getClient().audio.transcriptions.create({
     file,
     model: "whisper-1",
   });
