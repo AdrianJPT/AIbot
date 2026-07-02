@@ -111,6 +111,7 @@ async function handleOneMessage(
       systemPrompt,
       history,
       parsed.content,
+      business.provider,
       business.model
     );
   }
@@ -170,7 +171,12 @@ async function parseUserContent(
       const id = message.image?.id;
       if (!id) return null;
       const { buffer, mimeType } = await downloadMediaBuffer(id, token);
-      const desc = await describeImageFromBuffer(buffer, mimeType);
+      const desc = await describeImageFromBuffer(
+        buffer,
+        mimeType,
+        business.provider,
+        business.model
+      );
       return {
         content: `[Imagen del cliente] ${desc}`,
         mediaType: "image",

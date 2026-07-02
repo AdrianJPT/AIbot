@@ -27,6 +27,7 @@ export async function PATCH(
         ...(body.systemPrompt != null && { systemPrompt: body.systemPrompt }),
         ...(body.welcomeMessage != null && { welcomeMessage: body.welcomeMessage }),
         ...(body.businessInfo != null && { businessInfo: body.businessInfo }),
+        ...(body.provider != null && { provider: body.provider }),
         ...(body.model != null && { model: body.model }),
         ...(body.maxHistoryMessages != null && {
           maxHistoryMessages: body.maxHistoryMessages,

@@ -17,6 +17,7 @@ model Business {
   systemPrompt       String
   welcomeMessage     String
   businessInfo       Json
+  provider           String         @default("openai")
   model              String         @default("gpt-4o-mini")
   maxHistoryMessages Int            @default(20)
   isActive           Boolean        @default(true)
