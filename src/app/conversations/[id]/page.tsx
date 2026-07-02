@@ -6,10 +6,11 @@ import { prisma } from "@/lib/db";
 export default async function ConversationDetailPage({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
+  const { id } = await params;
   const c = await prisma.conversation.findUnique({
-    where: { id: params.id },
+    where: { id },
     include: {
       business: { select: { name: true } },
       messages: { orderBy: { createdAt: "asc" } },

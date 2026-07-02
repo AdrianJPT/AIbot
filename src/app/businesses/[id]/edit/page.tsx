@@ -6,9 +6,10 @@ import { prisma } from "@/lib/db";
 export default async function EditBusinessPage({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
-  const business = await prisma.business.findUnique({ where: { id: params.id } });
+  const { id } = await params;
+  const business = await prisma.business.findUnique({ where: { id } });
   if (!business) notFound();
 
   return (
