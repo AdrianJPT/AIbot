@@ -1,6 +1,7 @@
 import axios from "axios";
-import OpenAI from "openai";
 import { toFile } from "openai/uploads";
+import { DEFAULT_MODEL, DEFAULT_PROVIDER, supportsVision } from "./model-catalog";
+import { getProviderClient } from "./providers";
 
 const API_VERSION = "v21.0";
 
@@ -28,23 +29,22 @@ export async function downloadMediaBuffer(
   return { buffer: Buffer.from(res.data), mimeType };
 }
 
-let openai: OpenAI | undefined;
-
-function getClient(): OpenAI {
-  if (!openai) {
-    openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-  }
-  return openai;
-}
-
 export async function describeImageFromBuffer(
   buffer: Buffer,
-  mimeType: string
+  mimeType: string,
+  provider: string,
+  model: string
 ): Promise<string> {
+  // Fall back to the default OpenAI vision model when the business's
+  // configured model cannot read images.
+  const useConfigured = supportsVision(provider, model);
+  const visionProvider = useConfigured ? provider : DEFAULT_PROVIDER;
+  const visionModel = useConfigured ? model : DEFAULT_MODEL;
+
   const base64 = buffer.toString("base64");
   const dataUrl = `data:${mimeType};base64,${base64}`;
-  const response = await getClient().chat.completions.create({
-    model: "gpt-4o-mini",
+  const response = await getProviderClient(visionProvider).chat.completions.create({
+    model: visionModel,
     messages: [
       {
         role: "user",
@@ -67,7 +67,9 @@ export async function describeImageFromBuffer(
 
 export async function transcribeAudioBuffer(buffer: Buffer): Promise<string> {
   const file = await toFile(buffer, "audio.ogg", { type: "audio/ogg" });
-  const response = await getClient().audio.transcriptions.create({
+  // Audio transcription is only available on OpenAI (Whisper), regardless
+  // of the provider configured for chat.
+  const response = await getProviderClient("openai").audio.transcriptions.create({
     file,
     model: "whisper-1",
   });

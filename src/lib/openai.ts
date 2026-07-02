@@ -1,19 +1,11 @@
-import OpenAI from "openai";
 import type { ChatCompletionMessageParam } from "openai/resources/chat/completions";
-
-let client: OpenAI | undefined;
-
-function getClient(): OpenAI {
-  if (!client) {
-    client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-  }
-  return client;
-}
+import { getProviderClient } from "./providers";
 
 export async function generateResponse(
   systemPrompt: string,
   history: ChatCompletionMessageParam[],
   userMessage: string,
+  provider: string,
   model: string
 ): Promise<string> {
   const messages: ChatCompletionMessageParam[] = [
@@ -22,7 +14,7 @@ export async function generateResponse(
     { role: "user", content: userMessage },
   ];
 
-  const response = await getClient().chat.completions.create({
+  const response = await getProviderClient(provider).chat.completions.create({
     model,
     messages,
     max_tokens: 500,

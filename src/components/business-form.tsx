@@ -2,6 +2,13 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import {
+  DEFAULT_MODEL,
+  DEFAULT_PROVIDER,
+  normalizeProvider,
+  PROVIDERS,
+  type ProviderId,
+} from "@/lib/model-catalog";
 
 type Props = {
   business?: {
@@ -12,6 +19,7 @@ type Props = {
     systemPrompt: string;
     welcomeMessage: string;
     businessInfo: unknown;
+    provider: string;
     model: string;
     maxHistoryMessages: number;
     isActive: boolean;
@@ -22,6 +30,20 @@ export function BusinessForm({ business }: Props) {
   const router = useRouter();
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [provider, setProvider] = useState<ProviderId>(
+    normalizeProvider(business?.provider || DEFAULT_PROVIDER)
+  );
+  const [model, setModel] = useState(business?.model || DEFAULT_MODEL);
+
+  const providerModels = PROVIDERS[provider].models;
+
+  function onProviderChange(next: ProviderId) {
+    setProvider(next);
+    const models = PROVIDERS[next].models;
+    if (!models.some((m) => m.id === model)) {
+      setModel(models[0].id);
+    }
+  }
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -45,7 +67,8 @@ export function BusinessForm({ business }: Props) {
       systemPrompt: fd.get("systemPrompt") as string,
       welcomeMessage: fd.get("welcomeMessage") as string,
       businessInfo,
-      model: (fd.get("model") as string) || "gpt-4o-mini",
+      provider,
+      model,
       maxHistoryMessages: Number(fd.get("maxHistoryMessages")) || 20,
       isActive: fd.get("isActive") === "on",
     };
@@ -146,12 +169,38 @@ export function BusinessForm({ business }: Props) {
       </div>
       <div className="flex gap-4">
         <div>
-          <label className="mb-1 block text-sm text-slate-400">Modelo</label>
-          <input
-            name="model"
-            defaultValue={business?.model || "gpt-4o-mini"}
+          <label className="mb-1 block text-sm text-slate-400">Provider</label>
+          <select
+            name="provider"
+            value={provider}
+            onChange={(e) => onProviderChange(e.target.value as ProviderId)}
             className="w-full rounded border border-slate-700 bg-slate-900 px-3 py-2 text-white"
-          />
+          >
+            {(Object.keys(PROVIDERS) as ProviderId[]).map((id) => (
+              <option key={id} value={id}>
+                {PROVIDERS[id].label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="mb-1 block text-sm text-slate-400">Modelo</label>
+          <select
+            name="model"
+            value={model}
+            onChange={(e) => setModel(e.target.value)}
+            className="w-full rounded border border-slate-700 bg-slate-900 px-3 py-2 text-white"
+          >
+            {!providerModels.some((m) => m.id === model) && (
+              <option value={model}>{model}</option>
+            )}
+            {providerModels.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.label}
+                {m.vision ? "" : " (sin visión)"}
+              </option>
+            ))}
+          </select>
         </div>
         <div>
           <label className="mb-1 block text-sm text-slate-400">Max historial</label>
