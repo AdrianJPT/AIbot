@@ -4,8 +4,9 @@ import { sendMessage } from "@/lib/whatsapp";
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   const body = await req.json();
   const text = body.text as string;
   if (!text?.trim()) {
@@ -13,7 +14,7 @@ export async function POST(
   }
 
   const conv = await prisma.conversation.findUnique({
-    where: { id: params.id },
+    where: { id },
     include: { business: true },
   });
   if (!conv) {

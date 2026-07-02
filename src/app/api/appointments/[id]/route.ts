@@ -3,12 +3,13 @@ import { prisma } from "@/lib/db";
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   const body = await req.json();
   try {
     const a = await prisma.appointment.update({
-      where: { id: params.id },
+      where: { id },
       data: {
         ...(body.customerName != null && { customerName: body.customerName }),
         ...(body.service != null && { service: body.service }),
@@ -26,10 +27,11 @@ export async function PATCH(
 
 export async function DELETE(
   _req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   try {
-    await prisma.appointment.delete({ where: { id: params.id } });
+    await prisma.appointment.delete({ where: { id } });
     return NextResponse.json({ ok: true });
   } catch {
     return NextResponse.json({ error: "No encontrado" }, { status: 404 });

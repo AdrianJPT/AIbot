@@ -3,8 +3,9 @@ import { prisma } from "@/lib/db";
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   const body = await req.json();
   const status = body.status as string;
   if (!["active", "handed_off", "closed"].includes(status)) {
@@ -12,7 +13,7 @@ export async function POST(
   }
   try {
     const c = await prisma.conversation.update({
-      where: { id: params.id },
+      where: { id },
       data: { status },
     });
     return NextResponse.json(c);

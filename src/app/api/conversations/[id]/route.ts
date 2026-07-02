@@ -3,10 +3,11 @@ import { prisma } from "@/lib/db";
 
 export async function GET(
   _req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   const c = await prisma.conversation.findUnique({
-    where: { id: params.id },
+    where: { id },
     include: {
       business: true,
       messages: { orderBy: { createdAt: "asc" } },

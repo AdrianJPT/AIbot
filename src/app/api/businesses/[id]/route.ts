@@ -3,9 +3,9 @@ import { prisma } from "@/lib/db";
 
 export async function GET(
   _req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const { id } = params;
+  const { id } = await params;
   const b = await prisma.business.findUnique({ where: { id } });
   if (!b) return NextResponse.json({ error: "No encontrado" }, { status: 404 });
   return NextResponse.json(b);
@@ -13,9 +13,9 @@ export async function GET(
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const { id } = params;
+  const { id } = await params;
   const body = await req.json();
   try {
     const b = await prisma.business.update({
@@ -42,9 +42,9 @@ export async function PATCH(
 
 export async function DELETE(
   _req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const { id } = params;
+  const { id } = await params;
   try {
     await prisma.business.delete({ where: { id } });
     return NextResponse.json({ ok: true });
