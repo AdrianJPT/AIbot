@@ -15,6 +15,24 @@ import { logEvent } from "./log";
 const FALLBACK_REPLY =
   "Lo siento, tuve un problema técnico. Intenta de nuevo en un momento.";
 
+/**
+ * Per-conversation abuse throttle: no Redis, single-replica Railway makes an
+ * in-memory limiter viable, but a DB count survives restarts/redeploys.
+ * Customer messages beyond the threshold are still persisted (nothing is
+ * dropped) — only the AI call (and outbound reply) for the excess is
+ * skipped, so a flood can't run up the AI bill or spam the customer back.
+ */
+const RATE_LIMIT_WINDOW_MS = 60_000;
+const RATE_LIMIT_MAX_MESSAGES = 10;
+
+/**
+ * Per-business daily AI-call budget fallback. Hardcoded for now (see
+ * docs/plan/06-hardening-extras.md §6.3) — a future pass can make this
+ * configurable per business alongside businessInfo/systemPrompt.
+ */
+const DAILY_LIMIT_MESSAGE =
+  "Estamos recibiendo muchos mensajes, en breve te responderemos.";
+
 type WaMessage = {
   from: string;
   id?: string;
@@ -154,27 +172,18 @@ async function handleOneMessage(
 
   await persistCustomerMessage(conversation.id, parsed, wamid, customerName);
 
-  let reply: string;
+  let reply: string | null = null;
+
   if (parsed.mediaType === "document") {
     reply =
       "Por ahora no puedo leer archivos o documentos. ¿Puedes escribir tu consulta en un mensaje de texto?";
+  } else if (await isRateLimited(conversation.id, business.id)) {
+    // Persisted above already — just skip AI generation and the reply.
   } else {
-    try {
-      const systemPrompt = buildSystemPrompt(business);
-      reply = await callWithFailover(business, (client) =>
-        generateResponse(client, systemPrompt, history, parsed.content, business.model)
-      );
-    } catch (err) {
-      await logEvent(
-        "error",
-        "ai",
-        "generateResponse failed",
-        { error: describeError(err), conversationId: conversation.id },
-        business.id
-      );
-      reply = FALLBACK_REPLY;
-    }
+    reply = await resolveAiReply(business, conversation.id, history, parsed.content);
   }
+
+  if (reply === null) return;
 
   const [outboundMessage] = await prisma.$transaction([
     prisma.message.create({
@@ -212,6 +221,112 @@ async function handleOneMessage(
       where: { id: outboundMessage.id },
       data: { status: "failed" },
     });
+  }
+}
+
+/**
+ * Per-conversation abuse throttle. Counts customer messages within the last
+ * `RATE_LIMIT_WINDOW_MS` (including the one just persisted) — if it exceeds
+ * `RATE_LIMIT_MAX_MESSAGES`, the caller should skip AI generation for this
+ * message. The message itself is always persisted regardless of this check.
+ */
+async function isRateLimited(
+  conversationId: string,
+  businessId: string
+): Promise<boolean> {
+  const recentCustomerCount = await prisma.message.count({
+    where: {
+      conversationId,
+      sentBy: "customer",
+      createdAt: { gte: new Date(Date.now() - RATE_LIMIT_WINDOW_MS) },
+    },
+  });
+
+  if (recentCustomerCount <= RATE_LIMIT_MAX_MESSAGES) return false;
+
+  await logEvent(
+    "warn",
+    "webhook",
+    "Per-conversation rate limit exceeded, skipping AI generation",
+    { conversationId, recentCustomerCount },
+    businessId
+  );
+  return true;
+}
+
+/**
+ * Resolves the bot's reply respecting the per-business daily AI-call budget
+ * (`Business.dailyAiLimit`). The budget is counted as bot-authored Message
+ * rows created since UTC midnight for the business — simplest option that
+ * needs no extra counter column and self-resets daily via `createdAt`.
+ *
+ * When the budget is exhausted, the canned Spanish notice is sent exactly
+ * once per day (checked by looking for a prior bot message with that exact
+ * content today) — subsequent messages that day get no reply at all, to
+ * avoid spamming the customer.
+ */
+async function resolveAiReply(
+  business: Business,
+  conversationId: string,
+  history: ChatCompletionMessageParam[],
+  content: string
+): Promise<string | null> {
+  const startOfDay = new Date();
+  startOfDay.setUTCHours(0, 0, 0, 0);
+
+  const aiCallsToday = await prisma.message.count({
+    where: {
+      sentBy: "bot",
+      createdAt: { gte: startOfDay },
+      conversation: { businessId: business.id },
+    },
+  });
+
+  if (aiCallsToday >= business.dailyAiLimit) {
+    const alreadyNotifiedToday = await prisma.message.findFirst({
+      where: {
+        sentBy: "bot",
+        content: DAILY_LIMIT_MESSAGE,
+        createdAt: { gte: startOfDay },
+        conversation: { businessId: business.id },
+      },
+    });
+
+    if (alreadyNotifiedToday) {
+      await logEvent(
+        "warn",
+        "ai",
+        "Daily AI budget exceeded, staying silent (already notified today)",
+        { businessId: business.id, aiCallsToday },
+        business.id
+      );
+      return null;
+    }
+
+    await logEvent(
+      "warn",
+      "ai",
+      "Daily AI budget exceeded, sending fallback message",
+      { businessId: business.id, aiCallsToday },
+      business.id
+    );
+    return DAILY_LIMIT_MESSAGE;
+  }
+
+  try {
+    const systemPrompt = buildSystemPrompt(business);
+    return await callWithFailover(business, (client) =>
+      generateResponse(client, systemPrompt, history, content, business.model)
+    );
+  } catch (err) {
+    await logEvent(
+      "error",
+      "ai",
+      "generateResponse failed",
+      { error: describeError(err), conversationId },
+      business.id
+    );
+    return FALLBACK_REPLY;
   }
 }
 

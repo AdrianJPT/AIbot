@@ -18,6 +18,7 @@ const conversationUpdate = vi.fn();
 const messageCreate = vi.fn();
 const messageFindMany = vi.fn();
 const messageUpdate = vi.fn();
+const messageCount = vi.fn();
 
 vi.mock("../db", () => ({
   prisma: {
@@ -31,6 +32,7 @@ vi.mock("../db", () => ({
       findFirst: (...args: unknown[]) => findFirstMessage(...args),
       findMany: (...args: unknown[]) => messageFindMany(...args),
       update: (...args: unknown[]) => messageUpdate(...args),
+      count: (...args: unknown[]) => messageCount(...args),
     },
     // The real Prisma `$transaction([...])` accepts an array of already
     // in-flight query promises and awaits them together. Since every model
@@ -80,6 +82,7 @@ const business: Business = {
   businessInfo: {},
   model: "gpt-4o-mini",
   maxHistoryMessages: 20,
+  dailyAiLimit: 1000,
   isActive: true,
   ownerId: null,
   aiCredentialId: null,
@@ -103,6 +106,7 @@ beforeEach(() => {
   messageCreate.mockResolvedValue({ id: "msg_out_1" });
   messageFindMany.mockResolvedValue([]);
   messageUpdate.mockResolvedValue({});
+  messageCount.mockResolvedValue(0);
   generateResponse.mockResolvedValue("Respuesta generada");
   sendBusinessMessage.mockResolvedValue("wamid.OUTBOUND_001");
 });

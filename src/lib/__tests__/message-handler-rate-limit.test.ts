@@ -5,13 +5,12 @@ import { textMessagePayload, TEST_PHONE_NUMBER_ID } from "./fixtures/webhook-pay
 const findFirstBusiness = vi.fn();
 const findFirstMessage = vi.fn();
 const conversationUpsert = vi.fn();
+const conversationUpdate = vi.fn();
 const messageCreate = vi.fn();
 const messageFindMany = vi.fn();
 const messageUpdate = vi.fn();
 const messageCount = vi.fn();
 const eventLogCreate = vi.fn();
-
-const conversationUpdate = vi.fn();
 
 vi.mock("../db", () => ({
   prisma: {
@@ -71,6 +70,12 @@ const business: Business = {
   createdAt: new Date(),
 };
 
+/** Distinguishes the two `message.count` call sites by their `where` shape. */
+function isCustomerRateLimitQuery(args: unknown[]): boolean {
+  const where = (args[0] as { where?: Record<string, unknown> })?.where;
+  return where?.sentBy === "customer";
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   findFirstBusiness.mockResolvedValue(business);
@@ -93,46 +98,87 @@ beforeEach(() => {
   sendBusinessMessage.mockResolvedValue(undefined);
 });
 
-describe("error observability", () => {
-  it("logs an EventLog row and sends a Spanish fallback when the AI call fails", async () => {
-    generateResponse.mockRejectedValue(new Error("OpenAI is down"));
+describe("per-conversation rate limiting", () => {
+  it("persists the message but skips AI generation once the 60s threshold is exceeded", async () => {
+    messageCount.mockImplementation((...args: unknown[]) =>
+      Promise.resolve(isCustomerRateLimitQuery(args) ? 11 : 0)
+    );
 
     await processWebhookPayload(textMessagePayload);
 
-    // User message is still persisted.
-    expect(messageCreate.mock.calls[0][0].data).toMatchObject({ role: "user" });
+    // Customer message is still persisted.
+    expect(messageCreate).toHaveBeenCalledTimes(1);
+    expect(messageCreate.mock.calls[0][0].data).toMatchObject({ sentBy: "customer" });
 
-    // Assistant message is the Spanish fallback, not silence.
+    // No AI call, no reply sent, and a warn logged.
+    expect(generateResponse).not.toHaveBeenCalled();
+    expect(sendBusinessMessage).not.toHaveBeenCalled();
+    expect(eventLogCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ level: "warn", source: "webhook" }),
+      })
+    );
+  });
+
+  it("calls the AI normally when under the threshold", async () => {
+    messageCount.mockImplementation((...args: unknown[]) =>
+      Promise.resolve(isCustomerRateLimitQuery(args) ? 3 : 0)
+    );
+
+    await processWebhookPayload(textMessagePayload);
+
+    expect(generateResponse).toHaveBeenCalledTimes(1);
+    expect(sendBusinessMessage).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("per-business daily AI budget", () => {
+  it("sends the fallback message instead of calling the AI once the daily budget is exhausted", async () => {
+    messageCount.mockImplementation((...args: unknown[]) =>
+      Promise.resolve(isCustomerRateLimitQuery(args) ? 0 : 1000)
+    );
+    findFirstMessage.mockImplementation((args: { where: Record<string, unknown> }) => {
+      // Dedup-by-wamid pre-check (keyed only by `wamid`) vs the
+      // already-notified-today lookup (keyed by content too).
+      if ("content" in args.where) return Promise.resolve(null);
+      return Promise.resolve(null);
+    });
+
+    await processWebhookPayload(textMessagePayload);
+
+    expect(generateResponse).not.toHaveBeenCalled();
     expect(messageCreate.mock.calls[1][0].data).toMatchObject({
       role: "assistant",
-      content: "Lo siento, tuve un problema técnico. Intenta de nuevo en un momento.",
+      content: "Estamos recibiendo muchos mensajes, en breve te responderemos.",
     });
     expect(sendBusinessMessage).toHaveBeenCalledWith(
       business,
       "5215512345678",
-      "Lo siento, tuve un problema técnico. Intenta de nuevo en un momento."
+      "Estamos recibiendo muchos mensajes, en breve te responderemos."
     );
-
-    expect(eventLogCreate).toHaveBeenCalledTimes(1);
-    expect(eventLogCreate.mock.calls[0][0].data).toMatchObject({
-      level: "error",
-      source: "ai",
-    });
+    expect(eventLogCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ level: "warn", source: "ai" }),
+      })
+    );
   });
 
-  it("logs an EventLog row when the WhatsApp send fails, without throwing", async () => {
-    sendBusinessMessage.mockRejectedValue(new Error("WhatsApp API timeout"));
-
-    await expect(processWebhookPayload(textMessagePayload)).resolves.toBeUndefined();
-
-    expect(eventLogCreate).toHaveBeenCalledTimes(1);
-    expect(eventLogCreate.mock.calls[0][0].data).toMatchObject({
-      level: "error",
-      source: "whatsapp-send",
+  it("stays silent (no reply) if the daily budget notice was already sent today", async () => {
+    messageCount.mockImplementation((...args: unknown[]) =>
+      Promise.resolve(isCustomerRateLimitQuery(args) ? 0 : 1000)
+    );
+    findFirstMessage.mockImplementation((args: { where: Record<string, unknown> }) => {
+      if ("content" in args.where) {
+        return Promise.resolve({ id: "msg_notice", wamid: null });
+      }
+      return Promise.resolve(null);
     });
-    expect(messageUpdate).toHaveBeenCalledWith({
-      where: { id: "msg_out_1" },
-      data: { status: "failed" },
-    });
+
+    await processWebhookPayload(textMessagePayload);
+
+    expect(generateResponse).not.toHaveBeenCalled();
+    expect(sendBusinessMessage).not.toHaveBeenCalled();
+    // Only the customer message is persisted — no assistant reply.
+    expect(messageCreate).toHaveBeenCalledTimes(1);
   });
 });

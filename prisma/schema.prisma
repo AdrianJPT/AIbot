@@ -29,6 +29,7 @@ model Business {
   businessInfo         Json
   model                String         @default("gpt-4o-mini")
   maxHistoryMessages   Int            @default(20)
+  dailyAiLimit         Int            @default(1000)
   isActive             Boolean        @default(true)
   ownerId              String?
   owner                User?          @relation(fields: [ownerId], references: [id])
