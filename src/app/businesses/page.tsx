@@ -1,8 +1,16 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
+import { getSessionUser } from "@/lib/auth";
 
 export default async function BusinessesPage() {
-  const list = await prisma.business.findMany({ orderBy: { name: "asc" } });
+  const user = await getSessionUser();
+  if (!user) redirect("/login");
+
+  const list = await prisma.business.findMany({
+    where: { ownerId: user.id },
+    orderBy: { name: "asc" },
+  });
 
   return (
     <div>

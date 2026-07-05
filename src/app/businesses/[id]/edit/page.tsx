@@ -1,15 +1,21 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { BusinessForm } from "@/components/business-form";
 import { prisma } from "@/lib/db";
+import { getSessionUser } from "@/lib/auth";
 
 export default async function EditBusinessPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
+  const user = await getSessionUser();
+  if (!user) redirect("/login");
+
   const { id } = await params;
-  const business = await prisma.business.findUnique({ where: { id } });
+  const business = await prisma.business.findFirst({
+    where: { id, ownerId: user.id },
+  });
   if (!business) notFound();
 
   return (

@@ -1,18 +1,24 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { AppointmentRowActions } from "@/components/appointment-row-actions";
 import { AppointmentTable } from "@/components/appointment-table";
 import { prisma } from "@/lib/db";
+import { getSessionUser } from "@/lib/auth";
 
 export default async function AppointmentsPage({
   searchParams,
 }: {
   searchParams: { businessId?: string; status?: string; date?: string };
 }) {
+  const user = await getSessionUser();
+  if (!user) redirect("/login");
+
   const { businessId, status, date } = searchParams;
 
   const [list, businesses] = await Promise.all([
     prisma.appointment.findMany({
       where: {
+        business: { ownerId: user.id },
         ...(businessId && { businessId }),
         ...(status && { status }),
         ...(date && { date }),
@@ -20,7 +26,11 @@ export default async function AppointmentsPage({
       orderBy: { createdAt: "desc" },
       include: { business: { select: { name: true } } },
     }),
-    prisma.business.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
+    prisma.business.findMany({
+      where: { ownerId: user.id },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true },
+    }),
   ]);
 
   return (

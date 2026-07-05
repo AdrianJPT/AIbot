@@ -6,7 +6,10 @@ export async function GET() {
   const user = await getSessionUser();
   if (!user) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
-  const list = await prisma.business.findMany({ orderBy: { name: "asc" } });
+  const list = await prisma.business.findMany({
+    where: { ownerId: user.id },
+    orderBy: { name: "asc" },
+  });
   return NextResponse.json(list);
 }
 
@@ -42,6 +45,7 @@ export async function POST(req: NextRequest) {
       model: model || "gpt-4o-mini",
       maxHistoryMessages: maxHistoryMessages ?? 20,
       isActive: isActive !== false,
+      ownerId: user.id,
     },
   });
   return NextResponse.json(b);

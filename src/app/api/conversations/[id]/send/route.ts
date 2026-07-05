@@ -17,8 +17,8 @@ export async function POST(
     return NextResponse.json({ error: "texto requerido" }, { status: 400 });
   }
 
-  const conv = await prisma.conversation.findUnique({
-    where: { id },
+  const conv = await prisma.conversation.findFirst({
+    where: { id, business: { ownerId: user.id } },
     include: { business: true },
   });
   if (!conv) {

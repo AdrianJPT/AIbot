@@ -13,8 +13,8 @@ export default defineConfig({
       provider: "v8",
     },
     env: {
-      DATABASE_URL: "postgresql://test:test@localhost:5432/test",
-      DIRECT_URL: "postgresql://test:test@localhost:5432/test",
+      DATABASE_URL: "postgresql://bot:testpass@localhost:55432/whatsapp_bot",
+      DIRECT_URL: "postgresql://bot:testpass@localhost:55432/whatsapp_bot",
       OPENAI_API_KEY: "sk-test-dummy",
       WEBHOOK_VERIFY_TOKEN: "test-verify-token",
       WHATSAPP_APP_SECRET: "test-app-secret",

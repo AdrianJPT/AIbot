@@ -10,7 +10,7 @@ export async function GET(
   if (!user) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
   const { id } = await params;
-  const b = await prisma.business.findUnique({ where: { id } });
+  const b = await prisma.business.findFirst({ where: { id, ownerId: user.id } });
   if (!b) return NextResponse.json({ error: "No encontrado" }, { status: 404 });
   return NextResponse.json(b);
 }
@@ -23,6 +23,9 @@ export async function PATCH(
   if (!user) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
   const { id } = await params;
+  const existing = await prisma.business.findFirst({ where: { id, ownerId: user.id } });
+  if (!existing) return NextResponse.json({ error: "No encontrado" }, { status: 404 });
+
   const body = await req.json();
   try {
     const b = await prisma.business.update({
@@ -55,6 +58,9 @@ export async function DELETE(
   if (!user) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
   const { id } = await params;
+  const existing = await prisma.business.findFirst({ where: { id, ownerId: user.id } });
+  if (!existing) return NextResponse.json({ error: "No encontrado" }, { status: 404 });
+
   try {
     await prisma.business.delete({ where: { id } });
     return NextResponse.json({ ok: true });

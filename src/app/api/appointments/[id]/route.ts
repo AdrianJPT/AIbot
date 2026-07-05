@@ -10,6 +10,11 @@ export async function PATCH(
   if (!user) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
   const { id } = await params;
+  const existing = await prisma.appointment.findFirst({
+    where: { id, business: { ownerId: user.id } },
+  });
+  if (!existing) return NextResponse.json({ error: "No encontrado" }, { status: 404 });
+
   const body = await req.json();
   try {
     const a = await prisma.appointment.update({
@@ -37,6 +42,11 @@ export async function DELETE(
   if (!user) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
   const { id } = await params;
+  const existing = await prisma.appointment.findFirst({
+    where: { id, business: { ownerId: user.id } },
+  });
+  if (!existing) return NextResponse.json({ error: "No encontrado" }, { status: 404 });
+
   try {
     await prisma.appointment.delete({ where: { id } });
     return NextResponse.json({ ok: true });

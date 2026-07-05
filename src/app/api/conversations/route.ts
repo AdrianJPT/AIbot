@@ -11,6 +11,7 @@ export async function GET(req: NextRequest) {
 
   const list = await prisma.conversation.findMany({
     where: {
+      business: { ownerId: user.id },
       ...(businessId && { businessId }),
       ...(status && { status }),
     },

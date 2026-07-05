@@ -10,8 +10,8 @@ export async function GET(
   if (!user) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
   const { id } = await params;
-  const c = await prisma.conversation.findUnique({
-    where: { id },
+  const c = await prisma.conversation.findFirst({
+    where: { id, business: { ownerId: user.id } },
     include: {
       business: true,
       messages: { orderBy: { createdAt: "asc" } },

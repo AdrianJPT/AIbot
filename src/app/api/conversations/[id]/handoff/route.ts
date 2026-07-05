@@ -15,6 +15,12 @@ export async function POST(
   if (!["active", "handed_off", "closed"].includes(status)) {
     return NextResponse.json({ error: "status inválido" }, { status: 400 });
   }
+
+  const existing = await prisma.conversation.findFirst({
+    where: { id, business: { ownerId: user.id } },
+  });
+  if (!existing) return NextResponse.json({ error: "No encontrado" }, { status: 404 });
+
   try {
     const c = await prisma.conversation.update({
       where: { id },

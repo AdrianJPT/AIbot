@@ -1,23 +1,33 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
+import { getSessionUser } from "@/lib/auth";
 
 export default async function ConversationsPage({
   searchParams,
 }: {
   searchParams: { businessId?: string; status?: string };
 }) {
+  const user = await getSessionUser();
+  if (!user) redirect("/login");
+
   const { businessId, status } = searchParams;
 
   const [list, businesses] = await Promise.all([
     prisma.conversation.findMany({
       where: {
+        business: { ownerId: user.id },
         ...(businessId && { businessId }),
         ...(status && { status }),
       },
       orderBy: { updatedAt: "desc" },
       include: { business: { select: { name: true } } },
     }),
-    prisma.business.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
+    prisma.business.findMany({
+      where: { ownerId: user.id },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true },
+    }),
   ]);
 
   const q = new URLSearchParams();

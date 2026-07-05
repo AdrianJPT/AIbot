@@ -1,16 +1,23 @@
+import { redirect } from "next/navigation";
 import { StatsCard } from "@/components/stats-card";
 import { prisma } from "@/lib/db";
+import { getSessionUser } from "@/lib/auth";
 
 export default async function DashboardPage() {
+  const user = await getSessionUser();
+  if (!user) redirect("/login");
+
   const startOfDay = new Date();
   startOfDay.setHours(0, 0, 0, 0);
 
   const [activeBusinesses, convToday, pendingAppointments] = await Promise.all([
-    prisma.business.count({ where: { isActive: true } }),
+    prisma.business.count({ where: { ownerId: user.id, isActive: true } }),
     prisma.conversation.count({
-      where: { createdAt: { gte: startOfDay } },
+      where: { business: { ownerId: user.id }, createdAt: { gte: startOfDay } },
     }),
-    prisma.appointment.count({ where: { status: "pending" } }),
+    prisma.appointment.count({
+      where: { business: { ownerId: user.id }, status: "pending" },
+    }),
   ]);
 
   return (

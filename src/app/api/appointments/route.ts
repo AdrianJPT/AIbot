@@ -12,6 +12,7 @@ export async function GET(req: NextRequest) {
 
   const list = await prisma.appointment.findMany({
     where: {
+      business: { ownerId: user.id },
       ...(businessId && { businessId }),
       ...(status && { status }),
       ...(date && { date }),
@@ -41,6 +42,13 @@ export async function POST(req: NextRequest) {
 
   if (!businessId || !customerPhone || !customerName || !service || !date || !time) {
     return NextResponse.json({ error: "Faltan campos requeridos" }, { status: 400 });
+  }
+
+  const business = await prisma.business.findFirst({
+    where: { id: businessId, ownerId: user.id },
+  });
+  if (!business) {
+    return NextResponse.json({ error: "No encontrado" }, { status: 404 });
   }
 
   const a = await prisma.appointment.create({

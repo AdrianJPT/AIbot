@@ -1,16 +1,20 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { ConversationView } from "@/components/conversation-view";
 import { prisma } from "@/lib/db";
+import { getSessionUser } from "@/lib/auth";
 
 export default async function ConversationDetailPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
+  const user = await getSessionUser();
+  if (!user) redirect("/login");
+
   const { id } = await params;
-  const c = await prisma.conversation.findUnique({
-    where: { id },
+  const c = await prisma.conversation.findFirst({
+    where: { id, business: { ownerId: user.id } },
     include: {
       business: { select: { name: true } },
       messages: { orderBy: { createdAt: "asc" } },
