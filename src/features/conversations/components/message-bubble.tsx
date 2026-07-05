@@ -1,4 +1,4 @@
-import { Clock, RotateCcw } from "lucide-react";
+import { AlertTriangle, Check, CheckCheck, Clock, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { MEDIA_ICON } from "@/features/conversations/lib/format";
 import type { ConversationMessage } from "@/features/conversations/types";
@@ -7,6 +7,40 @@ export type RenderableMessage = ConversationMessage & {
   pending?: boolean;
   failed?: boolean;
 };
+
+/**
+ * WhatsApp-style delivery ticks for outbound (bot/human) bubbles, driven by
+ * `Message.status`. Customer-originated messages never show ticks — WhatsApp
+ * only reports delivery/read receipts for messages the business sends out.
+ */
+function DeliveryTicks({ status }: { status: string }) {
+  if (status === "failed") {
+    return (
+      <span title="No se pudo entregar" aria-label="No se pudo entregar">
+        <AlertTriangle className="h-3 w-3 text-destructive" />
+      </span>
+    );
+  }
+  if (status === "read") {
+    return (
+      <span title="Leído" aria-label="Leído">
+        <CheckCheck className="h-3 w-3 text-sky-500" />
+      </span>
+    );
+  }
+  if (status === "delivered") {
+    return (
+      <span title="Entregado" aria-label="Entregado">
+        <CheckCheck className="h-3 w-3 text-muted-foreground" />
+      </span>
+    );
+  }
+  return (
+    <span title="Enviado" aria-label="Enviado">
+      <Check className="h-3 w-3 text-muted-foreground" />
+    </span>
+  );
+}
 
 export function MessageBubble({
   message,
@@ -57,7 +91,12 @@ export function MessageBubble({
               <RotateCcw className="h-3 w-3" /> Reintentar
             </button>
           ) : (
-            !message.pending && <span>{time}</span>
+            !message.pending && (
+              <>
+                <span>{time}</span>
+                {!isCustomer && <DeliveryTicks status={message.status} />}
+              </>
+            )
           )}
         </div>
       </div>

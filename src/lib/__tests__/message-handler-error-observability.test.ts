@@ -7,6 +7,7 @@ const findFirstMessage = vi.fn();
 const conversationUpsert = vi.fn();
 const messageCreate = vi.fn();
 const messageFindMany = vi.fn();
+const messageUpdate = vi.fn();
 const eventLogCreate = vi.fn();
 
 const conversationUpdate = vi.fn();
@@ -22,6 +23,7 @@ vi.mock("../db", () => ({
       create: (...args: unknown[]) => messageCreate(...args),
       findFirst: (...args: unknown[]) => findFirstMessage(...args),
       findMany: (...args: unknown[]) => messageFindMany(...args),
+      update: (...args: unknown[]) => messageUpdate(...args),
     },
     eventLog: { create: (...args: unknown[]) => eventLogCreate(...args) },
     $transaction: (ops: unknown[]) => Promise.all(ops),
@@ -79,8 +81,9 @@ beforeEach(() => {
     updatedAt: new Date(),
   });
   conversationUpdate.mockResolvedValue({});
-  messageCreate.mockResolvedValue({});
+  messageCreate.mockResolvedValue({ id: "msg_out_1" });
   messageFindMany.mockResolvedValue([]);
+  messageUpdate.mockResolvedValue({});
   eventLogCreate.mockResolvedValue({});
   generateResponse.mockResolvedValue("Respuesta generada");
   sendBusinessMessage.mockResolvedValue(undefined);
@@ -122,6 +125,10 @@ describe("error observability", () => {
     expect(eventLogCreate.mock.calls[0][0].data).toMatchObject({
       level: "error",
       source: "whatsapp-send",
+    });
+    expect(messageUpdate).toHaveBeenCalledWith({
+      where: { id: "msg_out_1" },
+      data: { status: "failed" },
     });
   });
 });

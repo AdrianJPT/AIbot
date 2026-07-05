@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { sendBusinessMessage } from "@/lib/whatsapp";
 import { getSessionUser } from "@/lib/auth";
+import { logEvent } from "@/lib/log";
 
 export async function POST(
   req: NextRequest,
@@ -25,7 +26,20 @@ export async function POST(
     return NextResponse.json({ error: "No encontrado" }, { status: 404 });
   }
 
-  await sendBusinessMessage(conv.business, conv.customerPhone, text.trim());
+  let wamid: string | undefined;
+  let sendFailed = false;
+  try {
+    wamid = await sendBusinessMessage(conv.business, conv.customerPhone, text.trim());
+  } catch (err) {
+    sendFailed = true;
+    await logEvent(
+      "error",
+      "whatsapp-send",
+      "sendMessage failed",
+      { error: err instanceof Error ? err.message : String(err), conversationId: conv.id },
+      conv.business.id
+    );
+  }
 
   const [msg] = await prisma.$transaction([
     prisma.message.create({
@@ -35,6 +49,8 @@ export async function POST(
         content: text.trim(),
         mediaType: "text",
         sentBy: "human",
+        wamid,
+        status: sendFailed ? "failed" : "sent",
       },
     }),
     prisma.conversation.update({

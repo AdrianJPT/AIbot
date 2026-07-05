@@ -17,6 +17,7 @@ const conversationUpsert = vi.fn();
 const conversationUpdate = vi.fn();
 const messageCreate = vi.fn();
 const messageFindMany = vi.fn();
+const messageUpdate = vi.fn();
 
 vi.mock("../db", () => ({
   prisma: {
@@ -29,6 +30,7 @@ vi.mock("../db", () => ({
       create: (...args: unknown[]) => messageCreate(...args),
       findFirst: (...args: unknown[]) => findFirstMessage(...args),
       findMany: (...args: unknown[]) => messageFindMany(...args),
+      update: (...args: unknown[]) => messageUpdate(...args),
     },
     // The real Prisma `$transaction([...])` accepts an array of already
     // in-flight query promises and awaits them together. Since every model
@@ -98,10 +100,11 @@ beforeEach(() => {
     updatedAt: new Date(),
   });
   conversationUpdate.mockResolvedValue({});
-  messageCreate.mockResolvedValue({});
+  messageCreate.mockResolvedValue({ id: "msg_out_1" });
   messageFindMany.mockResolvedValue([]);
+  messageUpdate.mockResolvedValue({});
   generateResponse.mockResolvedValue("Respuesta generada");
-  sendBusinessMessage.mockResolvedValue(undefined);
+  sendBusinessMessage.mockResolvedValue("wamid.OUTBOUND_001");
 });
 
 describe("processWebhookPayload", () => {
@@ -188,11 +191,37 @@ describe("processWebhookPayload", () => {
     );
   });
 
-  it("ignores delivery status update payloads (no messages[])", async () => {
+  it("handles delivery status update payloads: updates the matching Message by wamid, no new message/conversation created", async () => {
+    findFirstMessage.mockResolvedValue({ id: "msg_out_1", wamid: "wamid.TEXT_MESSAGE_ID_001" });
+
     await processWebhookPayload(statusUpdatePayload);
 
     expect(messageCreate).not.toHaveBeenCalled();
     expect(conversationUpsert).not.toHaveBeenCalled();
+    expect(findFirstMessage).toHaveBeenCalledWith({
+      where: { wamid: "wamid.TEXT_MESSAGE_ID_001" },
+    });
+    expect(messageUpdate).toHaveBeenCalledWith({
+      where: { id: "msg_out_1" },
+      data: { status: "delivered" },
+    });
+  });
+
+  it("does nothing when a status update references an unknown wamid", async () => {
+    findFirstMessage.mockResolvedValue(null);
+
+    await processWebhookPayload(statusUpdatePayload);
+
+    expect(messageUpdate).not.toHaveBeenCalled();
+  });
+
+  it("captures the outbound wamid returned by sendBusinessMessage on the bot reply", async () => {
+    await processWebhookPayload(textMessagePayload);
+
+    expect(messageUpdate).toHaveBeenCalledWith({
+      where: { id: "msg_out_1" },
+      data: { wamid: "wamid.OUTBOUND_001" },
+    });
   });
 
   it("bumps lastMessageAt, unreadCount and customerName on the customer message, and lastMessageAt again on the bot reply", async () => {

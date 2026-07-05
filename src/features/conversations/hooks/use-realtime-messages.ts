@@ -11,8 +11,10 @@ const POLL_INTERVAL_MS = 5000;
 /**
  * Keeps the chat UI live without manual refresh via Supabase Realtime.
  *
- * - Subscribes to `Message` INSERT events for the active conversation (when
- *   `conversationId` is provided) and invalidates its messages query.
+ * - Subscribes to `Message` INSERT and UPDATE events for the active
+ *   conversation (when `conversationId` is provided) and invalidates its
+ *   messages query — UPDATE covers delivery-status ticks (sent/delivered/
+ *   read/failed) changing live as WhatsApp posts status callbacks.
  * - Always subscribes to `Conversation` UPDATE events (list reordering /
  *   unread badges) and invalidates the conversations list query.
  * - Never trusts the raw realtime payload shape — every event just triggers
@@ -89,6 +91,16 @@ export function useRealtimeMessages(conversationId?: string): void {
           "postgres_changes",
           {
             event: "INSERT",
+            schema: "public",
+            table: "Message",
+            filter: `conversationId=eq.${conversationId}`,
+          },
+          invalidateMessages
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "UPDATE",
             schema: "public",
             table: "Message",
             filter: `conversationId=eq.${conversationId}`,

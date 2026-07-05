@@ -10,8 +10,8 @@ export async function sendMessage(
   token: string,
   to: string,
   text: string
-): Promise<void> {
-  await axios.post(
+): Promise<string | undefined> {
+  const res = await axios.post<{ messages?: Array<{ id?: string }> }>(
     `https://graph.facebook.com/${API_VERSION}/${phoneNumberId}/messages`,
     {
       messaging_product: "whatsapp",
@@ -26,6 +26,7 @@ export async function sendMessage(
       },
     }
   );
+  return res.data?.messages?.[0]?.id;
 }
 
 async function findActiveWhatsappCredential(
@@ -77,7 +78,7 @@ export async function sendBusinessMessage(
   business: Business,
   to: string,
   text: string
-): Promise<void> {
+): Promise<string | undefined> {
   const token = await resolveWhatsappToken(business);
-  await sendMessage(business.phoneNumberId, token, to, text);
+  return sendMessage(business.phoneNumberId, token, to, text);
 }

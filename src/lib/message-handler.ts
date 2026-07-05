@@ -32,6 +32,15 @@ type WaMessage = {
   };
 };
 
+type WaStatus = {
+  id: string; // wamid of the outbound message this status refers to
+  status: string; // "sent" | "delivered" | "read" | "failed"
+  errors?: Array<{ message?: string; title?: string; code?: number }>;
+};
+
+/** Statuses this app persists on Message.status; anything else is ignored. */
+const KNOWN_STATUSES = new Set(["sent", "delivered", "read", "failed"]);
+
 export async function processWebhookPayload(body: unknown): Promise<void> {
   const entry = (body as { entry?: unknown[] })?.entry?.[0] as
     | { changes?: unknown[] }
@@ -51,6 +60,13 @@ export async function processWebhookPayload(body: unknown): Promise<void> {
   });
   if (!business) return;
 
+  const statuses = value.statuses as WaStatus[] | undefined;
+  if (statuses?.length) {
+    for (const status of statuses) {
+      await handleStatusUpdate(business.id, status);
+    }
+  }
+
   const messages = value.messages as WaMessage[] | undefined;
   if (!messages?.length) return;
 
@@ -62,6 +78,38 @@ export async function processWebhookPayload(body: unknown): Promise<void> {
     const customerName = contacts?.find((c) => c.wa_id === message.from)?.profile
       ?.name;
     await handleOneMessage(business, message, customerName);
+  }
+}
+
+/**
+ * Applies a WhatsApp delivery status update (`sent`/`delivered`/`read`/`failed`)
+ * to the outbound Message row matching `wamid`. Unknown statuses (e.g.
+ * `deleted`) are ignored. `failed` statuses are logged with their error detail.
+ */
+async function handleStatusUpdate(
+  businessId: string,
+  status: WaStatus
+): Promise<void> {
+  if (!status?.id || !KNOWN_STATUSES.has(status.status)) return;
+
+  const message = await prisma.message.findFirst({
+    where: { wamid: status.id },
+  });
+  if (!message) return;
+
+  await prisma.message.update({
+    where: { id: message.id },
+    data: { status: status.status },
+  });
+
+  if (status.status === "failed") {
+    await logEvent(
+      "error",
+      "whatsapp-send",
+      "Message delivery failed",
+      { wamid: status.id, errors: status.errors, messageId: message.id },
+      businessId
+    );
   }
 }
 
@@ -128,7 +176,7 @@ async function handleOneMessage(
     }
   }
 
-  await prisma.$transaction([
+  const [outboundMessage] = await prisma.$transaction([
     prisma.message.create({
       data: {
         conversationId: conversation.id,
@@ -145,7 +193,13 @@ async function handleOneMessage(
   ]);
 
   try {
-    await sendBusinessMessage(business, from, reply);
+    const wamid = await sendBusinessMessage(business, from, reply);
+    if (wamid) {
+      await prisma.message.update({
+        where: { id: outboundMessage.id },
+        data: { wamid },
+      });
+    }
   } catch (err) {
     await logEvent(
       "error",
@@ -154,6 +208,10 @@ async function handleOneMessage(
       { error: describeError(err), conversationId: conversation.id },
       business.id
     );
+    await prisma.message.update({
+      where: { id: outboundMessage.id },
+      data: { status: "failed" },
+    });
   }
 }
 
