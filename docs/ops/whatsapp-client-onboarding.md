@@ -1,89 +1,126 @@
-# Onboarding de cliente a WhatsApp Cloud API
+# Onboarding de cliente a WhatsApp Cloud API (Modelo B)
 
-Objetivo: el WABA del cliente queda en **su propio** Business Manager (no en
-el tuyo) → no gasta tu cupo de 2 números.
+Modelo B: el WABA de cada cliente vive en **TU** Business Portfolio, con **TU**
+tarjeta y **TU** App. El cliente nunca toca Meta ni ve el billing. Un WABA por
+cliente; un WABA puede tener varios números del mismo negocio.
 
-Regla de oro: **Fase 3 se hace solo desde Business Manager. Nunca desde
-"Casos de Uso" de tu App** — mezclar los dos rompe el número.
+Regla de oro: los números se agregan SIEMPRE desde **WhatsApp Manager**
+(business.facebook.com/wa/manage). **Nunca desde "Casos de Uso" de la App** —
+ese wizard es solo para el primer número; mezclar flujos rompe el número.
 
----
+## Límites que te afectan
 
-## Antes de arrancar (avisale al cliente)
+| Estado de tu negocio en Meta | Números totales en tu portfolio |
+|---|---|
+| Sin verificar | 2 |
+| Verificado (Centro de seguridad → Verificación) | 20 |
 
-- [ ] Va a necesitar una cuenta de Facebook (no la va a usar de red social, solo de login)
-- [ ] Pierde el número en la app de WhatsApp Business del celular (no hay coexistencia)
-- [ ] Si le importa el historial: que lo exporte antes (WhatsApp → Ajustes → Chats → Historial → Exportar chat)
-
----
-
-## 🧑 CLIENTE — Fase 1: crear su cuenta
-
-1. Crear cuenta de Facebook (si no tiene) — facebook.com
-2. Ir a business.facebook.com → **Crear cuenta** → crear su Business Portfolio
-3. Copiar su **Business Portfolio ID**: Configuración del negocio → Información de la empresa
-4. Pasarte ese ID a vos
-
-## 🧑 CLIENTE — Fase 2: liberar el número
-
-1. Abrir WhatsApp Business App en el celular
-2. Ajustes → Cuenta → **Eliminar cuenta**
-3. Esperar unos minutos (Meta tarda en liberar el número)
-
-## 🧑 CLIENTE — Fase 3: registrar el WABA en SU Business Manager
-
-1. business.facebook.com, con **su** Portfolio seleccionado (arriba a la izquierda)
-2. Configuración del negocio → Cuentas → **Cuentas de WhatsApp** → Agregar
-3. Completar nombre, categoría, descripción del negocio
-4. Ingresar el número liberado → verificar por SMS/llamada
-5. Confirmar que el WABA quedó **verificado**
-
-## 🧑 CLIENTE — Fase 4: compartirte el WABA
-
-1. Pedirte tu Business Portfolio ID
-2. Ir al WABA recién creado → **Compartir** → **Compartir con un socio**
-3. Pegar TU Business Portfolio ID → permisos de administración completa
+- La calidad y los límites de mensajería se comparten a nivel portfolio: un
+  cliente con mala calidad afecta a todos. Monitoreá la calidad por número en
+  WhatsApp Manager; si un cliente arruina la calidad, pausalo (`isActive`
+  off en AIbot) mientras lo resolvés.
 
 ---
 
-## 👨‍💻 VOS — Fase 5: conectar el WABA a tu App
+## Una sola vez (ya lo tenés casi todo)
 
-1. Aceptar el WABA compartido en tu Business Manager
-2. developers.facebook.com → tu App → WhatsApp → **API Setup**
-3. Seleccionar el WABA del cliente entre las cuentas disponibles
-4. Confirmar que aparece su `phone_number_id`
-5. Generar token permanente:
-   - Configuración del negocio → Usuarios → **Usuarios del sistema** → tu System User (Admin)
-   - Añadir activos → asignarle el WABA del cliente → rol completo
-   - Generar token → marcar `whatsapp_business_messaging` + `whatsapp_business_management` → sin expiración
-6. Guardar el token
+- [ ] Business Portfolio propio (tenés: "Altoqueai")
+- [ ] App de Meta con producto WhatsApp (tenés: "Altoque-test")
+- [ ] System User admin + token permanente con `whatsapp_business_messaging`
+      y `whatsapp_business_management` (tenés: "Altoque AI portal")
+- [ ] Verificación del negocio completada (pendiente — banner en tu BM;
+      sin esto quedás limitado a 2 números)
+- [ ] App en modo Live con URL de política de privacidad
+- [ ] Webhook configurado a nivel App (URL + `WEBHOOK_VERIFY_TOKEN`)
 
-## 👨‍💻 VOS — Fase 6: alta en AIbot
+---
 
-1. `/settings/credentials` → Agregar credencial → kind `whatsapp` → pegar token → activar
-2. `/businesses/new` → cargar `phoneNumberId` del cliente, vincular la credential, completar prompt/info
-3. Confirmar `isActive: true`
+## 🧑 CLIENTE — lo único que hace (5 minutos)
 
-## 👨‍💻 VOS — Fase 7: confirmar webhook
+1. Si le importa el historial: exportarlo antes (WhatsApp → Ajustes → Chats →
+   Exportar chat)
+2. Liberar el número: WhatsApp Business App → Ajustes → Cuenta →
+   **Eliminar cuenta**. Esperar unos minutos.
+3. Quedarse al lado del teléfono: le va a llegar un **código por SMS/llamada**
+   que te tiene que pasar en el momento.
 
-1. developers.facebook.com → tu App → WhatsApp → Configuración → Webhook (URL + verify token ya están, son a nivel App)
-2. Confirmar que el WABA del cliente está suscripto al campo `messages`
+Avisale antes: pierde la app de WhatsApp Business del celular (no hay
+coexistencia); el número pasa a responder solo por tu plataforma.
 
-## 🧑‍🤝‍🧑 AMBOS — Fase 8: prueba real
+## 👨‍💻 VOS — por cada cliente nuevo
 
-1. Mandar un WhatsApp al número del cliente desde otro celular
-2. Confirmar que aparece en `/conversations` en tiempo real
-3. Responder y confirmar que llega
-4. Chequear `/settings/events` por si hay errores
+### 1. Crear el WABA del cliente
+
+1. business.facebook.com/wa/manage con TU portfolio seleccionado
+2. **Agregar cuenta de WhatsApp Business** → nombre del negocio del cliente,
+   categoría, zona horaria
+3. Un WABA por cliente — no mezcles números de clientes distintos en un WABA
+
+### 2. Agregar y verificar el número
+
+1. Dentro del WABA nuevo → **Agregar número de teléfono**
+2. **Nombre para mostrar**: el nombre comercial del cliente (Meta lo revisa,
+   24–48 h; debe coincidir razonablemente con el negocio)
+3. Ingresar el número liberado → elegir SMS o llamada → el código llega al
+   teléfono DEL CLIENTE → que te lo dicte → confirmar
+
+### 3. Cargar TU método de pago al WABA
+
+1. Configuración del negocio → Cuentas → **Cuentas de WhatsApp** → [WABA del
+   cliente] → **Configuración de pago**
+2. Cargar TU tarjeta. El billing de Meta te llega a vos; el cliente no ve nada.
+3. Facturale vos al cliente por tu lado (tarifa plana o consumo + margen).
+
+### 4. Darle acceso a tu System User
+
+1. Configuración del negocio → Usuarios → **Usuarios del sistema** →
+   "Altoque AI portal" → **Añadir activos**
+2. Asignar el WABA nuevo con control total
+3. **No hace falta regenerar el token**: el token existente cubre todos los
+   WABAs asignados al System User. El número se elige por llamada con el
+   `phone_number_id`.
+
+### 5. Suscribir tu App al WABA
+
+1. developers.facebook.com → tu App → WhatsApp → **API Setup**
+2. Seleccionar el WABA del cliente → confirmar que está suscripto al campo
+   `messages` del webhook
+3. Copiar el **`phone_number_id`** del número nuevo
+
+### 6. Alta en AIbot
+
+1. Si usás el mismo token para todo (Modelo B estándar): reutilizá la
+   credencial WhatsApp existente en `/settings/credentials`
+2. `/businesses/new` → `phoneNumberId` del paso 5, vincular la credencial,
+   prompt e info del negocio → `isActive: true`
+
+### 7. Prueba real
+
+1. Mandar un WhatsApp al número desde otro celular
+2. Ver que aparece en `/conversations` en tiempo real y que el bot responde
+3. Revisar `/settings/events` por errores
 
 ---
 
 ## No hacer
 
-- ❌ Dar de alta números de clientes desde "Casos de Uso" de tu App (crea el WABA en TU portfolio)
-- ❌ Crear Business Managers falsos bajo tu identidad para simular clientes distintos (riesgo de suspensión)
-- ❌ Migrar el número sin avisarle antes al cliente que pierde la app del celular
+- ❌ Agregar números desde "Casos de Uso" de la App (solo sirve para el primero)
+- ❌ Crear Business Managers falsos para saltar el límite de números (riesgo
+  de suspensión de TODO tu ecosistema)
+- ❌ Pedirle al cliente que cree su propio Business Manager (eso es el Modelo
+  A — descartado)
+- ❌ Migrar el número sin avisarle al cliente que pierde la app del celular
 
-## Si esto no alcanza
+## Cliente con varios números
 
-- Cliente se niega a tener Facebook → verificá tu propio negocio (cupo 2→20) y alojalo bajo tu portfolio
-- Muchos clientes, no querés hacerlo a mano → siguiente paso: Embedded Signup (requiere App Review + verificación de negocio), automatiza las Fases 1-4
+Mismo WABA del cliente → **Agregar número de teléfono** de nuevo (pasos 2, 5 y
+6; el pago y el System User ya quedaron configurados a nivel WABA). Cada
+número consume cupo del portfolio y necesita su propio `Business` en AIbot
+(un `phoneNumberId` por negocio).
+
+## Cuándo cambiar de modelo
+
+- Muchos clientes y no querés tocar Meta a mano → Embedded Signup (requiere
+  App Review + verificación); automatiza el alta desde tu propia UI.
+- Un cliente exige ser dueño de su WABA/billing → migrarlo a su propio BM
+  (Modelo A) y que te comparta el WABA como socio.

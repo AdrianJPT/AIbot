@@ -88,9 +88,9 @@ Phases 3 and 4 are parallelizable after Phase 2 lands.
 | Var | Introduced in | Purpose |
 |-----|--------------|---------|
 | `DATABASE_URL` / `DIRECT_URL` | existing | Pooled / direct Postgres |
-| `WHATSAPP_VERIFY_TOKEN` | existing | Webhook GET verification |
+| `WEBHOOK_VERIFY_TOKEN` | existing | Webhook GET verification |
 | `WHATSAPP_APP_SECRET` | Phase 1 | Webhook signature verification |
-| `OPENAI_API_KEY` | existing → **removed in Phase 3** | Legacy global key (fallback until credentials migrated) |
+| `OPENAI_API_KEY` | existing → **optional since Phase 3** | Legacy fallback only; AI keys are managed from `/settings/credentials` |
 | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Phase 2 | Supabase Auth + Realtime (client) |
 | `SUPABASE_SERVICE_ROLE_KEY` | Phase 2 | Server-side auth admin ops |
 | `APP_ENCRYPTION_KEY` | Phase 3 | 32-byte base64 master key for credential encryption |
