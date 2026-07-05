@@ -1,7 +1,15 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+
+type CredentialOption = {
+  id: string;
+  kind: string;
+  label: string;
+  provider: string;
+  status: string;
+};
 
 type Props = {
   business?: {
@@ -15,6 +23,8 @@ type Props = {
     model: string;
     maxHistoryMessages: number;
     isActive: boolean;
+    aiCredentialId?: string | null;
+    whatsappCredentialId?: string | null;
   };
 };
 
@@ -22,6 +32,16 @@ export function BusinessForm({ business }: Props) {
   const router = useRouter();
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [credentials, setCredentials] = useState<CredentialOption[]>([]);
+
+  useEffect(() => {
+    fetch("/api/credentials")
+      .then((r) => (r.ok ? r.json() : []))
+      .then((list: CredentialOption[]) =>
+        setCredentials(list.filter((c) => c.status !== "revoked"))
+      )
+      .catch(() => undefined);
+  }, []);
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -48,6 +68,8 @@ export function BusinessForm({ business }: Props) {
       model: (fd.get("model") as string) || "gpt-4o-mini",
       maxHistoryMessages: Number(fd.get("maxHistoryMessages")) || 20,
       isActive: fd.get("isActive") === "on",
+      aiCredentialId: (fd.get("aiCredentialId") as string) || null,
+      whatsappCredentialId: (fd.get("whatsappCredentialId") as string) || null,
     };
 
     try {
@@ -114,6 +136,47 @@ export function BusinessForm({ business }: Props) {
           defaultValue={business?.whatsappToken}
           className="w-full rounded border border-slate-700 bg-slate-900 px-3 py-2 text-white"
         />
+        <p className="mt-1 text-xs text-slate-500">
+          Se usa solo si no hay una credencial de WhatsApp asignada abajo.
+        </p>
+      </div>
+      <div>
+        <label className="mb-1 block text-sm text-slate-400">
+          Credencial de IA (opcional)
+        </label>
+        <select
+          name="aiCredentialId"
+          defaultValue={business?.aiCredentialId || ""}
+          className="w-full rounded border border-slate-700 bg-slate-900 px-3 py-2 text-white"
+        >
+          <option value="">Usar clave global por defecto</option>
+          {credentials
+            .filter((c) => c.kind === "ai")
+            .map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.label} ({c.provider}, {c.status})
+              </option>
+            ))}
+        </select>
+      </div>
+      <div>
+        <label className="mb-1 block text-sm text-slate-400">
+          Credencial de WhatsApp (opcional)
+        </label>
+        <select
+          name="whatsappCredentialId"
+          defaultValue={business?.whatsappCredentialId || ""}
+          className="w-full rounded border border-slate-700 bg-slate-900 px-3 py-2 text-white"
+        >
+          <option value="">Usar el token ingresado arriba</option>
+          {credentials
+            .filter((c) => c.kind === "whatsapp")
+            .map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.label} ({c.status})
+              </option>
+            ))}
+        </select>
       </div>
       <div>
         <label className="mb-1 block text-sm text-slate-400">Mensaje bienvenida (usa {"{businessName}"})</label>

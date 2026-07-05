@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { sendMessage } from "@/lib/whatsapp";
+import { sendBusinessMessage } from "@/lib/whatsapp";
 import { getSessionUser } from "@/lib/auth";
 
 export async function POST(
@@ -25,12 +25,7 @@ export async function POST(
     return NextResponse.json({ error: "No encontrado" }, { status: 404 });
   }
 
-  await sendMessage(
-    conv.business.phoneNumberId,
-    conv.business.whatsappToken,
-    conv.customerPhone,
-    text.trim()
-  );
+  await sendBusinessMessage(conv.business, conv.customerPhone, text.trim());
 
   const msg = await prisma.message.create({
     data: {

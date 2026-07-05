@@ -27,6 +27,19 @@ export async function PATCH(
   if (!existing) return NextResponse.json({ error: "No encontrado" }, { status: 404 });
 
   const body = await req.json();
+
+  if (body.aiCredentialId || body.whatsappCredentialId) {
+    const wanted = [body.aiCredentialId, body.whatsappCredentialId].filter(
+      (v): v is string => Boolean(v)
+    );
+    const count = await prisma.credential.count({
+      where: { id: { in: wanted }, ownerId: user.id },
+    });
+    if (count !== wanted.length) {
+      return NextResponse.json({ error: "Credencial inválida" }, { status: 400 });
+    }
+  }
+
   try {
     const b = await prisma.business.update({
       where: { id },
@@ -42,6 +55,10 @@ export async function PATCH(
           maxHistoryMessages: body.maxHistoryMessages,
         }),
         ...(body.isActive != null && { isActive: body.isActive }),
+        ...("aiCredentialId" in body && { aiCredentialId: body.aiCredentialId || null }),
+        ...("whatsappCredentialId" in body && {
+          whatsappCredentialId: body.whatsappCredentialId || null,
+        }),
       },
     });
     return NextResponse.json(b);

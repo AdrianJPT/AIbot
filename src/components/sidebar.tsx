@@ -5,6 +5,7 @@ const links = [
   { href: "/businesses", label: "Negocios" },
   { href: "/conversations", label: "Conversaciones" },
   { href: "/appointments", label: "Citas" },
+  { href: "/settings/credentials", label: "Credenciales" },
 ];
 
 export function Sidebar() {

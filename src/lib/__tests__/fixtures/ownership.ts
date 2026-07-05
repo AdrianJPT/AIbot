@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { prisma } from "@/lib/db";
-import type { Business, User } from "@prisma/client";
+import { encryptSecret } from "@/lib/crypto";
+import type { Business, Credential, User } from "@prisma/client";
 
 export async function createTestUser(prefix: string): Promise<User> {
   const id = randomUUID();
@@ -26,6 +27,32 @@ export async function createTestBusiness(
   });
 }
 
+export async function createTestCredential(
+  ownerId: string,
+  overrides: Partial<{
+    kind: string;
+    provider: string;
+    label: string;
+    key: string;
+    baseUrl: string | null;
+    status: string;
+  }> = {}
+): Promise<Credential> {
+  const key = overrides.key ?? `sk-test-${randomUUID()}`;
+  return prisma.credential.create({
+    data: {
+      ownerId,
+      kind: overrides.kind ?? "ai",
+      provider: overrides.provider ?? "openai",
+      label: overrides.label ?? "Test credential",
+      encryptedKey: encryptSecret(key),
+      keyLast4: key.slice(-4),
+      baseUrl: overrides.baseUrl ?? null,
+      status: overrides.status ?? "standby",
+    },
+  });
+}
+
 export async function createTestConversation(businessId: string, suffix: string) {
   return prisma.conversation.create({
     data: {
@@ -42,5 +69,6 @@ export async function createTestConversation(businessId: string, suffix: string)
  */
 export async function cleanupOwnershipFixtures(userIds: string[]): Promise<void> {
   await prisma.business.deleteMany({ where: { ownerId: { in: userIds } } });
+  await prisma.credential.deleteMany({ where: { ownerId: { in: userIds } } });
   await prisma.user.deleteMany({ where: { id: { in: userIds } } });
 }

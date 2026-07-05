@@ -14,9 +14,9 @@ vi.mock("@/lib/auth", () => ({
   getSessionUser: () => getSessionUser(),
 }));
 
-const sendMessage = vi.fn().mockResolvedValue(undefined);
+const sendBusinessMessage = vi.fn().mockResolvedValue(undefined);
 vi.mock("@/lib/whatsapp", () => ({
-  sendMessage: (...args: unknown[]) => sendMessage(...args),
+  sendBusinessMessage: (...args: unknown[]) => sendBusinessMessage(...args),
 }));
 
 function buildRequest(text = "hola"): NextRequest {
@@ -53,7 +53,7 @@ describe("POST /api/conversations/[id]/send", () => {
     });
 
     expect(res.status).toBe(401);
-    expect(sendMessage).not.toHaveBeenCalled();
+    expect(sendBusinessMessage).not.toHaveBeenCalled();
   });
 
   it("returns 404 when authenticated as a non-owner", async () => {
@@ -65,7 +65,7 @@ describe("POST /api/conversations/[id]/send", () => {
     });
 
     expect(res.status).toBe(404);
-    expect(sendMessage).not.toHaveBeenCalled();
+    expect(sendBusinessMessage).not.toHaveBeenCalled();
   });
 
   it("returns 200 and persists the message when authenticated as the owner", async () => {
@@ -78,7 +78,7 @@ describe("POST /api/conversations/[id]/send", () => {
     const msg = await res.json();
 
     expect(res.status).toBe(200);
-    expect(sendMessage).toHaveBeenCalled();
+    expect(sendBusinessMessage).toHaveBeenCalled();
     expect(msg.content).toBe("hola desde el owner");
 
     await prisma.message.delete({ where: { id: msg.id } });

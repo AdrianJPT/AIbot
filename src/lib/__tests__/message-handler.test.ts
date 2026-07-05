@@ -70,6 +70,9 @@ const business: Business = {
   model: "gpt-4o-mini",
   maxHistoryMessages: 20,
   isActive: true,
+  ownerId: null,
+  aiCredentialId: null,
+  whatsappCredentialId: null,
   createdAt: new Date(),
 };
 
