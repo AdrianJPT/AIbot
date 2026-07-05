@@ -1,11 +1,11 @@
 # Phase 2 — Auth & Multi-tenancy
 
 > Depends on: Phase 1. Blocks: Phases 3, 4, 5.
-> Goal: Google OAuth + email magic link via Supabase Auth; every business belongs to a user; every page and API route enforces ownership. The webhook remains public (protected by signature from Phase 1).
+> Goal: Google OAuth + email magic link + email/password via Supabase Auth, all offered together; every business belongs to a user; every page and API route enforces ownership. The webhook remains public (protected by signature from Phase 1).
 
 ## Decisions (locked)
 
-- **Supabase Auth** with `@supabase/ssr` (cookie-based sessions in Next.js App Router). Providers: Google OAuth + email magic link (OTP). No Apple in this phase.
+- **Supabase Auth** with `@supabase/ssr` (cookie-based sessions in Next.js App Router). Providers: Google OAuth + email magic link (OTP) + email/password — all three shown together on the login screen. No Apple in this phase.
 - **Ownership model**: `Business.ownerId → User.id`. Single owner per business for now; the schema leaves room for a future `Membership` table (do NOT build it now).
 - **App-level access control** (Prisma `where` scoping), not Postgres RLS for admin queries — Prisma connects with a privileged role anyway. RLS is configured ONLY for Supabase Realtime reads in Phase 5.
 

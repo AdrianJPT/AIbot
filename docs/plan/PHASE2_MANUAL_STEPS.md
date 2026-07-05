@@ -1,9 +1,10 @@
 # Phase 2 — Manual steps (Supabase dashboard + Google Cloud Console)
 
-The code in this phase assumes Supabase Auth is configured with Google OAuth
-and email magic link. None of this can be done from the agent's environment
-(no dashboard/API credentials available) — the product owner must do the
-following before auth works end-to-end.
+The code in this phase assumes Supabase Auth is configured with Google OAuth,
+email magic link, **and** email/password sign-in — all three are shown
+together on the login screen, not as alternatives. None of this can be done
+from the agent's environment (no dashboard/API credentials available) — the
+product owner must do the following before auth works end-to-end.
 
 ## 1. Google Cloud Console — OAuth client
 
@@ -20,9 +21,15 @@ following before auth works end-to-end.
 In your Supabase project → **Authentication → Providers**:
 
 1. **Google**: enable it, paste the Client ID / Client secret from step 1.
-2. **Email**: enable it with **magic link (OTP)** on. Disable password
-   sign-ups (Authentication → Providers → Email → toggle "Enable password
-   sign-ups" off) — this app only supports Google + magic link, no passwords.
+2. **Email**: enable it with **magic link (OTP)** on, and also keep
+   **"Enable password sign-ups"** on (Authentication → Providers → Email) —
+   the login screen offers Google, magic link, and email/password side by
+   side, so users can pick whichever they prefer.
+3. If your Supabase project requires email confirmation before granting a
+   session (Authentication → Providers → Email → "Confirm email"), the
+   password sign-up flow shows a "check your email to confirm" message and
+   waits for that click, same as the magic-link flow. You can turn "Confirm
+   email" off for faster local testing, but keep it on in production.
 
 In **Authentication → URL Configuration**:
 
@@ -79,7 +86,7 @@ confirmed every business in every environment has an owner.
 
 - [ ] Google OAuth client created, redirect URI set to Supabase's callback
 - [ ] Google provider enabled in Supabase with client id/secret
-- [ ] Email provider enabled, magic link on, password sign-ups off
+- [ ] Email provider enabled, magic link on, password sign-ups **on**
 - [ ] Site URL + redirect URLs configured (localhost + prod)
 - [ ] `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`,
       `SUPABASE_SERVICE_ROLE_KEY` set in local `.env` and Railway

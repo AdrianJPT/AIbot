@@ -8,7 +8,7 @@
 
 AIbot is a multi-business WhatsApp AI assistant (Next.js 16 App Router + Prisma 5 + Supabase Postgres + WhatsApp Cloud API, deployed on Railway). v2 turns the current unauthenticated CRUD panel into a production-grade product:
 
-1. **Auth + multi-tenancy** — Google OAuth + email magic link (Supabase Auth). Each user owns businesses and sees only their own data.
+1. **Auth + multi-tenancy** — Google OAuth + email magic link + email/password (Supabase Auth), all offered together on the login screen. Each user owns businesses and sees only their own data.
 2. **Zero-downtime provider/API-key management** — AI provider keys and WhatsApp tokens stored encrypted in DB, rotatable from the admin UI with no redeploy and no downtime.
 3. **WhatsApp-like realtime chat UI** — two-pane conversation interface with live message updates (no manual refresh) and human takeover (pause bot, reply manually).
 4. **Frontend restructure** — feature-based architecture, design system, fully responsive (mobile + desktop).
@@ -38,7 +38,7 @@ These were decided with the product owner on 2026-07-05. Do not re-litigate them
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
-| Auth provider | **Supabase Auth** (`@supabase/ssr`) with Google OAuth + email magic link | Already on Supabase; no extra service; magic link covers non-Google users |
+| Auth provider | **Supabase Auth** (`@supabase/ssr`) with Google OAuth + email magic link + email/password, all shown together | Already on Supabase; no extra service; covers users who don't want Google or don't want to wait for an email |
 | Tenancy model | **Multi-tenant**: `User` owns `Business`es via `ownerId`; every query scoped by owner | Prepares SaaS; single-team mode is just one user |
 | Chat mode | **Human takeover**: admin can pause bot per conversation and send manual replies | Already half-built (`handed_off` status) |
 | Realtime transport | **Supabase Realtime** (`postgres_changes` on `Message`/`Conversation`) | Messages are inserted server-side by the webhook; DB-level change feed reaches all clients with zero extra infra |
