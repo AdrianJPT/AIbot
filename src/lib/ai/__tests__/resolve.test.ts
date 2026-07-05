@@ -125,6 +125,16 @@ describe("getAiClient resolution order", () => {
     expect(credential).toBeNull();
     expect((client as unknown as FakeOpenAIInstance).apiKey).toBe("sk-legacy-env-key");
   });
+
+  it("throws a clear error when no credential exists and OPENAI_API_KEY is unset", async () => {
+    delete process.env.OPENAI_API_KEY;
+    credentialFindFirst.mockResolvedValue(null);
+    const business = makeBusiness({ aiCredentialId: null, ownerId: null });
+
+    await expect(getAiClient(business)).rejects.toThrow(
+      /No AI credential is configured/
+    );
+  });
 });
 
 describe("client caching", () => {

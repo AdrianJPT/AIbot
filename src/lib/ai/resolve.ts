@@ -38,8 +38,14 @@ function buildClientForCredential(credential: Credential): OpenAI {
 }
 
 function buildLegacyEnvClient(): OpenAI {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    throw new Error(
+      "No AI credential is configured for this business and the legacy OPENAI_API_KEY env var is not set. Add an AI credential in /settings/credentials."
+    );
+  }
   return getOrBuildClient("legacy-env", () => {
-    return new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    return new OpenAI({ apiKey });
   });
 }
 
