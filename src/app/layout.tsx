@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import { Sidebar } from "@/components/sidebar";
+import { ThemeProvider } from "@/components/theme-provider";
 
 export const dynamic = "force-dynamic";
 
@@ -9,18 +9,34 @@ export const metadata: Metadata = {
   description: "Panel de administración",
 };
 
+// Sets the `dark` class on <html> before React hydrates, based on a stored
+// preference or `prefers-color-scheme`. Runs synchronously and blocks
+// paint for a single instant so there is no flash of the wrong theme.
+const noFlashScript = `
+(function () {
+  try {
+    var stored = window.localStorage.getItem("theme");
+    var isDark =
+      stored === "dark" ||
+      (stored !== "light" &&
+        window.matchMedia("(prefers-color-scheme: dark)").matches);
+    document.documentElement.classList.toggle("dark", isDark);
+  } catch (e) {}
+})();
+`;
+
 export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="es">
+    <html lang="es" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: noFlashScript }} />
+      </head>
       <body className="min-h-screen">
-        <div className="flex min-h-screen">
-          <Sidebar />
-          <main className="flex-1 overflow-auto p-6">{children}</main>
-        </div>
+        <ThemeProvider>{children}</ThemeProvider>
       </body>
     </html>
   );
