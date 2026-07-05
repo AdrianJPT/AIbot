@@ -37,18 +37,6 @@ function buildClientForCredential(credential: Credential): OpenAI {
   });
 }
 
-function buildLegacyEnvClient(): OpenAI {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) {
-    throw new Error(
-      "No AI credential is configured for this business and the legacy OPENAI_API_KEY env var is not set. Add an AI credential in /settings/credentials."
-    );
-  }
-  return getOrBuildClient("legacy-env", () => {
-    return new OpenAI({ apiKey });
-  });
-}
-
 async function findActiveAiCredential(ownerId: string): Promise<Credential | null> {
   return prisma.credential.findFirst({
     where: { ownerId, kind: "ai", status: "active" },
@@ -76,8 +64,9 @@ export type ResolvedAiClient = {
 
 /**
  * Resolves the OpenAI-compatible client to use for a business's AI calls.
- * Resolution order: business.aiCredentialId -> owner's active AI credential
- * -> legacy process.env.OPENAI_API_KEY fallback.
+ * Resolution order: business.aiCredentialId -> owner's active AI credential.
+ * AI keys are managed exclusively in /settings/credentials — there is no
+ * environment-variable fallback.
  */
 export async function getAiClient(business: Business): Promise<ResolvedAiClient> {
   let credential: Credential | null = null;
@@ -93,7 +82,9 @@ export async function getAiClient(business: Business): Promise<ResolvedAiClient>
   }
 
   if (!credential) {
-    return { client: buildLegacyEnvClient(), credential: null };
+    throw new Error(
+      "No AI credential is configured for this business. Add one in /settings/credentials."
+    );
   }
 
   return { client: buildClientForCredential(credential), credential };

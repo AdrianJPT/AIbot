@@ -86,7 +86,6 @@ beforeEach(() => {
   vi.clearAllMocks();
   decryptSecret.mockImplementation((stored: string) => `decrypted:${stored}`);
   credentialUpdate.mockResolvedValue({});
-  process.env.OPENAI_API_KEY = "sk-legacy-env-key";
 });
 
 describe("getAiClient resolution order", () => {
@@ -116,18 +115,7 @@ describe("getAiClient resolution order", () => {
     expect(resolved?.id).toBe("cred_owner_active");
   });
 
-  it("falls back to legacy OPENAI_API_KEY when neither business nor owner has a credential", async () => {
-    credentialFindFirst.mockResolvedValue(null);
-    const business = makeBusiness({ aiCredentialId: null, ownerId: null });
-
-    const { client, credential } = await getAiClient(business);
-
-    expect(credential).toBeNull();
-    expect((client as unknown as FakeOpenAIInstance).apiKey).toBe("sk-legacy-env-key");
-  });
-
-  it("throws a clear error when no credential exists and OPENAI_API_KEY is unset", async () => {
-    delete process.env.OPENAI_API_KEY;
+  it("throws a clear error when neither business nor owner has a credential", async () => {
     credentialFindFirst.mockResolvedValue(null);
     const business = makeBusiness({ aiCredentialId: null, ownerId: null });
 
