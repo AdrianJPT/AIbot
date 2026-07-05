@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { sendBusinessMessage } from "@/lib/whatsapp";
 import { getSessionUser } from "@/lib/auth";
 import { logEvent } from "@/lib/log";
+import { conversationScope } from "@/lib/scope";
 
 export async function POST(
   req: NextRequest,
@@ -19,7 +20,7 @@ export async function POST(
   }
 
   const conv = await prisma.conversation.findFirst({
-    where: { id, business: { ownerId: user.id } },
+    where: { id, ...conversationScope(user) },
     include: { business: true },
   });
   if (!conv) {

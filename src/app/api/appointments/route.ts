@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
+import { appointmentScope, businessScope } from "@/lib/scope";
 
 export async function GET(req: NextRequest) {
   const user = await getSessionUser();
@@ -12,7 +13,7 @@ export async function GET(req: NextRequest) {
 
   const list = await prisma.appointment.findMany({
     where: {
-      business: { ownerId: user.id },
+      ...appointmentScope(user),
       ...(businessId && { businessId }),
       ...(status && { status }),
       ...(date && { date }),
@@ -45,7 +46,7 @@ export async function POST(req: NextRequest) {
   }
 
   const business = await prisma.business.findFirst({
-    where: { id: businessId, ownerId: user.id },
+    where: { id: businessId, ...businessScope(user) },
   });
   if (!business) {
     return NextResponse.json({ error: "No encontrado" }, { status: 404 });

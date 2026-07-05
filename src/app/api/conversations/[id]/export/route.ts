@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
+import { conversationScope } from "@/lib/scope";
 
 const SENDER_LABEL: Record<string, string> = {
   customer: "Cliente",
@@ -34,7 +35,7 @@ export async function GET(
 
   const { id } = await params;
   const conversation = await prisma.conversation.findFirst({
-    where: { id, business: { ownerId: user.id } },
+    where: { id, ...conversationScope(user) },
   });
   if (!conversation) {
     return NextResponse.json({ error: "No encontrado" }, { status: 404 });

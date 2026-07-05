@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
+import { conversationScope } from "@/lib/scope";
 
 /**
  * Marks a conversation as read by zeroing its `unreadCount`. Called when
@@ -16,7 +17,7 @@ export async function POST(
   const { id } = await params;
 
   const existing = await prisma.conversation.findFirst({
-    where: { id, business: { ownerId: user.id } },
+    where: { id, ...conversationScope(user) },
   });
   if (!existing) return NextResponse.json({ error: "No encontrado" }, { status: 404 });
 

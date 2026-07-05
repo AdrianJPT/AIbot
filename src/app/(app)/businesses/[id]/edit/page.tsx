@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { BusinessFormContainer } from "@/features/businesses/containers/business-form-container";
 import { prisma } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
+import { businessScope } from "@/lib/scope";
 
 export default async function EditBusinessPage({
   params,
@@ -14,7 +15,7 @@ export default async function EditBusinessPage({
 
   const { id } = await params;
   const business = await prisma.business.findFirst({
-    where: { id, ownerId: user.id },
+    where: { id, ...businessScope(user) },
   });
   if (!business) notFound();
 

@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { ConversationThreadContainer } from "@/features/conversations/containers/conversation-thread-container";
 import { prisma } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
+import { conversationScope } from "@/lib/scope";
 
 const MESSAGES_PAGE_SIZE = 50;
 
@@ -15,7 +16,7 @@ export default async function ConversationDetailPage({
 
   const { id } = await params;
   const conversation = await prisma.conversation.findFirst({
-    where: { id, business: { ownerId: user.id } },
+    where: { id, ...conversationScope(user) },
     include: { business: { select: { id: true, name: true } } },
   });
   if (!conversation) notFound();

@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
+import { businessScope } from "@/lib/scope";
 
 export async function GET() {
   const user = await getSessionUser();
   if (!user) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
   const list = await prisma.business.findMany({
-    where: { ownerId: user.id },
+    where: businessScope(user),
     orderBy: { name: "asc" },
   });
   return NextResponse.json(list);

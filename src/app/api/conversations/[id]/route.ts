@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
+import { conversationScope } from "@/lib/scope";
 
 export async function GET(
   _req: NextRequest,
@@ -11,7 +12,7 @@ export async function GET(
 
   const { id } = await params;
   const c = await prisma.conversation.findFirst({
-    where: { id, business: { ownerId: user.id } },
+    where: { id, ...conversationScope(user) },
     include: {
       business: true,
       messages: { orderBy: { createdAt: "asc" } },

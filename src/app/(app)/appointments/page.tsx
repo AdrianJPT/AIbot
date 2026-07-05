@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { AppointmentsTableContainer } from "@/features/appointments/containers/appointments-table-container";
 import { prisma } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
+import { appointmentScope, businessScope } from "@/lib/scope";
 
 export default async function AppointmentsPage({
   searchParams,
@@ -19,7 +20,7 @@ export default async function AppointmentsPage({
   const [list, businesses] = await Promise.all([
     prisma.appointment.findMany({
       where: {
-        business: { ownerId: user.id },
+        ...appointmentScope(user),
         ...(businessId && { businessId }),
         ...(status && { status }),
         ...(date && { date }),
@@ -28,7 +29,7 @@ export default async function AppointmentsPage({
       include: { business: { select: { name: true } } },
     }),
     prisma.business.findMany({
-      where: { ownerId: user.id },
+      where: businessScope(user),
       orderBy: { name: "asc" },
       select: { id: true, name: true },
     }),

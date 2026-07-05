@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
+import { conversationScope } from "@/lib/scope";
 
 export async function GET(req: NextRequest) {
   const user = await getSessionUser();
@@ -12,7 +13,7 @@ export async function GET(req: NextRequest) {
 
   const list = await prisma.conversation.findMany({
     where: {
-      business: { ownerId: user.id },
+      ...conversationScope(user),
       ...(businessId && { businessId }),
       ...(status && { status }),
       // `mode: "insensitive"` compiles to ILIKE on Postgres.

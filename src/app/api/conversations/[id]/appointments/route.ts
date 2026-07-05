@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
+import { conversationScope } from "@/lib/scope";
 
 /**
  * Read-only list of appointments linked to a conversation
@@ -17,7 +18,7 @@ export async function GET(
 
   const { id } = await params;
   const conversation = await prisma.conversation.findFirst({
-    where: { id, business: { ownerId: user.id } },
+    where: { id, ...conversationScope(user) },
   });
   if (!conversation) {
     return NextResponse.json({ error: "No encontrado" }, { status: 404 });
