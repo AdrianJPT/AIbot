@@ -9,22 +9,37 @@ export default async function DashboardPage() {
 
   const startOfDay = new Date();
   startOfDay.setHours(0, 0, 0, 0);
+  const last24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
-  const [activeBusinesses, convToday, pendingAppointments] = await Promise.all([
-    prisma.business.count({ where: { ownerId: user.id, isActive: true } }),
-    prisma.conversation.count({
-      where: { business: { ownerId: user.id }, createdAt: { gte: startOfDay } },
-    }),
-    prisma.appointment.count({
-      where: { business: { ownerId: user.id }, status: "pending" },
-    }),
-  ]);
+  const ownedBusinesses = await prisma.business.findMany({
+    where: { ownerId: user.id },
+    select: { id: true },
+  });
+  const businessIds = ownedBusinesses.map((b) => b.id);
+
+  const [activeBusinesses, convToday, pendingAppointments, errorsLast24h] =
+    await Promise.all([
+      prisma.business.count({ where: { ownerId: user.id, isActive: true } }),
+      prisma.conversation.count({
+        where: { business: { ownerId: user.id }, createdAt: { gte: startOfDay } },
+      }),
+      prisma.appointment.count({
+        where: { business: { ownerId: user.id }, status: "pending" },
+      }),
+      prisma.eventLog.count({
+        where: {
+          level: "error",
+          createdAt: { gte: last24h },
+          OR: [{ businessId: { in: businessIds } }, { businessId: null }],
+        },
+      }),
+    ]);
 
   return (
     <div>
       <h1 className="mb-6 text-2xl font-bold">Dashboard</h1>
       <DashboardStatsGrid
-        stats={{ activeBusinesses, convToday, pendingAppointments }}
+        stats={{ activeBusinesses, convToday, pendingAppointments, errorsLast24h }}
       />
     </div>
   );

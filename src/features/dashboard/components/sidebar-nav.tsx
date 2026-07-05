@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  AlertCircle,
   Building2,
   Calendar,
   KeyRound,
@@ -18,6 +19,7 @@ const links = [
   { href: "/businesses", label: "Negocios", icon: Building2 },
   { href: "/appointments", label: "Citas", icon: Calendar },
   { href: "/settings/credentials", label: "Configuración", icon: KeyRound },
+  { href: "/settings/events", label: "Eventos", icon: AlertCircle },
 ];
 
 function isActive(pathname: string, href: string) {

@@ -1,14 +1,17 @@
+import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export function StatCard({
   title,
   value,
+  href,
 }: {
   title: string;
   value: string | number;
+  href?: string;
 }) {
-  return (
-    <Card>
+  const card = (
+    <Card className={href ? "transition-colors hover:bg-accent/50" : undefined}>
       <CardHeader className="pb-2">
         <CardTitle className="text-sm font-normal text-muted-foreground">
           {title}
@@ -19,4 +22,6 @@ export function StatCard({
       </CardContent>
     </Card>
   );
+
+  return href ? <Link href={href}>{card}</Link> : card;
 }
