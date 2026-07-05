@@ -1,12 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { getSessionUser } from "@/lib/auth";
 
 export async function GET() {
+  const user = await getSessionUser();
+  if (!user) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+
   const list = await prisma.business.findMany({ orderBy: { name: "asc" } });
   return NextResponse.json(list);
 }
 
 export async function POST(req: NextRequest) {
+  const user = await getSessionUser();
+  if (!user) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+
   const body = await req.json();
   const {
     name,

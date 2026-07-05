@@ -9,6 +9,15 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
+model User {
+  id         String     @id // Supabase auth.users.id (uuid)
+  email      String     @unique
+  name       String?
+  avatarUrl  String?
+  businesses Business[]
+  createdAt  DateTime   @default(now())
+}
+
 model Business {
   id                 String         @id @default(cuid())
   name               String
@@ -20,9 +29,13 @@ model Business {
   model              String         @default("gpt-4o-mini")
   maxHistoryMessages Int            @default(20)
   isActive           Boolean        @default(true)
+  ownerId            String?
+  owner              User?          @relation(fields: [ownerId], references: [id])
   conversations      Conversation[]
   appointments       Appointment[]
   createdAt          DateTime       @default(now())
+
+  @@index([ownerId])
 }
 
 model Conversation {

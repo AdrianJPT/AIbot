@@ -11,7 +11,7 @@ export function Sidebar() {
   return (
     <aside className="flex w-52 flex-col border-r border-slate-800 bg-slate-900/80 p-4">
       <div className="mb-8 text-lg font-semibold text-emerald-400">WhatsApp AI</div>
-      <nav className="flex flex-col gap-1">
+      <nav className="flex flex-1 flex-col gap-1">
         {links.map((l) => (
           <Link
             key={l.href}
@@ -22,6 +22,14 @@ export function Sidebar() {
           </Link>
         ))}
       </nav>
+      <form action="/auth/logout" method="post">
+        <button
+          type="submit"
+          className="w-full rounded px-3 py-2 text-left text-slate-400 hover:bg-slate-800 hover:text-white"
+        >
+          Cerrar sesión
+        </button>
+      </form>
     </aside>
   );
 }

@@ -1,0 +1,48 @@
+import { prisma } from "@/lib/db";
+import { createClient } from "@/lib/supabase/server";
+import type { User } from "@prisma/client";
+
+/**
+ * Reads the Supabase session for the current request and upserts the
+ * corresponding `User` row on first sight. This is the ONLY entry point
+ * routes/pages should use to determine the current user — do not read the
+ * Supabase session directly elsewhere, and do not cache the result across
+ * requests.
+ *
+ * Returns `null` when there is no authenticated session.
+ */
+export async function getSessionUser(): Promise<User | null> {
+  const supabase = await createClient();
+  const {
+    data: { user: authUser },
+  } = await supabase.auth.getUser();
+
+  if (!authUser || !authUser.email) return null;
+
+  const metadata = authUser.user_metadata ?? {};
+  const name =
+    (metadata.full_name as string | undefined) ??
+    (metadata.name as string | undefined) ??
+    null;
+  const avatarUrl =
+    (metadata.avatar_url as string | undefined) ??
+    (metadata.picture as string | undefined) ??
+    null;
+
+  const user = await prisma.user.upsert({
+    where: { id: authUser.id },
+    create: {
+      id: authUser.id,
+      email: authUser.email,
+      name,
+      avatarUrl,
+    },
+    update: {
+      email: authUser.email,
+      ...(name != null && { name }),
+      ...(avatarUrl != null && { avatarUrl }),
+    },
+  });
+
+  return user;
+}

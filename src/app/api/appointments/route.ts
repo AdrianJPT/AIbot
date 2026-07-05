@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { getSessionUser } from "@/lib/auth";
 
 export async function GET(req: NextRequest) {
+  const user = await getSessionUser();
+  if (!user) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+
   const businessId = req.nextUrl.searchParams.get("businessId");
   const status = req.nextUrl.searchParams.get("status");
   const date = req.nextUrl.searchParams.get("date");
@@ -19,6 +23,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const user = await getSessionUser();
+  if (!user) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+
   const body = await req.json();
   const {
     businessId,
