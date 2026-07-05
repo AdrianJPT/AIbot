@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import type { Business, User } from "@prisma/client";
 import { prisma } from "@/lib/db";
+import { isAdmin } from "@/lib/scope";
 import {
   cleanupOwnershipFixtures,
   createTestBusiness,
@@ -11,31 +12,41 @@ import {
 const getSessionUser = vi.fn();
 vi.mock("@/lib/auth", () => ({
   getSessionUser: () => getSessionUser(),
+  requireAdmin: async () => {
+    const user = await getSessionUser();
+    return user && isAdmin(user) ? user : null;
+  },
 }));
 
 function buildRequest(query = ""): NextRequest {
   return new NextRequest(`https://example.com/api/events${query}`);
 }
 
+// /api/events is admin-only: the product owner needs to see errors across
+// every client, so a "client" caller is turned away with a 404 (not
+// 401/403), and an admin caller sees every event regardless of which
+// business it's attached to.
 describe("GET /api/events", () => {
-  let owner: User;
+  let admin: User;
+  let client: User;
   let other: User;
-  let ownerBusiness: Business;
+  let clientBusiness: Business;
   let otherBusiness: Business;
   const eventIds: string[] = [];
 
   beforeAll(async () => {
-    owner = await createTestUser("events-owner");
+    admin = await createTestUser("events-admin", "admin");
+    client = await createTestUser("events-client");
     other = await createTestUser("events-other");
-    ownerBusiness = await createTestBusiness(owner.id, "events-owner-biz");
+    clientBusiness = await createTestBusiness(client.id, "events-client-biz");
     otherBusiness = await createTestBusiness(other.id, "events-other-biz");
 
-    const ownEvent = await prisma.eventLog.create({
+    const clientEvent = await prisma.eventLog.create({
       data: {
         level: "error",
         source: "ai",
-        message: "owner's event",
-        businessId: ownerBusiness.id,
+        message: "client's event",
+        businessId: clientBusiness.id,
       },
     });
     const otherEvent = await prisma.eventLog.create({
@@ -54,37 +65,45 @@ describe("GET /api/events", () => {
         businessId: null,
       },
     });
-    eventIds.push(ownEvent.id, otherEvent.id, globalEvent.id);
+    eventIds.push(clientEvent.id, otherEvent.id, globalEvent.id);
   });
 
   afterAll(async () => {
     await prisma.eventLog.deleteMany({ where: { id: { in: eventIds } } });
-    await cleanupOwnershipFixtures([owner.id, other.id]);
+    await cleanupOwnershipFixtures([admin.id, client.id, other.id]);
   });
 
-  it("returns 401 when unauthenticated", async () => {
+  it("returns 404 when unauthenticated", async () => {
     getSessionUser.mockResolvedValueOnce(null);
     const { GET } = await import("../route");
 
     const res = await GET(buildRequest());
-    expect(res.status).toBe(401);
+    expect(res.status).toBe(404);
   });
 
-  it("scopes results to the caller's businesses plus global (null businessId) events", async () => {
-    getSessionUser.mockResolvedValueOnce(owner);
+  it("returns 404 for a non-admin caller", async () => {
+    getSessionUser.mockResolvedValueOnce(client);
+    const { GET } = await import("../route");
+
+    const res = await GET(buildRequest());
+    expect(res.status).toBe(404);
+  });
+
+  it("returns every event, across every business, for an admin caller", async () => {
+    getSessionUser.mockResolvedValueOnce(admin);
     const { GET } = await import("../route");
 
     const res = await GET(buildRequest());
     const body = await res.json();
 
     const messages = body.events.map((e: { message: string }) => e.message);
-    expect(messages).toContain("owner's event");
+    expect(messages).toContain("client's event");
+    expect(messages).toContain("other's event");
     expect(messages).toContain("global startup warning");
-    expect(messages).not.toContain("other's event");
   });
 
   it("filters by level and source", async () => {
-    getSessionUser.mockResolvedValueOnce(owner);
+    getSessionUser.mockResolvedValueOnce(admin);
     const { GET } = await import("../route");
 
     const res = await GET(buildRequest("?level=warn&source=webhook"));
@@ -92,6 +111,6 @@ describe("GET /api/events", () => {
 
     const messages = body.events.map((e: { message: string }) => e.message);
     expect(messages).toContain("global startup warning");
-    expect(messages).not.toContain("owner's event");
+    expect(messages).not.toContain("client's event");
   });
 });

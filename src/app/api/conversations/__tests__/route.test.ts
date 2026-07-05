@@ -19,11 +19,16 @@ function buildRequest(qs = ""): NextRequest {
 
 describe("GET /api/conversations", () => {
   let owner: User;
+  let other: User;
+  let admin: User;
   let business: Business;
 
   beforeAll(async () => {
     owner = await createTestUser("search-owner");
+    other = await createTestUser("search-other");
+    admin = await createTestUser("search-admin", "admin");
     business = await createTestBusiness(owner.id, "conv-search");
+    const otherBusiness = await createTestBusiness(other.id, "conv-search-other");
     await prisma.conversation.create({
       data: {
         businessId: business.id,
@@ -38,10 +43,17 @@ describe("GET /api/conversations", () => {
         customerName: "Luis Pérez",
       },
     });
+    await prisma.conversation.create({
+      data: {
+        businessId: otherBusiness.id,
+        customerPhone: "+5215511112222",
+        customerName: "Otro cliente",
+      },
+    });
   });
 
   afterAll(async () => {
-    await cleanupOwnershipFixtures([owner.id]);
+    await cleanupOwnershipFixtures([owner.id, other.id, admin.id]);
   });
 
   it("returns 401 when unauthenticated", async () => {
@@ -82,5 +94,17 @@ describe("GET /api/conversations", () => {
     const body = await res.json();
 
     expect(body).toHaveLength(2);
+  });
+
+  it("returns conversations across every owner for an admin caller", async () => {
+    getSessionUser.mockResolvedValueOnce(admin);
+    const { GET } = await import("../route");
+
+    const res = await GET(buildRequest());
+    const body = await res.json();
+
+    const names = body.map((c: { customerName: string | null }) => c.customerName);
+    expect(names).toContain("Ana García");
+    expect(names).toContain("Otro cliente");
   });
 });

@@ -24,16 +24,18 @@ function buildRequest(body: unknown): NextRequest {
 describe("GET/POST /api/businesses", () => {
   let owner: User;
   let other: User;
+  let admin: User;
 
   beforeAll(async () => {
     owner = await createTestUser("owner");
     other = await createTestUser("other");
+    admin = await createTestUser("businesses-admin", "admin");
     await createTestBusiness(owner.id, "owned-by-owner");
     await createTestBusiness(other.id, "owned-by-other");
   });
 
   afterAll(async () => {
-    await cleanupOwnershipFixtures([owner.id, other.id]);
+    await cleanupOwnershipFixtures([owner.id, other.id, admin.id]);
   });
 
   it("GET returns 401 when unauthenticated", async () => {
@@ -55,6 +57,18 @@ describe("GET/POST /api/businesses", () => {
     expect(res.status).toBe(200);
     expect(list.every((b: { ownerId: string }) => b.ownerId === owner.id)).toBe(true);
     expect(list.some((b: { ownerId: string }) => b.ownerId === other.id)).toBe(false);
+  });
+
+  it("GET returns businesses from every owner for an admin caller", async () => {
+    getSessionUser.mockResolvedValueOnce(admin);
+    const { GET } = await import("../route");
+
+    const res = await GET();
+    const list = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(list.some((b: { ownerId: string }) => b.ownerId === owner.id)).toBe(true);
+    expect(list.some((b: { ownerId: string }) => b.ownerId === other.id)).toBe(true);
   });
 
   it("POST returns 401 when unauthenticated", async () => {

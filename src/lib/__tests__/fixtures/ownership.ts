@@ -3,10 +3,13 @@ import { prisma } from "@/lib/db";
 import { encryptSecret } from "@/lib/crypto";
 import type { Business, Credential, User } from "@prisma/client";
 
-export async function createTestUser(prefix: string): Promise<User> {
+export async function createTestUser(
+  prefix: string,
+  role: "admin" | "client" = "client"
+): Promise<User> {
   const id = randomUUID();
   return prisma.user.create({
-    data: { id, email: `${prefix}-${id}@test.local` },
+    data: { id, email: `${prefix}-${id}@test.local`, role },
   });
 }
 

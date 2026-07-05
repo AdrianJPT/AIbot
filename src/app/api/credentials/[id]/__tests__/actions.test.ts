@@ -2,6 +2,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest
 import { NextRequest } from "next/server";
 import type { User } from "@prisma/client";
 import { prisma } from "@/lib/db";
+import { isAdmin } from "@/lib/scope";
 import {
   cleanupOwnershipFixtures,
   createTestBusiness,
@@ -12,6 +13,10 @@ import {
 const getSessionUser = vi.fn();
 vi.mock("@/lib/auth", () => ({
   getSessionUser: () => getSessionUser(),
+  requireAdmin: async () => {
+    const user = await getSessionUser();
+    return user && isAdmin(user) ? user : null;
+  },
 }));
 
 const testAiCredential = vi.fn();
@@ -33,17 +38,21 @@ function ctx(id: string) {
   return { params: Promise.resolve({ id }) };
 }
 
+// These routes live under /api/credentials/** which is admin-only — `admin`
+// is the caller for every action, `owner` is just whoever the fixture
+// Credential rows happen to be assigned to (ownerId is bookkeeping, not a
+// visibility scope, once the route requires admin).
 describe("/api/credentials/[id] actions", () => {
+  let admin: User;
   let owner: User;
-  let other: User;
 
   beforeAll(async () => {
+    admin = await createTestUser("cred-actions-admin", "admin");
     owner = await createTestUser("cred-actions-owner");
-    other = await createTestUser("cred-actions-other");
   });
 
   afterAll(async () => {
-    await cleanupOwnershipFixtures([owner.id, other.id]);
+    await cleanupOwnershipFixtures([admin.id, owner.id]);
   });
 
   afterEach(() => {
@@ -51,18 +60,18 @@ describe("/api/credentials/[id] actions", () => {
   });
 
   describe("POST /test", () => {
-    it("returns 401 when unauthenticated", async () => {
+    it("returns 404 when unauthenticated", async () => {
       getSessionUser.mockResolvedValueOnce(null);
       const { POST } = await import("../test/route");
       const cred = await createTestCredential(owner.id);
 
       const res = await POST(buildRequest("https://example.com", {}), ctx(cred.id));
 
-      expect(res.status).toBe(401);
+      expect(res.status).toBe(404);
     });
 
-    it("returns 404 for another owner's credential", async () => {
-      getSessionUser.mockResolvedValueOnce(other);
+    it("returns 404 for a non-admin caller", async () => {
+      getSessionUser.mockResolvedValueOnce(owner);
       const { POST } = await import("../test/route");
       const cred = await createTestCredential(owner.id);
 
@@ -72,7 +81,7 @@ describe("/api/credentials/[id] actions", () => {
     });
 
     it("calls testAiCredential and persists success", async () => {
-      getSessionUser.mockResolvedValueOnce(owner);
+      getSessionUser.mockResolvedValueOnce(admin);
       testAiCredential.mockResolvedValueOnce({ ok: true });
       const { POST } = await import("../test/route");
       const cred = await createTestCredential(owner.id, { kind: "ai" });
@@ -90,7 +99,7 @@ describe("/api/credentials/[id] actions", () => {
     });
 
     it("persists lastError on failure", async () => {
-      getSessionUser.mockResolvedValueOnce(owner);
+      getSessionUser.mockResolvedValueOnce(admin);
       testAiCredential.mockResolvedValueOnce({ ok: false, error: "invalid key" });
       const { POST } = await import("../test/route");
       const cred = await createTestCredential(owner.id, { kind: "ai" });
@@ -106,7 +115,7 @@ describe("/api/credentials/[id] actions", () => {
     });
 
     it("passes phoneNumberId through for whatsapp credentials", async () => {
-      getSessionUser.mockResolvedValueOnce(owner);
+      getSessionUser.mockResolvedValueOnce(admin);
       testWhatsappCredential.mockResolvedValueOnce({ ok: true });
       const { POST } = await import("../test/route");
       const cred = await createTestCredential(owner.id, { kind: "whatsapp" });
@@ -125,7 +134,7 @@ describe("/api/credentials/[id] actions", () => {
 
   describe("POST /activate", () => {
     it("sets exactly one active credential per owner+kind", async () => {
-      getSessionUser.mockResolvedValueOnce(owner);
+      getSessionUser.mockResolvedValueOnce(admin);
       const { POST } = await import("../activate/route");
 
       const active = await createTestCredential(owner.id, {
@@ -152,7 +161,7 @@ describe("/api/credentials/[id] actions", () => {
     });
 
     it("rejects activating a revoked credential", async () => {
-      getSessionUser.mockResolvedValueOnce(owner);
+      getSessionUser.mockResolvedValueOnce(admin);
       const { POST } = await import("../activate/route");
       const revoked = await createTestCredential(owner.id, { status: "revoked" });
 
@@ -160,11 +169,21 @@ describe("/api/credentials/[id] actions", () => {
 
       expect(res.status).toBe(400);
     });
+
+    it("returns 404 for a non-admin caller", async () => {
+      getSessionUser.mockResolvedValueOnce(owner);
+      const { POST } = await import("../activate/route");
+      const cred = await createTestCredential(owner.id, { status: "standby" });
+
+      const res = await POST(buildRequest("https://example.com"), ctx(cred.id));
+
+      expect(res.status).toBe(404);
+    });
   });
 
   describe("POST /revoke", () => {
     it("revokes an unreferenced credential", async () => {
-      getSessionUser.mockResolvedValueOnce(owner);
+      getSessionUser.mockResolvedValueOnce(admin);
       const { POST } = await import("../revoke/route");
       const cred = await createTestCredential(owner.id);
 
@@ -176,7 +195,7 @@ describe("/api/credentials/[id] actions", () => {
     });
 
     it("returns 409 when referenced by a business", async () => {
-      getSessionUser.mockResolvedValueOnce(owner);
+      getSessionUser.mockResolvedValueOnce(admin);
       const { POST } = await import("../revoke/route");
       const cred = await createTestCredential(owner.id, { kind: "ai" });
       const business = await createTestBusiness(owner.id, "revoke-ref");
@@ -200,7 +219,7 @@ describe("/api/credentials/[id] actions", () => {
 
   describe("DELETE /", () => {
     it("refuses to delete a non-revoked credential", async () => {
-      getSessionUser.mockResolvedValueOnce(owner);
+      getSessionUser.mockResolvedValueOnce(admin);
       const { DELETE } = await import("../route");
       const cred = await createTestCredential(owner.id, { status: "standby" });
 
@@ -210,7 +229,7 @@ describe("/api/credentials/[id] actions", () => {
     });
 
     it("deletes a revoked, unreferenced credential", async () => {
-      getSessionUser.mockResolvedValueOnce(owner);
+      getSessionUser.mockResolvedValueOnce(admin);
       const { DELETE } = await import("../route");
       const cred = await createTestCredential(owner.id, { status: "revoked" });
 
@@ -219,6 +238,16 @@ describe("/api/credentials/[id] actions", () => {
 
       const row = await prisma.credential.findUnique({ where: { id: cred.id } });
       expect(row).toBeNull();
+    });
+
+    it("returns 404 for a non-admin caller", async () => {
+      getSessionUser.mockResolvedValueOnce(owner);
+      const { DELETE } = await import("../route");
+      const cred = await createTestCredential(owner.id, { status: "revoked" });
+
+      const res = await DELETE(buildRequest("https://example.com"), ctx(cred.id));
+
+      expect(res.status).toBe(404);
     });
   });
 });
