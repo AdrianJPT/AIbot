@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { createClient } from "@/lib/supabase/server";
+import { isAdmin } from "@/lib/scope";
 import type { User } from "@prisma/client";
 
 /**
@@ -44,5 +45,17 @@ export async function getSessionUser(): Promise<User | null> {
     },
   });
 
+  return user;
+}
+
+/**
+ * Like `getSessionUser`, but also requires the "admin" role. Returns `null`
+ * both when there is no session and when the caller isn't an admin, so
+ * callers can respond uniformly (redirect for pages, 404 JSON for API
+ * routes) without leaking whether a non-admin is even authenticated.
+ */
+export async function requireAdmin(): Promise<User | null> {
+  const user = await getSessionUser();
+  if (!user || !isAdmin(user)) return null;
   return user;
 }
