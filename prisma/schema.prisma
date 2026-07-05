@@ -66,3 +66,16 @@ model Appointment {
   notes          String?
   createdAt      DateTime      @default(now())
 }
+
+model EventLog {
+  id         String   @id @default(cuid())
+  level      String // "error" | "warn" | "info"
+  source     String // "webhook" | "ai" | "whatsapp-send" | "auth" | "credentials"
+  message    String
+  detail     Json?
+  businessId String?
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([source, createdAt])
+}

@@ -9,6 +9,10 @@ import {
   transcribeAudioBuffer,
 } from "./media";
 import { sendMessage } from "./whatsapp";
+import { logEvent } from "./log";
+
+const FALLBACK_REPLY =
+  "Lo siento, tuve un problema técnico. Intenta de nuevo en un momento.";
 
 type WaMessage = {
   from: string;
@@ -115,13 +119,24 @@ async function handleOneMessage(
     reply =
       "Por ahora no puedo leer archivos o documentos. ¿Puedes escribir tu consulta en un mensaje de texto?";
   } else {
-    const systemPrompt = buildSystemPrompt(business);
-    reply = await generateResponse(
-      systemPrompt,
-      history,
-      parsed.content,
-      business.model
-    );
+    try {
+      const systemPrompt = buildSystemPrompt(business);
+      reply = await generateResponse(
+        systemPrompt,
+        history,
+        parsed.content,
+        business.model
+      );
+    } catch (err) {
+      await logEvent(
+        "error",
+        "ai",
+        "generateResponse failed",
+        { error: describeError(err), conversationId: conversation.id },
+        business.id
+      );
+      reply = FALLBACK_REPLY;
+    }
   }
 
   await prisma.message.create({
@@ -133,12 +148,22 @@ async function handleOneMessage(
     },
   });
 
-  await sendMessage(
-    business.phoneNumberId,
-    business.whatsappToken,
-    from,
-    reply
-  );
+  try {
+    await sendMessage(business.phoneNumberId, business.whatsappToken, from, reply);
+  } catch (err) {
+    await logEvent(
+      "error",
+      "whatsapp-send",
+      "sendMessage failed",
+      { error: describeError(err), conversationId: conversation.id },
+      business.id
+    );
+  }
+}
+
+function describeError(err: unknown): { message: string; stack?: string } {
+  if (err instanceof Error) return { message: err.message, stack: err.stack };
+  return { message: String(err) };
 }
 
 async function loadHistory(
