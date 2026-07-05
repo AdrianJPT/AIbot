@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Badge } from "@/components/ui/badge";
 import {
   Table,
   TableBody,
@@ -7,7 +8,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import type { BusinessListItem } from "@/features/businesses/types";
+import type { ClientBusinessItem } from "@/features/admin/types";
 
 function formatLastActivity(date: Date | null): string {
   if (!date) return "—";
@@ -17,15 +18,15 @@ function formatLastActivity(date: Date | null): string {
   });
 }
 
-export function BusinessListTable({
+export function ClientBusinessesTable({
   businesses,
 }: {
-  businesses: BusinessListItem[];
+  businesses: ClientBusinessItem[];
 }) {
   if (businesses.length === 0) {
     return (
       <div className="rounded-lg border border-border p-6 text-muted-foreground">
-        No hay negocios. Crea uno o ejecuta el seed.
+        Este cliente todavía no tiene negocios.
       </div>
     );
   }
@@ -35,7 +36,7 @@ export function BusinessListTable({
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Nombre</TableHead>
+            <TableHead>Negocio</TableHead>
             <TableHead>Phone ID</TableHead>
             <TableHead>Activo</TableHead>
             <TableHead>Conversaciones</TableHead>
@@ -51,18 +52,19 @@ export function BusinessListTable({
               <TableCell className="font-mono text-muted-foreground">
                 {b.phoneNumberId}
               </TableCell>
-              <TableCell>{b.isActive ? "Sí" : "No"}</TableCell>
+              <TableCell>
+                <Badge variant={b.isActive ? "default" : "secondary"}>
+                  {b.isActive ? "Activo" : "Inactivo"}
+                </Badge>
+              </TableCell>
               <TableCell>{b.conversationsCount}</TableCell>
               <TableCell>{b.unreadCount}</TableCell>
               <TableCell className="text-muted-foreground">
                 {formatLastActivity(b.lastActivityAt)}
               </TableCell>
               <TableCell>
-                <Link
-                  href={`/businesses/${b.id}/edit`}
-                  className="text-primary hover:underline"
-                >
-                  Editar
+                <Link href="/conversations" className="text-primary hover:underline">
+                  Ver conversaciones
                 </Link>
               </TableCell>
             </TableRow>

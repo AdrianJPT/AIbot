@@ -3,6 +3,9 @@ export type BusinessListItem = {
   name: string;
   phoneNumberId: string;
   isActive: boolean;
+  conversationsCount: number;
+  unreadCount: number;
+  lastActivityAt: Date | null;
 };
 
 export type CredentialOption = {
