@@ -54,14 +54,21 @@ export async function processWebhookPayload(body: unknown): Promise<void> {
   const messages = value.messages as WaMessage[] | undefined;
   if (!messages?.length) return;
 
+  const contacts = value.contacts as
+    | Array<{ profile?: { name?: string }; wa_id?: string }>
+    | undefined;
+
   for (const message of messages) {
-    await handleOneMessage(business, message);
+    const customerName = contacts?.find((c) => c.wa_id === message.from)?.profile
+      ?.name;
+    await handleOneMessage(business, message, customerName);
   }
 }
 
 async function handleOneMessage(
   business: Business,
-  message: WaMessage
+  message: WaMessage,
+  customerName?: string
 ): Promise<void> {
   const from = message.from;
   if (!from) return;
@@ -91,29 +98,13 @@ async function handleOneMessage(
   });
 
   if (conversation.status === "handed_off") {
-    await prisma.message.create({
-      data: {
-        conversationId: conversation.id,
-        role: "user",
-        content: parsed.content,
-        mediaType: parsed.mediaType,
-        wamid,
-      },
-    });
+    await persistCustomerMessage(conversation.id, parsed, wamid, customerName);
     return;
   }
 
   const history = await loadHistory(conversation.id, business.maxHistoryMessages);
 
-  await prisma.message.create({
-    data: {
-      conversationId: conversation.id,
-      role: "user",
-      content: parsed.content,
-      mediaType: parsed.mediaType,
-      wamid,
-    },
-  });
+  await persistCustomerMessage(conversation.id, parsed, wamid, customerName);
 
   let reply: string;
   if (parsed.mediaType === "document") {
@@ -137,14 +128,21 @@ async function handleOneMessage(
     }
   }
 
-  await prisma.message.create({
-    data: {
-      conversationId: conversation.id,
-      role: "assistant",
-      content: reply,
-      mediaType: "text",
-    },
-  });
+  await prisma.$transaction([
+    prisma.message.create({
+      data: {
+        conversationId: conversation.id,
+        role: "assistant",
+        content: reply,
+        mediaType: "text",
+        sentBy: "bot",
+      },
+    }),
+    prisma.conversation.update({
+      where: { id: conversation.id },
+      data: { lastMessageAt: new Date() },
+    }),
+  ]);
 
   try {
     await sendBusinessMessage(business, from, reply);
@@ -157,6 +155,39 @@ async function handleOneMessage(
       business.id
     );
   }
+}
+
+/**
+ * Persists a customer-originated message and bumps the conversation's
+ * denormalized list fields (lastMessageAt, unreadCount, customerName) in a
+ * single transaction so the two never drift apart.
+ */
+async function persistCustomerMessage(
+  conversationId: string,
+  parsed: { content: string; mediaType: string },
+  wamid: string | undefined,
+  customerName: string | undefined
+): Promise<void> {
+  await prisma.$transaction([
+    prisma.message.create({
+      data: {
+        conversationId,
+        role: "user",
+        content: parsed.content,
+        mediaType: parsed.mediaType,
+        wamid,
+        sentBy: "customer",
+      },
+    }),
+    prisma.conversation.update({
+      where: { id: conversationId },
+      data: {
+        lastMessageAt: new Date(),
+        unreadCount: { increment: 1 },
+        ...(customerName && { customerName }),
+      },
+    }),
+  ]);
 }
 
 function describeError(err: unknown): { message: string; stack?: string } {

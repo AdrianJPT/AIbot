@@ -65,13 +65,17 @@ model Conversation {
   businessId    String
   business      Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
   customerPhone String
+  customerName  String? // WhatsApp profile name from webhook `contacts[0].profile.name`
   status        String        @default("active")
+  lastMessageAt DateTime      @default(now()) // denormalized for list ordering — bumped on every message insert
+  unreadCount   Int           @default(0) // customer messages since admin last opened the thread
   messages      Message[]
   appointments  Appointment[]
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
 
   @@unique([businessId, customerPhone])
+  @@index([businessId, lastMessageAt])
 }
 
 model Message {
@@ -83,7 +87,11 @@ model Message {
   mediaType      String       @default("text")
   mediaUrl       String?
   wamid          String?      @unique
+  sentBy         String       @default("bot") // "bot" | "human" | "customer"
+  status         String       @default("sent") // "sent" | "delivered" | "read" | "failed" (wired in Phase 6)
   createdAt      DateTime     @default(now())
+
+  @@index([conversationId, createdAt])
 }
 
 model Appointment {

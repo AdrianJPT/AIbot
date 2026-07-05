@@ -27,14 +27,21 @@ export async function POST(
 
   await sendBusinessMessage(conv.business, conv.customerPhone, text.trim());
 
-  const msg = await prisma.message.create({
-    data: {
-      conversationId: conv.id,
-      role: "assistant",
-      content: text.trim(),
-      mediaType: "text",
-    },
-  });
+  const [msg] = await prisma.$transaction([
+    prisma.message.create({
+      data: {
+        conversationId: conv.id,
+        role: "assistant",
+        content: text.trim(),
+        mediaType: "text",
+        sentBy: "human",
+      },
+    }),
+    prisma.conversation.update({
+      where: { id: conv.id },
+      data: { lastMessageAt: new Date() },
+    }),
+  ]);
 
   return NextResponse.json(msg);
 }

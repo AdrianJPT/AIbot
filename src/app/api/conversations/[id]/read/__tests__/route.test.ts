@@ -14,20 +14,13 @@ vi.mock("@/lib/auth", () => ({
   getSessionUser: () => getSessionUser(),
 }));
 
-const sendBusinessMessage = vi.fn().mockResolvedValue(undefined);
-vi.mock("@/lib/whatsapp", () => ({
-  sendBusinessMessage: (...args: unknown[]) => sendBusinessMessage(...args),
-}));
-
-function buildRequest(text = "hola"): NextRequest {
-  return new NextRequest("https://example.com/api/conversations/x/send", {
+function buildRequest(): NextRequest {
+  return new NextRequest("https://example.com/api/conversations/x/read", {
     method: "POST",
-    body: JSON.stringify({ text }),
-    headers: { "content-type": "application/json" },
   });
 }
 
-describe("POST /api/conversations/[id]/send", () => {
+describe("POST /api/conversations/[id]/read", () => {
   let owner: User;
   let other: User;
   let business: Business;
@@ -36,8 +29,12 @@ describe("POST /api/conversations/[id]/send", () => {
   beforeAll(async () => {
     owner = await createTestUser("owner");
     other = await createTestUser("other");
-    business = await createTestBusiness(owner.id, "conv-send");
-    conversation = await createTestConversation(business.id, "2");
+    business = await createTestBusiness(owner.id, "conv-read");
+    conversation = await createTestConversation(business.id, "4");
+    conversation = await prisma.conversation.update({
+      where: { id: conversation.id },
+      data: { unreadCount: 3 },
+    });
   });
 
   afterAll(async () => {
@@ -53,7 +50,6 @@ describe("POST /api/conversations/[id]/send", () => {
     });
 
     expect(res.status).toBe(401);
-    expect(sendBusinessMessage).not.toHaveBeenCalled();
   });
 
   it("returns 404 when authenticated as a non-owner", async () => {
@@ -65,31 +61,18 @@ describe("POST /api/conversations/[id]/send", () => {
     });
 
     expect(res.status).toBe(404);
-    expect(sendBusinessMessage).not.toHaveBeenCalled();
   });
 
-  it("returns 200 and persists the message when authenticated as the owner", async () => {
+  it("zeroes unreadCount when authenticated as the owner", async () => {
     getSessionUser.mockResolvedValueOnce(owner);
     const { POST } = await import("../route");
 
-    const res = await POST(buildRequest("hola desde el owner"), {
+    const res = await POST(buildRequest(), {
       params: Promise.resolve({ id: conversation.id }),
     });
-    const msg = await res.json();
+    const body = await res.json();
 
     expect(res.status).toBe(200);
-    expect(sendBusinessMessage).toHaveBeenCalled();
-    expect(msg.content).toBe("hola desde el owner");
-    expect(msg.sentBy).toBe("human");
-
-    const updated = await prisma.conversation.findUniqueOrThrow({
-      where: { id: conversation.id },
-    });
-    expect(updated.lastMessageAt.getTime()).toBeGreaterThan(
-      conversation.lastMessageAt.getTime()
-    );
-    expect(updated.unreadCount).toBe(conversation.unreadCount);
-
-    await prisma.message.delete({ where: { id: msg.id } });
+    expect(body.unreadCount).toBe(0);
   });
 });

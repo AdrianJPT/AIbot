@@ -14,18 +14,27 @@ import {
 const findFirstBusiness = vi.fn();
 const findFirstMessage = vi.fn();
 const conversationUpsert = vi.fn();
+const conversationUpdate = vi.fn();
 const messageCreate = vi.fn();
 const messageFindMany = vi.fn();
 
 vi.mock("../db", () => ({
   prisma: {
     business: { findFirst: (...args: unknown[]) => findFirstBusiness(...args) },
-    conversation: { upsert: (...args: unknown[]) => conversationUpsert(...args) },
+    conversation: {
+      upsert: (...args: unknown[]) => conversationUpsert(...args),
+      update: (...args: unknown[]) => conversationUpdate(...args),
+    },
     message: {
       create: (...args: unknown[]) => messageCreate(...args),
       findFirst: (...args: unknown[]) => findFirstMessage(...args),
       findMany: (...args: unknown[]) => messageFindMany(...args),
     },
+    // The real Prisma `$transaction([...])` accepts an array of already
+    // in-flight query promises and awaits them together. Since every model
+    // method above is mocked to return a resolved value synchronously, the
+    // same behavior is reproduced here without a real transaction.
+    $transaction: (ops: unknown[]) => Promise.all(ops),
   },
 }));
 
@@ -88,6 +97,7 @@ beforeEach(() => {
     createdAt: new Date(),
     updatedAt: new Date(),
   });
+  conversationUpdate.mockResolvedValue({});
   messageCreate.mockResolvedValue({});
   messageFindMany.mockResolvedValue([]);
   generateResponse.mockResolvedValue("Respuesta generada");
@@ -183,5 +193,72 @@ describe("processWebhookPayload", () => {
 
     expect(messageCreate).not.toHaveBeenCalled();
     expect(conversationUpsert).not.toHaveBeenCalled();
+  });
+
+  it("bumps lastMessageAt, unreadCount and customerName on the customer message, and lastMessageAt again on the bot reply", async () => {
+    await processWebhookPayload(textMessagePayload);
+
+    // First conversation.update call: alongside the customer message insert.
+    expect(conversationUpdate).toHaveBeenCalledTimes(2);
+    expect(conversationUpdate.mock.calls[0][0]).toMatchObject({
+      where: { id: "conv_1" },
+      data: {
+        unreadCount: { increment: 1 },
+        customerName: "Cliente de Prueba",
+      },
+    });
+    expect(conversationUpdate.mock.calls[0][0].data.lastMessageAt).toBeInstanceOf(
+      Date
+    );
+
+    // Second conversation.update call: alongside the bot reply insert, no
+    // unreadCount/customerName touch.
+    expect(conversationUpdate.mock.calls[1][0].data).not.toHaveProperty(
+      "unreadCount"
+    );
+    expect(conversationUpdate.mock.calls[1][0].data).not.toHaveProperty(
+      "customerName"
+    );
+    expect(conversationUpdate.mock.calls[1][0].data.lastMessageAt).toBeInstanceOf(
+      Date
+    );
+  });
+
+  it("marks the customer message as sentBy:customer and the bot reply as sentBy:bot", async () => {
+    await processWebhookPayload(textMessagePayload);
+
+    expect(messageCreate.mock.calls[0][0].data).toMatchObject({
+      role: "user",
+      sentBy: "customer",
+    });
+    expect(messageCreate.mock.calls[1][0].data).toMatchObject({
+      role: "assistant",
+      sentBy: "bot",
+    });
+  });
+
+  it("still persists the customer message and bumps unreadCount when handed_off, without calling the AI or sending a reply", async () => {
+    conversationUpsert.mockResolvedValueOnce({
+      id: "conv_1",
+      businessId: business.id,
+      customerPhone: "5215512345678",
+      status: "handed_off",
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    await processWebhookPayload(textMessagePayload);
+
+    expect(generateResponse).not.toHaveBeenCalled();
+    expect(sendBusinessMessage).not.toHaveBeenCalled();
+    expect(messageCreate).toHaveBeenCalledTimes(1);
+    expect(messageCreate.mock.calls[0][0].data).toMatchObject({
+      sentBy: "customer",
+    });
+    expect(conversationUpdate).toHaveBeenCalledTimes(1);
+    expect(conversationUpdate.mock.calls[0][0].data).toMatchObject({
+      unreadCount: { increment: 1 },
+      customerName: "Cliente de Prueba",
+    });
   });
 });
