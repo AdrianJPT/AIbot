@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
-import { CredentialsPanel } from "@/components/credentials-panel";
+import { CredentialsPanelContainer } from "@/features/credentials/containers/credentials-panel-container";
 
 export default async function CredentialsPage() {
   const user = await getSessionUser();
@@ -26,8 +26,8 @@ export default async function CredentialsPage() {
 
   return (
     <div>
-      <h1 className="mb-6 text-2xl font-bold text-white">Credenciales</h1>
-      <CredentialsPanel initialCredentials={credentials} />
+      <h1 className="mb-6 text-2xl font-bold">Credenciales</h1>
+      <CredentialsPanelContainer initialCredentials={credentials} />
     </div>
   );
 }
