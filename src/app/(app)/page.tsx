@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { StatsCard } from "@/components/stats-card";
+import { DashboardStatsGrid } from "@/features/dashboard/components/dashboard-stats";
 import { prisma } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
 
@@ -22,12 +22,10 @@ export default async function DashboardPage() {
 
   return (
     <div>
-      <h1 className="mb-6 text-2xl font-bold text-white">Dashboard</h1>
-      <div className="grid gap-4 sm:grid-cols-3">
-        <StatsCard title="Negocios activos" value={activeBusinesses} />
-        <StatsCard title="Conversaciones hoy" value={convToday} />
-        <StatsCard title="Citas pendientes" value={pendingAppointments} />
-      </div>
+      <h1 className="mb-6 text-2xl font-bold">Dashboard</h1>
+      <DashboardStatsGrid
+        stats={{ activeBusinesses, convToday, pendingAppointments }}
+      />
     </div>
   );
 }
