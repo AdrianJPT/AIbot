@@ -1,7 +1,7 @@
 import axios from "axios";
+import type { Business } from "@prisma/client";
 import { toFile } from "openai/uploads";
-import { DEFAULT_MODEL, DEFAULT_PROVIDER, supportsVision } from "./model-catalog";
-import { getProviderClient } from "./providers";
+import { callWithFailover } from "./ai/resolve";
 
 const API_VERSION = "v21.0";
 
@@ -30,48 +30,47 @@ export async function downloadMediaBuffer(
 }
 
 export async function describeImageFromBuffer(
+  business: Business,
   buffer: Buffer,
-  mimeType: string,
-  provider: string,
-  model: string
+  mimeType: string
 ): Promise<string> {
-  // Fall back to the default OpenAI vision model when the business's
-  // configured model cannot read images.
-  const useConfigured = supportsVision(provider, model);
-  const visionProvider = useConfigured ? provider : DEFAULT_PROVIDER;
-  const visionModel = useConfigured ? model : DEFAULT_MODEL;
-
   const base64 = buffer.toString("base64");
   const dataUrl = `data:${mimeType};base64,${base64}`;
-  const response = await getProviderClient(visionProvider).chat.completions.create({
-    model: visionModel,
-    messages: [
-      {
-        role: "user",
-        content: [
-          {
-            type: "text",
-            text: "Describe brevemente la imagen en español (1-3 oraciones). Si es un comprobante o menú, resume lo relevante.",
-          },
-          { type: "image_url", image_url: { url: dataUrl } },
-        ],
-      },
-    ],
-    max_tokens: 300,
+
+  return callWithFailover(business, async (client) => {
+    const response = await client.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: "Describe brevemente la imagen en español (1-3 oraciones). Si es un comprobante o menú, resume lo relevante.",
+            },
+            { type: "image_url", image_url: { url: dataUrl } },
+          ],
+        },
+      ],
+      max_tokens: 300,
+    });
+    return (
+      response.choices[0]?.message?.content?.trim() ||
+      "[Imagen sin descripción]"
+    );
   });
-  return (
-    response.choices[0]?.message?.content?.trim() ||
-    "[Imagen sin descripción]"
-  );
 }
 
-export async function transcribeAudioBuffer(buffer: Buffer): Promise<string> {
-  const file = await toFile(buffer, "audio.ogg", { type: "audio/ogg" });
-  // Audio transcription is only available on OpenAI (Whisper), regardless
-  // of the provider configured for chat.
-  const response = await getProviderClient("openai").audio.transcriptions.create({
-    file,
-    model: "whisper-1",
+export async function transcribeAudioBuffer(
+  business: Business,
+  buffer: Buffer
+): Promise<string> {
+  return callWithFailover(business, async (client) => {
+    const file = await toFile(buffer, "audio.ogg", { type: "audio/ogg" });
+    const response = await client.audio.transcriptions.create({
+      file,
+      model: "whisper-1",
+    });
+    return response.text?.trim() || "[Audio sin transcripción]";
   });
-  return response.text?.trim() || "[Audio sin transcripción]";
 }

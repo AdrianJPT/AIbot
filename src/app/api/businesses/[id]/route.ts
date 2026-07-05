@@ -1,12 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { getSessionUser } from "@/lib/auth";
+import { businessScope } from "@/lib/scope";
 
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const user = await getSessionUser();
+  if (!user) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+
   const { id } = await params;
-  const b = await prisma.business.findUnique({ where: { id } });
+  const b = await prisma.business.findFirst({ where: { id, ...businessScope(user) } });
   if (!b) return NextResponse.json({ error: "No encontrado" }, { status: 404 });
   return NextResponse.json(b);
 }
@@ -15,8 +20,29 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const user = await getSessionUser();
+  if (!user) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+
   const { id } = await params;
+  const existing = await prisma.business.findFirst({
+    where: { id, ...businessScope(user) },
+  });
+  if (!existing) return NextResponse.json({ error: "No encontrado" }, { status: 404 });
+
   const body = await req.json();
+
+  if (body.aiCredentialId || body.whatsappCredentialId) {
+    const wanted = [body.aiCredentialId, body.whatsappCredentialId].filter(
+      (v): v is string => Boolean(v)
+    );
+    const count = await prisma.credential.count({
+      where: { id: { in: wanted }, ownerId: user.id },
+    });
+    if (count !== wanted.length) {
+      return NextResponse.json({ error: "Credencial inválida" }, { status: 400 });
+    }
+  }
+
   try {
     const b = await prisma.business.update({
       where: { id },
@@ -27,12 +53,15 @@ export async function PATCH(
         ...(body.systemPrompt != null && { systemPrompt: body.systemPrompt }),
         ...(body.welcomeMessage != null && { welcomeMessage: body.welcomeMessage }),
         ...(body.businessInfo != null && { businessInfo: body.businessInfo }),
-        ...(body.provider != null && { provider: body.provider }),
         ...(body.model != null && { model: body.model }),
         ...(body.maxHistoryMessages != null && {
           maxHistoryMessages: body.maxHistoryMessages,
         }),
         ...(body.isActive != null && { isActive: body.isActive }),
+        ...("aiCredentialId" in body && { aiCredentialId: body.aiCredentialId || null }),
+        ...("whatsappCredentialId" in body && {
+          whatsappCredentialId: body.whatsappCredentialId || null,
+        }),
       },
     });
     return NextResponse.json(b);
@@ -45,7 +74,15 @@ export async function DELETE(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const user = await getSessionUser();
+  if (!user) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+
   const { id } = await params;
+  const existing = await prisma.business.findFirst({
+    where: { id, ...businessScope(user) },
+  });
+  if (!existing) return NextResponse.json({ error: "No encontrado" }, { status: 404 });
+
   try {
     await prisma.business.delete({ where: { id } });
     return NextResponse.json({ ok: true });

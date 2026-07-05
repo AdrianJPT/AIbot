@@ -1,11 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { getSessionUser } from "@/lib/auth";
+import { appointmentScope } from "@/lib/scope";
 
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const user = await getSessionUser();
+  if (!user) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+
   const { id } = await params;
+  const existing = await prisma.appointment.findFirst({
+    where: { id, ...appointmentScope(user) },
+  });
+  if (!existing) return NextResponse.json({ error: "No encontrado" }, { status: 404 });
+
   const body = await req.json();
   try {
     const a = await prisma.appointment.update({
@@ -29,7 +39,15 @@ export async function DELETE(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const user = await getSessionUser();
+  if (!user) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+
   const { id } = await params;
+  const existing = await prisma.appointment.findFirst({
+    where: { id, ...appointmentScope(user) },
+  });
+  if (!existing) return NextResponse.json({ error: "No encontrado" }, { status: 404 });
+
   try {
     await prisma.appointment.delete({ where: { id } });
     return NextResponse.json({ ok: true });

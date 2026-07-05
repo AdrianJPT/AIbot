@@ -9,21 +9,57 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
+model User {
+  id          String       @id // Supabase auth.users.id (uuid)
+  email       String       @unique
+  name        String?
+  avatarUrl   String?
+  role        String       @default("client") // "admin" | "client"
+  businesses  Business[]
+  credentials Credential[]
+  createdAt   DateTime     @default(now())
+}
+
 model Business {
-  id                 String         @id @default(cuid())
-  name               String
-  phoneNumberId      String         @unique
-  whatsappToken      String
-  systemPrompt       String
-  welcomeMessage     String
-  businessInfo       Json
-  provider           String         @default("openai")
-  model              String         @default("gpt-4o-mini")
-  maxHistoryMessages Int            @default(20)
-  isActive           Boolean        @default(true)
-  conversations      Conversation[]
-  appointments       Appointment[]
-  createdAt          DateTime       @default(now())
+  id                   String         @id @default(cuid())
+  name                 String
+  phoneNumberId        String         @unique
+  whatsappToken        String
+  systemPrompt         String
+  welcomeMessage       String
+  businessInfo         Json
+  model                String         @default("gpt-4o-mini")
+  maxHistoryMessages   Int            @default(20)
+  dailyAiLimit         Int            @default(1000)
+  isActive             Boolean        @default(true)
+  ownerId              String?
+  owner                User?          @relation(fields: [ownerId], references: [id])
+  aiCredentialId       String?
+  whatsappCredentialId String?
+  conversations        Conversation[]
+  appointments         Appointment[]
+  createdAt            DateTime       @default(now())
+
+  @@index([ownerId])
+}
+
+model Credential {
+  id           String    @id @default(cuid())
+  ownerId      String
+  owner        User      @relation(fields: [ownerId], references: [id])
+  kind         String // "ai" | "whatsapp"
+  provider     String // ai: "openai" | "openrouter" | "google" ; whatsapp: "meta"
+  label        String
+  encryptedKey String // AES-256-GCM: base64(iv):base64(ciphertext):base64(authTag)
+  keyLast4     String
+  baseUrl      String? // ai only; null = provider default
+  status       String    @default("standby") // "active" | "standby" | "revoked"
+  lastUsedAt   DateTime?
+  lastError    String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([ownerId, kind, status])
 }
 
 model Conversation {
@@ -31,13 +67,17 @@ model Conversation {
   businessId    String
   business      Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
   customerPhone String
+  customerName  String? // WhatsApp profile name from webhook `contacts[0].profile.name`
   status        String        @default("active")
+  lastMessageAt DateTime      @default(now()) // denormalized for list ordering — bumped on every message insert
+  unreadCount   Int           @default(0) // customer messages since admin last opened the thread
   messages      Message[]
   appointments  Appointment[]
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
 
   @@unique([businessId, customerPhone])
+  @@index([businessId, lastMessageAt])
 }
 
 model Message {
@@ -48,7 +88,12 @@ model Message {
   content        String
   mediaType      String       @default("text")
   mediaUrl       String?
+  wamid          String?      @unique
+  sentBy         String       @default("bot") // "bot" | "human" | "customer"
+  status         String       @default("sent") // "sent" | "delivered" | "read" | "failed" (wired in Phase 6)
   createdAt      DateTime     @default(now())
+
+  @@index([conversationId, createdAt])
 }
 
 model Appointment {
@@ -65,4 +110,17 @@ model Appointment {
   status         String        @default("pending")
   notes          String?
   createdAt      DateTime      @default(now())
+}
+
+model EventLog {
+  id         String   @id @default(cuid())
+  level      String // "error" | "warn" | "info"
+  source     String // "webhook" | "ai" | "whatsapp-send" | "auth" | "credentials"
+  message    String
+  detail     Json?
+  businessId String?
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([source, createdAt])
 }
