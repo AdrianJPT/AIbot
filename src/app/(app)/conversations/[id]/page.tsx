@@ -1,8 +1,9 @@
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ConversationViewContainer } from "@/features/conversations/containers/conversation-view-container";
+import { ConversationThreadContainer } from "@/features/conversations/containers/conversation-thread-container";
 import { prisma } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
+
+const MESSAGES_PAGE_SIZE = 50;
 
 export default async function ConversationDetailPage({
   params,
@@ -13,43 +14,42 @@ export default async function ConversationDetailPage({
   if (!user) redirect("/login");
 
   const { id } = await params;
-  const c = await prisma.conversation.findFirst({
+  const conversation = await prisma.conversation.findFirst({
     where: { id, business: { ownerId: user.id } },
-    include: {
-      business: { select: { name: true } },
-      messages: { orderBy: { createdAt: "asc" } },
-    },
+    include: { business: { select: { id: true, name: true } } },
   });
-  if (!c) notFound();
+  if (!conversation) notFound();
 
-  const initial = {
-    id: c.id,
-    customerPhone: c.customerPhone,
-    status: c.status,
-    business: c.business,
-    messages: c.messages.map((m) => ({
-      id: m.id,
-      role: m.role,
-      content: m.content,
-      mediaType: m.mediaType,
-      createdAt: m.createdAt.toISOString(),
-    })),
-  };
+  const page = await prisma.message.findMany({
+    where: { conversationId: id },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    take: MESSAGES_PAGE_SIZE + 1,
+  });
+  const hasMore = page.length > MESSAGES_PAGE_SIZE;
+  const messages = hasMore ? page.slice(0, MESSAGES_PAGE_SIZE) : page;
+  const nextCursor = hasMore ? messages[messages.length - 1].id : null;
 
   return (
-    <div>
-      <Link
-        href="/conversations"
-        className="mb-4 inline-block text-muted-foreground hover:text-foreground"
-      >
-        ← Conversaciones
-      </Link>
-      <h1 className="mb-2 text-2xl font-bold">Chat · {c.customerPhone}</h1>
-      <p className="mb-6 text-muted-foreground">{c.business.name}</p>
-      <ConversationViewContainer
-        key={`${c.id}-${c.messages.length}-${c.updatedAt.toISOString()}`}
-        conversation={initial}
-      />
-    </div>
+    <ConversationThreadContainer
+      conversation={{
+        id: conversation.id,
+        customerPhone: conversation.customerPhone,
+        customerName: conversation.customerName,
+        status: conversation.status,
+        business: conversation.business,
+      }}
+      initialMessages={{
+        messages: messages.map((m) => ({
+          id: m.id,
+          role: m.role,
+          content: m.content,
+          mediaType: m.mediaType,
+          sentBy: m.sentBy,
+          status: m.status,
+          createdAt: m.createdAt.toISOString(),
+        })),
+        nextCursor,
+      }}
+    />
   );
 }
