@@ -15,8 +15,17 @@ export async function GET(req: NextRequest) {
       ...(businessId && { businessId }),
       ...(status && { status }),
     },
-    orderBy: { updatedAt: "desc" },
-    include: { business: { select: { name: true } } },
+    orderBy: { lastMessageAt: "desc" },
+    include: {
+      business: { select: { id: true, name: true } },
+      messages: { orderBy: { createdAt: "desc" }, take: 1 },
+    },
   });
-  return NextResponse.json(list);
+
+  const result = list.map(({ messages, ...conversation }) => ({
+    ...conversation,
+    lastMessage: messages[0] ?? null,
+  }));
+
+  return NextResponse.json(result);
 }

@@ -8,15 +8,21 @@ const conversationUpsert = vi.fn();
 const messageCreate = vi.fn();
 const messageFindMany = vi.fn();
 
+const conversationUpdate = vi.fn();
+
 vi.mock("../db", () => ({
   prisma: {
     business: { findFirst: (...args: unknown[]) => findFirstBusiness(...args) },
-    conversation: { upsert: (...args: unknown[]) => conversationUpsert(...args) },
+    conversation: {
+      upsert: (...args: unknown[]) => conversationUpsert(...args),
+      update: (...args: unknown[]) => conversationUpdate(...args),
+    },
     message: {
       create: (...args: unknown[]) => messageCreate(...args),
       findFirst: (...args: unknown[]) => findFirstMessage(...args),
       findMany: (...args: unknown[]) => messageFindMany(...args),
     },
+    $transaction: (ops: unknown[]) => Promise.all(ops),
   },
 }));
 
@@ -69,6 +75,7 @@ beforeEach(() => {
     createdAt: new Date(),
     updatedAt: new Date(),
   });
+  conversationUpdate.mockResolvedValue({});
   messageCreate.mockResolvedValue({});
   messageFindMany.mockResolvedValue([]);
   generateResponse.mockResolvedValue("Respuesta generada");
