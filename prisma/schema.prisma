@@ -10,32 +10,54 @@ datasource db {
 }
 
 model User {
-  id         String     @id // Supabase auth.users.id (uuid)
-  email      String     @unique
-  name       String?
-  avatarUrl  String?
-  businesses Business[]
-  createdAt  DateTime   @default(now())
+  id          String       @id // Supabase auth.users.id (uuid)
+  email       String       @unique
+  name        String?
+  avatarUrl   String?
+  businesses  Business[]
+  credentials Credential[]
+  createdAt   DateTime     @default(now())
 }
 
 model Business {
-  id                 String         @id @default(cuid())
-  name               String
-  phoneNumberId      String         @unique
-  whatsappToken      String
-  systemPrompt       String
-  welcomeMessage     String
-  businessInfo       Json
-  model              String         @default("gpt-4o-mini")
-  maxHistoryMessages Int            @default(20)
-  isActive           Boolean        @default(true)
-  ownerId            String?
-  owner              User?          @relation(fields: [ownerId], references: [id])
-  conversations      Conversation[]
-  appointments       Appointment[]
-  createdAt          DateTime       @default(now())
+  id                   String         @id @default(cuid())
+  name                 String
+  phoneNumberId        String         @unique
+  whatsappToken        String
+  systemPrompt         String
+  welcomeMessage       String
+  businessInfo         Json
+  model                String         @default("gpt-4o-mini")
+  maxHistoryMessages   Int            @default(20)
+  isActive             Boolean        @default(true)
+  ownerId              String?
+  owner                User?          @relation(fields: [ownerId], references: [id])
+  aiCredentialId       String?
+  whatsappCredentialId String?
+  conversations        Conversation[]
+  appointments         Appointment[]
+  createdAt            DateTime       @default(now())
 
   @@index([ownerId])
+}
+
+model Credential {
+  id           String    @id @default(cuid())
+  ownerId      String
+  owner        User      @relation(fields: [ownerId], references: [id])
+  kind         String // "ai" | "whatsapp"
+  provider     String // ai: "openai" | "openrouter" | "google" ; whatsapp: "meta"
+  label        String
+  encryptedKey String // AES-256-GCM: base64(iv):base64(ciphertext):base64(authTag)
+  keyLast4     String
+  baseUrl      String? // ai only; null = provider default
+  status       String    @default("standby") // "active" | "standby" | "revoked"
+  lastUsedAt   DateTime?
+  lastError    String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([ownerId, kind, status])
 }
 
 model Conversation {

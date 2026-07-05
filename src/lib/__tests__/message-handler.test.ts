@@ -30,13 +30,22 @@ vi.mock("../db", () => ({
 }));
 
 const generateResponse = vi.fn();
-vi.mock("../openai", () => ({
+vi.mock("../ai/generate", () => ({
   generateResponse: (...args: unknown[]) => generateResponse(...args),
 }));
 
-const sendMessage = vi.fn();
+const fakeAiClient = { marker: "fake-ai-client" };
+const callWithFailover = vi.fn((_business: unknown, fn: (client: unknown) => unknown) =>
+  fn(fakeAiClient)
+);
+vi.mock("../ai/resolve", () => ({
+  callWithFailover: (...args: Parameters<typeof callWithFailover>) =>
+    callWithFailover(...args),
+}));
+
+const sendBusinessMessage = vi.fn();
 vi.mock("../whatsapp", () => ({
-  sendMessage: (...args: unknown[]) => sendMessage(...args),
+  sendBusinessMessage: (...args: unknown[]) => sendBusinessMessage(...args),
 }));
 
 const downloadMediaBuffer = vi.fn();
@@ -79,7 +88,7 @@ beforeEach(() => {
   messageCreate.mockResolvedValue({});
   messageFindMany.mockResolvedValue([]);
   generateResponse.mockResolvedValue("Respuesta generada");
-  sendMessage.mockResolvedValue(undefined);
+  sendBusinessMessage.mockResolvedValue(undefined);
 });
 
 describe("processWebhookPayload", () => {
@@ -97,9 +106,8 @@ describe("processWebhookPayload", () => {
       mediaType: "text",
       content: "Respuesta generada",
     });
-    expect(sendMessage).toHaveBeenCalledWith(
-      business.phoneNumberId,
-      business.whatsappToken,
+    expect(sendBusinessMessage).toHaveBeenCalledWith(
+      business,
       "5215512345678",
       "Respuesta generada"
     );

@@ -1,14 +1,15 @@
 import type { Business } from "@prisma/client";
 import type { ChatCompletionMessageParam } from "openai/resources/chat/completions";
 import { prisma } from "./db";
-import { generateResponse } from "./openai";
+import { generateResponse } from "./ai/generate";
+import { callWithFailover } from "./ai/resolve";
 import { buildSystemPrompt } from "./prompt";
 import {
   describeImageFromBuffer,
   downloadMediaBuffer,
   transcribeAudioBuffer,
 } from "./media";
-import { sendMessage } from "./whatsapp";
+import { sendBusinessMessage } from "./whatsapp";
 import { logEvent } from "./log";
 
 const FALLBACK_REPLY =
@@ -121,11 +122,8 @@ async function handleOneMessage(
   } else {
     try {
       const systemPrompt = buildSystemPrompt(business);
-      reply = await generateResponse(
-        systemPrompt,
-        history,
-        parsed.content,
-        business.model
+      reply = await callWithFailover(business, (client) =>
+        generateResponse(client, systemPrompt, history, parsed.content, business.model)
       );
     } catch (err) {
       await logEvent(
@@ -149,7 +147,7 @@ async function handleOneMessage(
   });
 
   try {
-    await sendMessage(business.phoneNumberId, business.whatsappToken, from, reply);
+    await sendBusinessMessage(business, from, reply);
   } catch (err) {
     await logEvent(
       "error",
@@ -204,7 +202,7 @@ async function parseUserContent(
       const id = message.image?.id;
       if (!id) return null;
       const { buffer, mimeType } = await downloadMediaBuffer(id, token);
-      const desc = await describeImageFromBuffer(buffer, mimeType);
+      const desc = await describeImageFromBuffer(business, buffer, mimeType);
       return {
         content: `[Imagen del cliente] ${desc}`,
         mediaType: "image",
@@ -215,7 +213,7 @@ async function parseUserContent(
       const id = message.audio?.id || message.voice?.id;
       if (!id) return null;
       const { buffer } = await downloadMediaBuffer(id, token);
-      const text = await transcribeAudioBuffer(buffer);
+      const text = await transcribeAudioBuffer(business, buffer);
       return { content: `[Audio del cliente] ${text}`, mediaType: "audio" };
     }
     case "location": {

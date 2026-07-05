@@ -16,6 +16,7 @@ export default defineConfig({
       DATABASE_URL: "postgresql://bot:testpass@localhost:55432/whatsapp_bot",
       DIRECT_URL: "postgresql://bot:testpass@localhost:55432/whatsapp_bot",
       OPENAI_API_KEY: "sk-test-dummy",
+      APP_ENCRYPTION_KEY: "s1IiLGg+kAXY1ILiWKmXgF9tM66SYnnmkqFFUBfcnBM=",
       WEBHOOK_VERIFY_TOKEN: "test-verify-token",
       WHATSAPP_APP_SECRET: "test-app-secret",
       NEXT_PUBLIC_SUPABASE_URL: "https://test.supabase.co",

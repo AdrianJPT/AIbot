@@ -1,6 +1,7 @@
 import axios from "axios";
-import OpenAI from "openai";
+import type { Business } from "@prisma/client";
 import { toFile } from "openai/uploads";
+import { callWithFailover } from "./ai/resolve";
 
 const API_VERSION = "v21.0";
 
@@ -28,48 +29,48 @@ export async function downloadMediaBuffer(
   return { buffer: Buffer.from(res.data), mimeType };
 }
 
-let openai: OpenAI | undefined;
-
-function getClient(): OpenAI {
-  if (!openai) {
-    openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-  }
-  return openai;
-}
-
 export async function describeImageFromBuffer(
+  business: Business,
   buffer: Buffer,
   mimeType: string
 ): Promise<string> {
   const base64 = buffer.toString("base64");
   const dataUrl = `data:${mimeType};base64,${base64}`;
-  const response = await getClient().chat.completions.create({
-    model: "gpt-4o-mini",
-    messages: [
-      {
-        role: "user",
-        content: [
-          {
-            type: "text",
-            text: "Describe brevemente la imagen en español (1-3 oraciones). Si es un comprobante o menú, resume lo relevante.",
-          },
-          { type: "image_url", image_url: { url: dataUrl } },
-        ],
-      },
-    ],
-    max_tokens: 300,
+
+  return callWithFailover(business, async (client) => {
+    const response = await client.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: "Describe brevemente la imagen en español (1-3 oraciones). Si es un comprobante o menú, resume lo relevante.",
+            },
+            { type: "image_url", image_url: { url: dataUrl } },
+          ],
+        },
+      ],
+      max_tokens: 300,
+    });
+    return (
+      response.choices[0]?.message?.content?.trim() ||
+      "[Imagen sin descripción]"
+    );
   });
-  return (
-    response.choices[0]?.message?.content?.trim() ||
-    "[Imagen sin descripción]"
-  );
 }
 
-export async function transcribeAudioBuffer(buffer: Buffer): Promise<string> {
-  const file = await toFile(buffer, "audio.ogg", { type: "audio/ogg" });
-  const response = await getClient().audio.transcriptions.create({
-    file,
-    model: "whisper-1",
+export async function transcribeAudioBuffer(
+  business: Business,
+  buffer: Buffer
+): Promise<string> {
+  return callWithFailover(business, async (client) => {
+    const file = await toFile(buffer, "audio.ogg", { type: "audio/ogg" });
+    const response = await client.audio.transcriptions.create({
+      file,
+      model: "whisper-1",
+    });
+    return response.text?.trim() || "[Audio sin transcripción]";
   });
-  return response.text?.trim() || "[Audio sin transcripción]";
 }

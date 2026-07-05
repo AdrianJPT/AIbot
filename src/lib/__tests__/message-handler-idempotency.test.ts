@@ -21,13 +21,22 @@ vi.mock("../db", () => ({
 }));
 
 const generateResponse = vi.fn();
-vi.mock("../openai", () => ({
+vi.mock("../ai/generate", () => ({
   generateResponse: (...args: unknown[]) => generateResponse(...args),
 }));
 
-const sendMessage = vi.fn();
+const fakeAiClient = { marker: "fake-ai-client" };
+const callWithFailover = vi.fn((_business: unknown, fn: (client: unknown) => unknown) =>
+  fn(fakeAiClient)
+);
+vi.mock("../ai/resolve", () => ({
+  callWithFailover: (...args: Parameters<typeof callWithFailover>) =>
+    callWithFailover(...args),
+}));
+
+const sendBusinessMessage = vi.fn();
 vi.mock("../whatsapp", () => ({
-  sendMessage: (...args: unknown[]) => sendMessage(...args),
+  sendBusinessMessage: (...args: unknown[]) => sendBusinessMessage(...args),
 }));
 
 const { processWebhookPayload } = await import("../message-handler");
@@ -60,7 +69,7 @@ beforeEach(() => {
   messageCreate.mockResolvedValue({});
   messageFindMany.mockResolvedValue([]);
   generateResponse.mockResolvedValue("Respuesta generada");
-  sendMessage.mockResolvedValue(undefined);
+  sendBusinessMessage.mockResolvedValue(undefined);
 });
 
 describe("webhook idempotency (dedupe retries)", () => {
@@ -82,6 +91,6 @@ describe("webhook idempotency (dedupe retries)", () => {
 
     // No additional messages created and no duplicate reply sent.
     expect(messageCreate).toHaveBeenCalledTimes(2);
-    expect(sendMessage).toHaveBeenCalledTimes(1);
+    expect(sendBusinessMessage).toHaveBeenCalledTimes(1);
   });
 });

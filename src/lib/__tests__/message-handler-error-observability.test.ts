@@ -23,13 +23,22 @@ vi.mock("../db", () => ({
 }));
 
 const generateResponse = vi.fn();
-vi.mock("../openai", () => ({
+vi.mock("../ai/generate", () => ({
   generateResponse: (...args: unknown[]) => generateResponse(...args),
 }));
 
-const sendMessage = vi.fn();
+const fakeAiClient = { marker: "fake-ai-client" };
+const callWithFailover = vi.fn((_business: unknown, fn: (client: unknown) => unknown) =>
+  fn(fakeAiClient)
+);
+vi.mock("../ai/resolve", () => ({
+  callWithFailover: (...args: Parameters<typeof callWithFailover>) =>
+    callWithFailover(...args),
+}));
+
+const sendBusinessMessage = vi.fn();
 vi.mock("../whatsapp", () => ({
-  sendMessage: (...args: unknown[]) => sendMessage(...args),
+  sendBusinessMessage: (...args: unknown[]) => sendBusinessMessage(...args),
 }));
 
 const { processWebhookPayload } = await import("../message-handler");
@@ -64,7 +73,7 @@ beforeEach(() => {
   messageFindMany.mockResolvedValue([]);
   eventLogCreate.mockResolvedValue({});
   generateResponse.mockResolvedValue("Respuesta generada");
-  sendMessage.mockResolvedValue(undefined);
+  sendBusinessMessage.mockResolvedValue(undefined);
 });
 
 describe("error observability", () => {
@@ -81,9 +90,8 @@ describe("error observability", () => {
       role: "assistant",
       content: "Lo siento, tuve un problema técnico. Intenta de nuevo en un momento.",
     });
-    expect(sendMessage).toHaveBeenCalledWith(
-      business.phoneNumberId,
-      business.whatsappToken,
+    expect(sendBusinessMessage).toHaveBeenCalledWith(
+      business,
       "5215512345678",
       "Lo siento, tuve un problema técnico. Intenta de nuevo en un momento."
     );
@@ -96,7 +104,7 @@ describe("error observability", () => {
   });
 
   it("logs an EventLog row when the WhatsApp send fails, without throwing", async () => {
-    sendMessage.mockRejectedValue(new Error("WhatsApp API timeout"));
+    sendBusinessMessage.mockRejectedValue(new Error("WhatsApp API timeout"));
 
     await expect(processWebhookPayload(textMessagePayload)).resolves.toBeUndefined();
 

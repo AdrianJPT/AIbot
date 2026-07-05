@@ -1,16 +1,14 @@
-import OpenAI from "openai";
+import type OpenAI from "openai";
 import type { ChatCompletionMessageParam } from "openai/resources/chat/completions";
 
-let client: OpenAI | undefined;
-
-function getClient(): OpenAI {
-  if (!client) {
-    client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-  }
-  return client;
-}
-
+/**
+ * Generates a chat completion using an already-resolved client. Callers
+ * (e.g. message-handler.ts) resolve the client via callWithFailover from
+ * ./resolve so that a bad key automatically fails over to a standby
+ * credential without any redeploy.
+ */
 export async function generateResponse(
+  client: OpenAI,
   systemPrompt: string,
   history: ChatCompletionMessageParam[],
   userMessage: string,
@@ -22,7 +20,7 @@ export async function generateResponse(
     { role: "user", content: userMessage },
   ];
 
-  const response = await getClient().chat.completions.create({
+  const response = await client.chat.completions.create({
     model,
     messages,
     max_tokens: 500,
