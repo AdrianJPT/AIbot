@@ -18,7 +18,7 @@
 ### 2.1 Supabase Auth configuration (manual/dashboard steps — document in PR description)
 
 - Enable Google provider in Supabase Auth (OAuth client in Google Cloud Console; redirect URL `https://<project>.supabase.co/auth/v1/callback`).
-- Enable Email provider with magic link (OTP), disable password signups.
+- Enable Email provider with magic link (OTP) AND password sign-ups on (login screen offers both).
 - Set Site URL + additional redirect URLs (Railway prod URL, `http://localhost:3000`).
 - New envs: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`. Add to `src/lib/env.ts`.
 
