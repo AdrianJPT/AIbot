@@ -20,7 +20,7 @@ export default async function AppLayout({
   const user = await getSessionUser();
   if (!user) redirect("/login");
 
-  const sidebarUser = { email: user.email, name: user.name };
+  const sidebarUser = { email: user.email, name: user.name, role: user.role };
 
   return (
     <QueryProvider>

@@ -10,6 +10,7 @@ import { SidebarNav } from "@/features/dashboard/components/sidebar-nav";
 type SidebarUser = {
   email: string;
   name?: string | null;
+  role: string;
 };
 
 /**
