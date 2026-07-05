@@ -1,22 +1,15 @@
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
-import { getSessionUser } from "@/lib/auth";
+import { requireAdmin } from "@/lib/auth";
 import { EventsPanelContainer } from "@/features/events/containers/events-panel-container";
 
 const PAGE_SIZE = 25;
 
 export default async function EventsPage() {
-  const user = await getSessionUser();
-  if (!user) redirect("/login");
-
-  const ownedBusinesses = await prisma.business.findMany({
-    where: { ownerId: user.id },
-    select: { id: true },
-  });
-  const businessIds = ownedBusinesses.map((b) => b.id);
+  const user = await requireAdmin();
+  if (!user) redirect("/");
 
   const events = await prisma.eventLog.findMany({
-    where: { OR: [{ businessId: { in: businessIds } }, { businessId: null }] },
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     take: PAGE_SIZE + 1,
   });

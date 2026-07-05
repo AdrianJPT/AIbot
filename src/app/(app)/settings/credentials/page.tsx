@@ -1,14 +1,13 @@
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
-import { getSessionUser } from "@/lib/auth";
+import { requireAdmin } from "@/lib/auth";
 import { CredentialsPanelContainer } from "@/features/credentials/containers/credentials-panel-container";
 
 export default async function CredentialsPage() {
-  const user = await getSessionUser();
-  if (!user) redirect("/login");
+  const user = await requireAdmin();
+  if (!user) redirect("/");
 
   const credentials = await prisma.credential.findMany({
-    where: { ownerId: user.id },
     orderBy: [{ kind: "asc" }, { createdAt: "desc" }],
     select: {
       id: true,

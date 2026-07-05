@@ -1,18 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { getSessionUser } from "@/lib/auth";
+import { requireAdmin } from "@/lib/auth";
 
 export async function POST(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const user = await getSessionUser();
-  if (!user) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  const user = await requireAdmin();
+  if (!user) return NextResponse.json({ error: "No encontrado" }, { status: 404 });
 
   const { id } = await params;
-  const credential = await prisma.credential.findFirst({
-    where: { id, ownerId: user.id },
-  });
+  const credential = await prisma.credential.findFirst({ where: { id } });
   if (!credential) return NextResponse.json({ error: "No encontrado" }, { status: 404 });
 
   const referencingBusiness = await prisma.business.findFirst({

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { getSessionUser } from "@/lib/auth";
+import { requireAdmin } from "@/lib/auth";
 import { encryptSecret } from "@/lib/crypto";
 
 const VALID_KINDS = ["ai", "whatsapp"];
@@ -20,11 +20,10 @@ const CREDENTIAL_LIST_SELECT = {
 } as const;
 
 export async function GET() {
-  const user = await getSessionUser();
-  if (!user) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  const user = await requireAdmin();
+  if (!user) return NextResponse.json({ error: "No encontrado" }, { status: 404 });
 
   const list = await prisma.credential.findMany({
-    where: { ownerId: user.id },
     orderBy: [{ kind: "asc" }, { createdAt: "desc" }],
     select: CREDENTIAL_LIST_SELECT,
   });
@@ -32,8 +31,8 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const user = await getSessionUser();
-  if (!user) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  const user = await requireAdmin();
+  if (!user) return NextResponse.json({ error: "No encontrado" }, { status: 404 });
 
   const body = await req.json();
   const { kind, provider, label, key, baseUrl } = body;
