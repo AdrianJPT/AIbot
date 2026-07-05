@@ -5,7 +5,11 @@
  */
 export const conversationKeys = {
   all: ["conversations"] as const,
-  list: () => [...conversationKeys.all, "list"] as const,
+  // `search` is omitted for invalidation call sites (realtime hook, mutations)
+  // — TanStack matches by key prefix, so ["conversations","list"] still
+  // invalidates every ["conversations","list",<search>] query.
+  list: (search?: string) =>
+    [...conversationKeys.all, "list", ...(search ? [search] : [])] as const,
   messages: (conversationId: string) =>
     [...conversationKeys.all, conversationId, "messages"] as const,
 };

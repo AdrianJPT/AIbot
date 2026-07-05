@@ -8,12 +8,20 @@ export async function GET(req: NextRequest) {
 
   const businessId = req.nextUrl.searchParams.get("businessId");
   const status = req.nextUrl.searchParams.get("status");
+  const q = req.nextUrl.searchParams.get("q")?.trim();
 
   const list = await prisma.conversation.findMany({
     where: {
       business: { ownerId: user.id },
       ...(businessId && { businessId }),
       ...(status && { status }),
+      // `mode: "insensitive"` compiles to ILIKE on Postgres.
+      ...(q && {
+        OR: [
+          { customerName: { contains: q, mode: "insensitive" } },
+          { customerPhone: { contains: q, mode: "insensitive" } },
+        ],
+      }),
     },
     orderBy: { lastMessageAt: "desc" },
     include: {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { ConversationList } from "@/features/conversations/components/conversation-list";
@@ -16,20 +16,28 @@ const STATUS_BY_FILTER: Record<ConversationFilter, string | null> = {
   closed: "closed",
 };
 
+const SEARCH_DEBOUNCE_MS = 300;
+
 export function ConversationListPaneContainer() {
   const pathname = usePathname();
   const activeId = pathname.match(/^\/conversations\/([^/]+)/)?.[1];
 
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [filter, setFilter] = useState<ConversationFilter>("all");
 
   // Live-reorders the list and refreshes unread badges as Conversation rows
   // change (new messages bump lastMessageAt/unreadCount server-side).
   useRealtimeMessages();
 
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search.trim()), SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [search]);
+
   const { data: conversations = [], isLoading } = useQuery({
-    queryKey: conversationKeys.list(),
-    queryFn: fetchConversations,
+    queryKey: conversationKeys.list(debouncedSearch),
+    queryFn: () => fetchConversations(debouncedSearch),
   });
 
   const businessCount = useMemo(
@@ -39,14 +47,9 @@ export function ConversationListPaneContainer() {
 
   const filtered = useMemo(() => {
     const wantedStatus = STATUS_BY_FILTER[filter];
-    const term = search.trim().toLowerCase();
-    return conversations.filter((c) => {
-      if (wantedStatus && c.status !== wantedStatus) return false;
-      if (!term) return true;
-      const name = (c.customerName || "").toLowerCase();
-      return name.includes(term) || c.customerPhone.toLowerCase().includes(term);
-    });
-  }, [conversations, filter, search]);
+    if (!wantedStatus) return conversations;
+    return conversations.filter((c) => c.status === wantedStatus);
+  }, [conversations, filter]);
 
   return (
     <ConversationList

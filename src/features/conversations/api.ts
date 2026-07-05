@@ -12,8 +12,11 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
   return res.json();
 }
 
-export function fetchConversations(): Promise<ConversationListItem[]> {
-  return request("/api/conversations");
+export function fetchConversations(q?: string): Promise<ConversationListItem[]> {
+  const params = new URLSearchParams();
+  if (q?.trim()) params.set("q", q.trim());
+  const qs = params.toString();
+  return request(`/api/conversations${qs ? `?${qs}` : ""}`);
 }
 
 export function fetchMessages(

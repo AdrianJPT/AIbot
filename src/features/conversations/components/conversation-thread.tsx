@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { ArrowDown, ArrowLeft } from "lucide-react";
+import { ArrowDown, ArrowLeft, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { HandoffToggle } from "@/features/conversations/components/handoff-toggle";
 import {
@@ -103,6 +103,15 @@ export function ConversationThread({
             {conversation.customerPhone} · {conversation.business.name}
           </div>
         </div>
+        <a
+          href={`/api/conversations/${conversation.id}/export`}
+          download
+          className="text-muted-foreground hover:text-foreground"
+          title="Descargar conversación (.txt)"
+          aria-label="Descargar conversación (.txt)"
+        >
+          <Download className="h-4 w-4" />
+        </a>
         <HandoffToggle
           status={conversation.status}
           onChange={onHandoffChange}
