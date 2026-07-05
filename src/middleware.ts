@@ -5,8 +5,8 @@ import { NextResponse, type NextRequest } from "next/server";
  * Refreshes the Supabase session cookie on every request (per the
  * @supabase/ssr Next.js App Router pattern) and redirects unauthenticated
  * requests to /login. The matcher below already excludes /login, /auth/*,
- * /api/webhook, and static assets, so this only runs for protected pages
- * and API routes.
+ * /api/webhook, /api/health, and static assets, so this only runs for
+ * protected pages and API routes.
  */
 export async function middleware(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
@@ -47,6 +47,6 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!login|auth|api/webhook|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
+    "/((?!login|auth|api/webhook|api/health|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
   ],
 };
