@@ -1,4 +1,5 @@
 import type {
+  ConversationAppointment,
   ConversationListItem,
   MessagesPage,
 } from "@/features/conversations/types";
@@ -39,6 +40,12 @@ export function setConversationStatus(id: string, status: string) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ status }),
   });
+}
+
+export function fetchConversationAppointments(
+  id: string
+): Promise<ConversationAppointment[]> {
+  return request(`/api/conversations/${id}/appointments`);
 }
 
 export function sendManualMessage(id: string, text: string) {

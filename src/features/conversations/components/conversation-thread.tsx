@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { ArrowDown, ArrowLeft, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { AppointmentsPanel } from "@/features/conversations/components/appointments-panel";
 import { HandoffToggle } from "@/features/conversations/components/handoff-toggle";
 import {
   MessageBubble,
@@ -103,6 +104,7 @@ export function ConversationThread({
             {conversation.customerPhone} · {conversation.business.name}
           </div>
         </div>
+        <AppointmentsPanel conversationId={conversation.id} />
         <a
           href={`/api/conversations/${conversation.id}/export`}
           download

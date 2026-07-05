@@ -33,3 +33,12 @@ export type MessagesPage = {
 };
 
 export type ConversationFilter = "all" | "bot" | "human" | "closed";
+
+export type ConversationAppointment = {
+  id: string;
+  service: string;
+  date: string;
+  time: string;
+  status: string; // "pending" | "confirmed" | "cancelled" | ...
+  notes: string | null;
+};
