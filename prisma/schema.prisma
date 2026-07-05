@@ -47,6 +47,7 @@ model Message {
   content        String
   mediaType      String       @default("text")
   mediaUrl       String?
+  wamid          String?      @unique
   createdAt      DateTime     @default(now())
 }
 

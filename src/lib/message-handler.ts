@@ -12,6 +12,7 @@ import { sendMessage } from "./whatsapp";
 
 type WaMessage = {
   from: string;
+  id?: string;
   type: string;
   text?: { body: string };
   image?: { id: string };
@@ -60,6 +61,12 @@ async function handleOneMessage(
   const from = message.from;
   if (!from) return;
 
+  const wamid = message.id;
+  if (wamid) {
+    const existing = await prisma.message.findFirst({ where: { wamid } });
+    if (existing) return;
+  }
+
   const parsed = await parseUserContent(business, message);
   if (!parsed) return;
 
@@ -85,6 +92,7 @@ async function handleOneMessage(
         role: "user",
         content: parsed.content,
         mediaType: parsed.mediaType,
+        wamid,
       },
     });
     return;
@@ -98,6 +106,7 @@ async function handleOneMessage(
       role: "user",
       content: parsed.content,
       mediaType: parsed.mediaType,
+      wamid,
     },
   });
 
