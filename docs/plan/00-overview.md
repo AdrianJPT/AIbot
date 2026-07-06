@@ -58,6 +58,7 @@ Phase 1: Foundations & security   (blocks everything)
           └─> Phase 4: Frontend restructure & design system
                  └─> Phase 5: Realtime WhatsApp-style chat + takeover
                         └─> Phase 6: Hardening & extras
+                               └─> Phase 7: WABA / PhoneNumber hierarchy
 ```
 
 | Phase | File | Depends on | Rough size |
@@ -68,6 +69,7 @@ Phase 1: Foundations & security   (blocks everything)
 | 4. Frontend restructure | `04-frontend-restructure.md` | 2 | 2–3 PRs |
 | 5. Realtime chat & takeover | `05-realtime-chat.md` | 4 (and 2) | 3–4 PRs |
 | 6. Hardening & extras | `06-hardening-extras.md` | 5 | independent PRs |
+| 7. WABA / PhoneNumber hierarchy | `07-waba-phone-numbers.md` | 2, 3, 5 | 3 chained PRs |
 
 Phases 3 and 4 are parallelizable after Phase 2 lands.
 
