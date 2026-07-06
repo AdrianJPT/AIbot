@@ -9,6 +9,7 @@ export default defineConfig({
   },
   test: {
     environment: "node",
+    exclude: ["**/node_modules/**", "**/dist/**", "**/.next/**", "**/.claude/**"],
     // Route tests hit a shared Postgres. Admin-scoped queries read across
     // every owner, so fixtures created/deleted by a concurrently running
     // test file race with them (Prisma: "Field business is required to
