@@ -1,15 +1,13 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Button } from "@/components/ui/button";
 import { BusinessListTable } from "@/features/businesses/components/business-list-table";
 import { prisma } from "@/lib/db";
-import { getSessionUser } from "@/lib/auth";
+import { requireAdmin } from "@/lib/auth";
 import { businessScope } from "@/lib/scope";
 import { aggregateBusinessActivity } from "@/lib/business-activity";
 
 export default async function BusinessesPage() {
-  const user = await getSessionUser();
-  if (!user) redirect("/login");
+  const user = await requireAdmin();
+  if (!user) redirect("/");
 
   const list = await prisma.business.findMany({
     where: businessScope(user),
@@ -28,10 +26,14 @@ export default async function BusinessesPage() {
     <div>
       <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
         <h1 className="text-2xl font-bold">Negocios</h1>
-        <Button asChild>
-          <Link href="/businesses/new">Nuevo negocio</Link>
-        </Button>
       </div>
+      <p className="mb-4 text-sm text-muted-foreground">
+        Los números se dan de alta desde{" "}
+        <a href="/admin/clients" className="text-primary hover:underline">
+          Clientes
+        </a>
+        , eligiendo el cliente dueño.
+      </p>
       <BusinessListTable businesses={businesses} />
     </div>
   );

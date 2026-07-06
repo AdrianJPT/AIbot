@@ -18,7 +18,7 @@ import { isAdmin } from "@/lib/scope";
 const links = [
   { href: "/", label: "Panel", icon: LayoutDashboard, adminOnly: false },
   { href: "/conversations", label: "Conversaciones", icon: MessageSquare, adminOnly: false },
-  { href: "/businesses", label: "Negocios", icon: Building2, adminOnly: false },
+  { href: "/businesses", label: "Negocios", icon: Building2, adminOnly: true },
   { href: "/appointments", label: "Citas", icon: Calendar, adminOnly: false },
   { href: "/admin/clients", label: "Clientes", icon: Users, adminOnly: true },
   { href: "/settings/credentials", label: "Configuración", icon: KeyRound, adminOnly: true },

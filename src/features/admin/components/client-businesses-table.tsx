@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Table,
   TableBody,
@@ -20,8 +21,12 @@ function formatLastActivity(date: Date | null): string {
 
 export function ClientBusinessesTable({
   businesses,
+  busyId,
+  onToggleActive,
 }: {
   businesses: ClientBusinessItem[];
+  busyId?: string | null;
+  onToggleActive?: (id: string, nextIsActive: boolean) => void;
 }) {
   if (businesses.length === 0) {
     return (
@@ -37,7 +42,7 @@ export function ClientBusinessesTable({
         <TableHeader>
           <TableRow>
             <TableHead>Negocio</TableHead>
-            <TableHead>Phone ID</TableHead>
+            <TableHead>Número</TableHead>
             <TableHead>Activo</TableHead>
             <TableHead>Conversaciones</TableHead>
             <TableHead>No leídos</TableHead>
@@ -49,8 +54,11 @@ export function ClientBusinessesTable({
           {businesses.map((b) => (
             <TableRow key={b.id}>
               <TableCell className="font-medium">{b.name}</TableCell>
-              <TableCell className="font-mono text-muted-foreground">
-                {b.phoneNumberId}
+              <TableCell>
+                <div>{b.displayPhone || "—"}</div>
+                <div className="font-mono text-xs text-muted-foreground">
+                  {b.phoneNumberId}
+                </div>
               </TableCell>
               <TableCell>
                 <Badge variant={b.isActive ? "default" : "secondary"}>
@@ -63,9 +71,27 @@ export function ClientBusinessesTable({
                 {formatLastActivity(b.lastActivityAt)}
               </TableCell>
               <TableCell>
-                <Link href="/conversations" className="text-primary hover:underline">
-                  Ver conversaciones
-                </Link>
+                <div className="flex items-center justify-end gap-3">
+                  <Link href="/conversations" className="text-primary hover:underline">
+                    Ver conversaciones
+                  </Link>
+                  <Link
+                    href={`/businesses/${b.id}/edit`}
+                    className="text-primary hover:underline"
+                  >
+                    Editar
+                  </Link>
+                  {onToggleActive && (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      disabled={busyId === b.id}
+                      onClick={() => onToggleActive(b.id, !b.isActive)}
+                    >
+                      {b.isActive ? "Desactivar" : "Reactivar"}
+                    </Button>
+                  )}
+                </div>
               </TableCell>
             </TableRow>
           ))}

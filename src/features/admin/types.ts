@@ -13,6 +13,7 @@ export type ClientBusinessItem = {
   id: string;
   name: string;
   phoneNumberId: string;
+  displayPhone: string | null;
   isActive: boolean;
   conversationsCount: number;
   unreadCount: number;
