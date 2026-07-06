@@ -55,7 +55,7 @@ WhatsApp posts status updates (`sent`/`delivered`/`read`/`failed`) to the same w
 
 ## 6.9 Ops
 
-- `GET /api/health`: DB ping + last webhook received timestamp — for Railway healthcheck (`railway.json`).
+- `GET /api/health`: liveness probe for Railway healthcheck (`railway.json`). Keep it independent from Prisma and the DB so deploys can turn healthy even if the database is warming up.
 - Prisma connection review under Realtime load: ensure `DATABASE_URL` uses the Supabase pooler (transaction mode) and `DIRECT_URL` only for migrations (already split per commit `68b2980` — verify config still matches).
 - Backup note: enable Supabase PITR or scheduled dumps before real customer volume.
 
