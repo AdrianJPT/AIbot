@@ -16,17 +16,19 @@ const MODEL_HINTS: Record<string, string> = {
     "formato proveedor/modelo, ej: openai/gpt-4o-mini, google/gemini-2.0-flash-001",
 };
 
-export function BusinessForm({
+/**
+ * Just the business fields, with no <form> wrapper or submit button — so
+ * they can be embedded either standalone (see BusinessForm below) or
+ * alongside other fields in a bigger form (see the combined client-invite
+ * flow in InviteClientFormContainer).
+ */
+export function BusinessFormFields({
   business,
   credentials,
-  submitting,
-  onSubmit,
   fixedOwnerLabel,
 }: {
   business?: BusinessDetail;
   credentials: CredentialOption[];
-  submitting: boolean;
-  onSubmit: (e: React.FormEvent<HTMLFormElement>) => void;
   fixedOwnerLabel?: string;
 }) {
   const infoStr = business
@@ -45,7 +47,7 @@ export function BusinessForm({
   const modelHint = MODEL_HINTS[aiProvider];
 
   return (
-    <form onSubmit={onSubmit} className="max-w-3xl space-y-4">
+    <div className="max-w-3xl space-y-4">
       {fixedOwnerLabel && (
         <div className="space-y-1.5">
           <Label>Cliente</Label>
@@ -75,7 +77,7 @@ export function BusinessForm({
           id="phoneNumberId"
           name="phoneNumberId"
           required
-          defaultValue={business?.phoneNumberId}
+          defaultValue={business?.phoneNumberId ?? undefined}
         />
         <p className="text-xs text-muted-foreground">
           El Phone Number ID que asigna Meta al registrar el número en la
@@ -235,7 +237,30 @@ export function BusinessForm({
           Activo
         </Label>
       </div>
+    </div>
+  );
+}
 
+export function BusinessForm({
+  business,
+  credentials,
+  submitting,
+  onSubmit,
+  fixedOwnerLabel,
+}: {
+  business?: BusinessDetail;
+  credentials: CredentialOption[];
+  submitting: boolean;
+  onSubmit: (e: React.FormEvent<HTMLFormElement>) => void;
+  fixedOwnerLabel?: string;
+}) {
+  return (
+    <form onSubmit={onSubmit} className="max-w-3xl space-y-4">
+      <BusinessFormFields
+        business={business}
+        credentials={credentials}
+        fixedOwnerLabel={fixedOwnerLabel}
+      />
       <Button type="submit" disabled={submitting}>
         {submitting ? "Guardando…" : "Guardar"}
       </Button>

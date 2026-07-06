@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { Business } from "@prisma/client";
+import type { Business, PhoneNumber } from "@prisma/client";
 import { textMessagePayload, TEST_PHONE_NUMBER_ID } from "./fixtures/webhook-payload";
 
-const findFirstBusiness = vi.fn();
+const findFirstPhoneNumber = vi.fn();
 const findFirstMessage = vi.fn();
 const conversationUpsert = vi.fn();
 const messageCreate = vi.fn();
@@ -14,7 +14,7 @@ const conversationUpdate = vi.fn();
 
 vi.mock("../db", () => ({
   prisma: {
-    business: { findFirst: (...args: unknown[]) => findFirstBusiness(...args) },
+    phoneNumber: { findFirst: (...args: unknown[]) => findFirstPhoneNumber(...args) },
     conversation: {
       upsert: (...args: unknown[]) => conversationUpsert(...args),
       update: (...args: unknown[]) => conversationUpdate(...args),
@@ -49,9 +49,11 @@ vi.mock("../ai/resolve", () => ({
   }),
 }));
 
-const sendBusinessMessage = vi.fn();
+const sendFromNumber = vi.fn();
+const resolveWhatsappToken = vi.fn();
 vi.mock("../whatsapp", () => ({
-  sendBusinessMessage: (...args: unknown[]) => sendBusinessMessage(...args),
+  sendFromNumber: (...args: unknown[]) => sendFromNumber(...args),
+  resolveWhatsappToken: (...args: unknown[]) => resolveWhatsappToken(...args),
 }));
 
 const { processWebhookPayload } = await import("../message-handler");
@@ -59,27 +61,39 @@ const { processWebhookPayload } = await import("../message-handler");
 const business: Business = {
   id: "biz_1",
   name: "Test Business",
-  phoneNumberId: TEST_PHONE_NUMBER_ID,
-  whatsappToken: "test-token",
+  wabaId: null,
   systemPrompt: "You are a helpful assistant for {businessName}.",
   welcomeMessage: "Welcome to {businessName}",
   businessInfo: {},
   model: "gpt-4o-mini",
+  visionModel: "gpt-4o-mini",
+  audioModel: "whisper-1",
   maxHistoryMessages: 20,
   dailyAiLimit: 1000,
   isActive: true,
-  ownerId: null,
+  ownerId: "owner_1",
   aiCredentialId: null,
-  whatsappCredentialId: null,
   createdAt: new Date(),
+};
+
+const phoneNumber: PhoneNumber = {
+  id: "phone_1",
+  businessId: business.id,
+  phoneNumberId: TEST_PHONE_NUMBER_ID,
+  displayPhone: null,
+  whatsappCredentialId: null,
+  isActive: true,
+  createdAt: new Date(),
+  updatedAt: new Date(),
 };
 
 beforeEach(() => {
   vi.clearAllMocks();
-  findFirstBusiness.mockResolvedValue(business);
+  findFirstPhoneNumber.mockResolvedValue({ ...phoneNumber, business });
   conversationUpsert.mockResolvedValue({
     id: "conv_1",
     businessId: business.id,
+    phoneNumberId: phoneNumber.id,
     customerPhone: "5215512345678",
     status: "active",
     createdAt: new Date(),
@@ -91,7 +105,8 @@ beforeEach(() => {
   messageUpdate.mockResolvedValue({});
   messageCount.mockResolvedValue(0);
   generateResponse.mockResolvedValue("Respuesta generada");
-  sendBusinessMessage.mockResolvedValue(undefined);
+  resolveWhatsappToken.mockResolvedValue("test-token");
+  sendFromNumber.mockResolvedValue(undefined);
 });
 
 describe("webhook idempotency (dedupe retries)", () => {
@@ -113,6 +128,6 @@ describe("webhook idempotency (dedupe retries)", () => {
 
     // No additional messages created and no duplicate reply sent.
     expect(messageCreate).toHaveBeenCalledTimes(2);
-    expect(sendBusinessMessage).toHaveBeenCalledTimes(1);
+    expect(sendFromNumber).toHaveBeenCalledTimes(1);
   });
 });

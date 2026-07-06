@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { Business } from "@prisma/client";
+import type { Business, PhoneNumber } from "@prisma/client";
 import { textMessagePayload, TEST_PHONE_NUMBER_ID } from "./fixtures/webhook-payload";
 
-const findFirstBusiness = vi.fn();
+const findFirstPhoneNumber = vi.fn();
 const findFirstMessage = vi.fn();
 const conversationUpsert = vi.fn();
 const conversationUpdate = vi.fn();
@@ -14,7 +14,7 @@ const eventLogCreate = vi.fn();
 
 vi.mock("../db", () => ({
   prisma: {
-    business: { findFirst: (...args: unknown[]) => findFirstBusiness(...args) },
+    phoneNumber: { findFirst: (...args: unknown[]) => findFirstPhoneNumber(...args) },
     conversation: {
       upsert: (...args: unknown[]) => conversationUpsert(...args),
       update: (...args: unknown[]) => conversationUpdate(...args),
@@ -50,9 +50,11 @@ vi.mock("../ai/resolve", () => ({
   }),
 }));
 
-const sendBusinessMessage = vi.fn();
+const sendFromNumber = vi.fn();
+const resolveWhatsappToken = vi.fn();
 vi.mock("../whatsapp", () => ({
-  sendBusinessMessage: (...args: unknown[]) => sendBusinessMessage(...args),
+  sendFromNumber: (...args: unknown[]) => sendFromNumber(...args),
+  resolveWhatsappToken: (...args: unknown[]) => resolveWhatsappToken(...args),
 }));
 
 const { processWebhookPayload } = await import("../message-handler");
@@ -60,19 +62,30 @@ const { processWebhookPayload } = await import("../message-handler");
 const business: Business = {
   id: "biz_1",
   name: "Test Business",
-  phoneNumberId: TEST_PHONE_NUMBER_ID,
-  whatsappToken: "test-token",
+  wabaId: null,
   systemPrompt: "You are a helpful assistant for {businessName}.",
   welcomeMessage: "Welcome to {businessName}",
   businessInfo: {},
   model: "gpt-4o-mini",
+  visionModel: "gpt-4o-mini",
+  audioModel: "whisper-1",
   maxHistoryMessages: 20,
   dailyAiLimit: 1000,
   isActive: true,
-  ownerId: null,
+  ownerId: "owner_1",
   aiCredentialId: null,
-  whatsappCredentialId: null,
   createdAt: new Date(),
+};
+
+const phoneNumber: PhoneNumber = {
+  id: "phone_1",
+  businessId: business.id,
+  phoneNumberId: TEST_PHONE_NUMBER_ID,
+  displayPhone: null,
+  whatsappCredentialId: null,
+  isActive: true,
+  createdAt: new Date(),
+  updatedAt: new Date(),
 };
 
 /** Distinguishes the two `message.count` call sites by their `where` shape. */
@@ -83,11 +96,12 @@ function isCustomerRateLimitQuery(args: unknown[]): boolean {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  findFirstBusiness.mockResolvedValue(business);
+  findFirstPhoneNumber.mockResolvedValue({ ...phoneNumber, business });
   findFirstMessage.mockResolvedValue(null);
   conversationUpsert.mockResolvedValue({
     id: "conv_1",
     businessId: business.id,
+    phoneNumberId: phoneNumber.id,
     customerPhone: "5215512345678",
     status: "active",
     createdAt: new Date(),
@@ -100,7 +114,8 @@ beforeEach(() => {
   messageCount.mockResolvedValue(0);
   eventLogCreate.mockResolvedValue({});
   generateResponse.mockResolvedValue("Respuesta generada");
-  sendBusinessMessage.mockResolvedValue(undefined);
+  resolveWhatsappToken.mockResolvedValue("test-token");
+  sendFromNumber.mockResolvedValue(undefined);
 });
 
 describe("per-conversation rate limiting", () => {
@@ -117,7 +132,7 @@ describe("per-conversation rate limiting", () => {
 
     // No AI call, no reply sent, and a warn logged.
     expect(generateResponse).not.toHaveBeenCalled();
-    expect(sendBusinessMessage).not.toHaveBeenCalled();
+    expect(sendFromNumber).not.toHaveBeenCalled();
     expect(eventLogCreate).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ level: "warn", source: "webhook" }),
@@ -133,7 +148,7 @@ describe("per-conversation rate limiting", () => {
     await processWebhookPayload(textMessagePayload);
 
     expect(generateResponse).toHaveBeenCalledTimes(1);
-    expect(sendBusinessMessage).toHaveBeenCalledTimes(1);
+    expect(sendFromNumber).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -156,8 +171,9 @@ describe("per-business daily AI budget", () => {
       role: "assistant",
       content: "Estamos recibiendo muchos mensajes, en breve te responderemos.",
     });
-    expect(sendBusinessMessage).toHaveBeenCalledWith(
-      business,
+    expect(sendFromNumber).toHaveBeenCalledWith(
+      expect.objectContaining({ id: phoneNumber.id }),
+      business.ownerId,
       "5215512345678",
       "Estamos recibiendo muchos mensajes, en breve te responderemos."
     );
@@ -182,7 +198,7 @@ describe("per-business daily AI budget", () => {
     await processWebhookPayload(textMessagePayload);
 
     expect(generateResponse).not.toHaveBeenCalled();
-    expect(sendBusinessMessage).not.toHaveBeenCalled();
+    expect(sendFromNumber).not.toHaveBeenCalled();
     // Only the customer message is persisted — no assistant reply.
     expect(messageCreate).toHaveBeenCalledTimes(1);
   });

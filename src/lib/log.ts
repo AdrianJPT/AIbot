@@ -12,7 +12,8 @@ export async function logEvent(
   source: string,
   message: string,
   detail?: unknown,
-  businessId?: string
+  businessId?: string,
+  phoneNumberId?: string
 ): Promise<void> {
   try {
     if (level === "error") {
@@ -35,6 +36,7 @@ export async function logEvent(
         message,
         detail: safeDetail === undefined ? undefined : (safeDetail as object),
         businessId,
+        phoneNumberId,
       },
     });
   } catch (err) {

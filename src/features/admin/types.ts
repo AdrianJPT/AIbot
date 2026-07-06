@@ -12,7 +12,7 @@ export type ClientListItem = {
 export type ClientBusinessItem = {
   id: string;
   name: string;
-  phoneNumberId: string;
+  phoneNumberId: string | null;
   displayPhone: string | null;
   isActive: boolean;
   conversationsCount: number;

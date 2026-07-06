@@ -1,32 +1,17 @@
 /**
- * One-off backfill: wraps existing plaintext secrets into encrypted
- * Credential rows so they can be managed/rotated from the admin UI
- * (see docs/plan/03-provider-key-management.md). Idempotent — safe to
- * run more than once.
+ * One-off backfill: wraps OPENAI_API_KEY (if set) into an encrypted AI
+ * Credential so it can be managed/rotated from the admin UI (see
+ * docs/plan/03-provider-key-management.md). Idempotent — safe to run more
+ * than once.
  *
- * What it does:
- * 1. For every Business with an ownerId and a whatsappToken, ensures an
- *    "active" whatsapp Credential exists for that owner wrapping the
- *    token, and links it via Business.whatsappCredentialId. Businesses
- *    without an owner are skipped (nothing to attach the credential to)
- *    and keep working off the legacy whatsappToken column.
- * 2. If OPENAI_API_KEY is set in the environment, creates one "active"
- *    ai Credential (provider "openai") for the owner passed via CLI arg,
- *    unless that owner already has an active ai credential.
- *
- * This script does NOT drop Business.whatsappToken or remove
- * OPENAI_API_KEY from env validation — both legacy fallbacks stay in
- * place until the final cleanup PR of Phase 3 (see the phase doc's PR
- * slicing, PR C item "drop legacy column/env").
+ * The legacy WhatsApp-token migration this script used to perform
+ * (Business.whatsappToken -> Credential) has been superseded by
+ * prisma/scripts/migrate-phone-numbers.ts, which also introduces the
+ * PhoneNumber model (see docs/plan/07-waba-phone-numbers.md).
  *
  * Usage:
  *   npx tsx prisma/scripts/migrate-secrets.ts --email owner@example.com
  *   npx tsx prisma/scripts/migrate-secrets.ts --user-id <supabase-uuid>
- *
- * The --email/--user-id argument identifies which owner should receive
- * the OPENAI_API_KEY-derived AI credential (skipped if OPENAI_API_KEY is
- * not set, or if no owner is given). WhatsApp token migration runs
- * regardless, scoped to each business's own owner.
  */
 import { PrismaClient } from "@prisma/client";
 import { encryptSecret } from "../../src/lib/crypto";
@@ -40,57 +25,6 @@ function parseArgs(argv: string[]): { email?: string; userId?: string } {
     if (argv[i] === "--user-id") result.userId = argv[++i];
   }
   return result;
-}
-
-async function migrateWhatsappTokens(): Promise<void> {
-  const businesses = await prisma.business.findMany({
-    where: {
-      ownerId: { not: null },
-      whatsappCredentialId: null,
-    },
-  });
-
-  let migrated = 0;
-  let skipped = 0;
-
-  for (const business of businesses) {
-    if (!business.ownerId || !business.whatsappToken) {
-      skipped++;
-      continue;
-    }
-
-    // Idempotency: if the owner already has an active whatsapp
-    // credential wrapping this exact token, just link it instead of
-    // creating a duplicate.
-    const existingActive = await prisma.credential.findFirst({
-      where: { ownerId: business.ownerId, kind: "whatsapp", status: "active" },
-    });
-
-    const credential =
-      existingActive ??
-      (await prisma.credential.create({
-        data: {
-          ownerId: business.ownerId,
-          kind: "whatsapp",
-          provider: "meta",
-          label: `WhatsApp (migrado de ${business.name})`,
-          encryptedKey: encryptSecret(business.whatsappToken),
-          keyLast4: business.whatsappToken.slice(-4),
-          status: "active",
-        },
-      }));
-
-    await prisma.business.update({
-      where: { id: business.id },
-      data: { whatsappCredentialId: credential.id },
-    });
-
-    migrated++;
-  }
-
-  console.log(
-    `WhatsApp tokens: linked ${migrated} business(es) to a Credential, skipped ${skipped} (no owner or no token).`
-  );
 }
 
 async function migrateOpenAiKey(ownerIdOrEmail: {
@@ -149,7 +83,6 @@ async function migrateOpenAiKey(ownerIdOrEmail: {
 async function main() {
   const args = parseArgs(process.argv.slice(2));
 
-  await migrateWhatsappTokens();
   await migrateOpenAiKey(args);
 }
 

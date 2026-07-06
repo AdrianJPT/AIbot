@@ -5,6 +5,7 @@ import { ClientBusinessesTableContainer } from "@/features/admin/containers/clie
 import { prisma } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth";
 import { aggregateBusinessActivity } from "@/lib/business-activity";
+import { flattenBusinessPhoneNumber } from "@/lib/business-phone-compat";
 
 export default async function AdminClientDetailPage({
   params,
@@ -21,6 +22,7 @@ export default async function AdminClientDetailPage({
       businesses: {
         orderBy: { name: "asc" },
         include: {
+          phoneNumbers: true,
           conversations: { select: { unreadCount: true, lastMessageAt: true } },
         },
       },
@@ -29,7 +31,7 @@ export default async function AdminClientDetailPage({
   if (!client) notFound();
 
   const businesses = client.businesses.map(({ conversations, ...business }) => ({
-    ...business,
+    ...flattenBusinessPhoneNumber(business),
     ...aggregateBusinessActivity(conversations),
   }));
 

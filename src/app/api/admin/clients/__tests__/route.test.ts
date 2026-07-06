@@ -20,6 +20,17 @@ vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: () => ({ auth: { admin: { inviteUserByEmail } } }),
 }));
 
+function validBusiness(suffix: string) {
+  return {
+    name: `Test Business ${suffix}`,
+    phoneNumberId: `test-invite-${suffix}-${randomUUID()}`,
+    whatsappToken: "test-token",
+    systemPrompt: "test prompt",
+    welcomeMessage: "hola",
+    businessInfo: {},
+  };
+}
+
 function buildRequest(body: unknown): NextRequest {
   return new NextRequest("https://example.com/api/admin/clients", {
     method: "POST",
@@ -46,13 +57,27 @@ describe("POST /api/admin/clients", () => {
     getSessionUser.mockResolvedValueOnce(other);
     const { POST } = await import("../route");
 
-    const res = await POST(buildRequest({ email: "new@test.local" }));
+    const res = await POST(
+      buildRequest({ email: "new@test.local", business: validBusiness("nonadmin") })
+    );
 
     expect(res.status).toBe(404);
     expect(inviteUserByEmail).not.toHaveBeenCalled();
   });
 
-  it("invites the user via Supabase and precreates the Prisma User row", async () => {
+  it("returns 400 when business fields are missing, without inviting", async () => {
+    getSessionUser.mockResolvedValueOnce(admin);
+    const { POST } = await import("../route");
+
+    const res = await POST(buildRequest({ email: "no-business@test.local" }));
+    const body = await res.json();
+
+    expect(res.status).toBe(400);
+    expect(inviteUserByEmail).not.toHaveBeenCalled();
+    expect(body.error).toBeTruthy();
+  });
+
+  it("invites the user via Supabase, precreates the Prisma User row, and creates their business+number", async () => {
     getSessionUser.mockResolvedValueOnce(admin);
     const newId = randomUUID();
     const email = `invited-${newId}@test.local`;
@@ -62,7 +87,9 @@ describe("POST /api/admin/clients", () => {
     });
     const { POST } = await import("../route");
 
-    const res = await POST(buildRequest({ email, name: "Cliente Nuevo" }));
+    const res = await POST(
+      buildRequest({ email, name: "Cliente Nuevo", business: validBusiness("ok") })
+    );
     const created = await res.json();
     invitedIds.push(newId);
 
@@ -76,9 +103,46 @@ describe("POST /api/admin/clients", () => {
 
     const stored = await prisma.user.findUnique({ where: { id: newId } });
     expect(stored?.email).toBe(email);
+
+    const business = await prisma.business.findFirst({
+      where: { ownerId: newId },
+      include: { phoneNumbers: true },
+    });
+    expect(business?.phoneNumbers).toHaveLength(1);
   });
 
-  it("returns 400 when Supabase invite fails", async () => {
+  it("returns 409 for a duplicate phoneNumberId without inviting (checked before Supabase call)", async () => {
+    inviteUserByEmail.mockClear();
+    getSessionUser.mockResolvedValueOnce(admin);
+    const owner = await createTestUser("invite-dup-owner");
+    invitedIds.push(owner.id);
+    const taken = validBusiness("dup-target");
+    await prisma.business.create({
+      data: {
+        name: taken.name,
+        systemPrompt: taken.systemPrompt,
+        welcomeMessage: taken.welcomeMessage,
+        businessInfo: taken.businessInfo,
+        ownerId: owner.id,
+        phoneNumbers: { create: { phoneNumberId: taken.phoneNumberId } },
+      },
+    });
+    const { POST } = await import("../route");
+
+    const res = await POST(
+      buildRequest({
+        email: "dup-phone@test.local",
+        business: { ...validBusiness("dup-attempt"), phoneNumberId: taken.phoneNumberId },
+      })
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(409);
+    expect(inviteUserByEmail).not.toHaveBeenCalled();
+    expect(body.error).toMatch(/ya está registrado/);
+  });
+
+  it("returns 400 when Supabase invite fails, without creating a business", async () => {
     getSessionUser.mockResolvedValueOnce(admin);
     inviteUserByEmail.mockResolvedValueOnce({
       data: { user: null },
@@ -86,7 +150,9 @@ describe("POST /api/admin/clients", () => {
     });
     const { POST } = await import("../route");
 
-    const res = await POST(buildRequest({ email: "dup@test.local" }));
+    const res = await POST(
+      buildRequest({ email: "dup@test.local", business: validBusiness("invite-fail") })
+    );
     const body = await res.json();
 
     expect(res.status).toBe(400);

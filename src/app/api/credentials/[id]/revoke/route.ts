@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth";
+import { findCredentialUsageBusinessName } from "@/lib/credentials/usage";
 
 export async function POST(
   _req: NextRequest,
@@ -13,15 +14,11 @@ export async function POST(
   const credential = await prisma.credential.findFirst({ where: { id } });
   if (!credential) return NextResponse.json({ error: "No encontrado" }, { status: 404 });
 
-  const referencingBusiness = await prisma.business.findFirst({
-    where: {
-      OR: [{ aiCredentialId: id }, { whatsappCredentialId: id }],
-    },
-  });
-  if (referencingBusiness) {
+  const referencingBusinessName = await findCredentialUsageBusinessName(id);
+  if (referencingBusinessName) {
     return NextResponse.json(
       {
-        error: `No se puede revocar: está en uso por el negocio "${referencingBusiness.name}"`,
+        error: `No se puede revocar: está en uso por el negocio "${referencingBusinessName}"`,
       },
       { status: 409 }
     );

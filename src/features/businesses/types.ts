@@ -1,7 +1,7 @@
 export type BusinessListItem = {
   id: string;
   name: string;
-  phoneNumberId: string;
+  phoneNumberId: string | null;
   displayPhone: string | null;
   isActive: boolean;
   conversationsCount: number;
@@ -20,9 +20,11 @@ export type CredentialOption = {
 export type BusinessDetail = {
   id: string;
   name: string;
-  phoneNumberId: string;
+  phoneNumberId: string | null;
   displayPhone?: string | null;
-  whatsappToken: string;
+  // The server never returns the raw token — it's write-only (wrapped into
+  // an encrypted Credential on save, see docs/plan/07-waba-phone-numbers.md).
+  whatsappToken?: string;
   systemPrompt: string;
   welcomeMessage: string;
   businessInfo: unknown;

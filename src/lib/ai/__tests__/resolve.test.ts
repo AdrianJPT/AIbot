@@ -51,17 +51,18 @@ function makeBusiness(overrides: Partial<Business> = {}): Business {
   return {
     id: "biz_1",
     name: "Test Business",
-    phoneNumberId: "PN_1",
-    whatsappToken: "legacy-wa-token",
+    wabaId: null,
     systemPrompt: "prompt",
     welcomeMessage: "welcome",
     businessInfo: {},
     model: "gpt-4o-mini",
+    visionModel: null,
+    audioModel: null,
     maxHistoryMessages: 20,
+    dailyAiLimit: 1000,
     isActive: true,
     ownerId: "owner_1",
     aiCredentialId: null,
-    whatsappCredentialId: null,
     createdAt: new Date(),
     ...overrides,
   } as Business;
@@ -123,7 +124,7 @@ describe("getAiClient resolution order", () => {
   it("throws a clear error when neither business nor owner has a credential", async () => {
     credentialFindFirst.mockResolvedValue(null);
     appConfigFindUnique.mockResolvedValue(null);
-    const business = makeBusiness({ aiCredentialId: null, ownerId: null });
+    const business = makeBusiness({ aiCredentialId: null });
 
     await expect(getAiClient(business)).rejects.toThrow(
       /No AI credential is configured/

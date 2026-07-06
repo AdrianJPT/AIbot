@@ -21,29 +21,45 @@ model User {
 }
 
 model Business {
-  id                   String         @id @default(cuid())
-  name                 String
-  phoneNumberId        String         @unique
-  displayPhone         String? // human-readable "+<código país> <número>", shown as the item title; phoneNumberId above is Meta's opaque technical id
-  whatsappToken        String
-  systemPrompt         String
-  welcomeMessage       String
-  businessInfo         Json
-  model                String? // null = inherit AppConfig.chatModel
-  visionModel          String? // null = inherit AppConfig.visionModel
-  audioModel           String? // null = inherit AppConfig.audioModel
-  maxHistoryMessages   Int            @default(20)
-  dailyAiLimit         Int            @default(1000)
-  isActive             Boolean        @default(true)
-  ownerId              String?
-  owner                User?          @relation(fields: [ownerId], references: [id])
-  aiCredentialId       String?
-  whatsappCredentialId String?
-  conversations        Conversation[]
-  appointments         Appointment[]
-  createdAt            DateTime       @default(now())
+  id                 String         @id @default(cuid())
+  name               String
+  wabaId             String?        @unique // Meta's WhatsApp Business Account id, informational
+  systemPrompt       String
+  welcomeMessage     String
+  businessInfo       Json
+  model              String? // null = inherit AppConfig.chatModel
+  visionModel        String? // null = inherit AppConfig.visionModel
+  audioModel         String? // null = inherit AppConfig.audioModel
+  maxHistoryMessages Int            @default(20)
+  dailyAiLimit       Int            @default(1000)
+  isActive           Boolean        @default(true)
+  ownerId            String
+  owner              User           @relation(fields: [ownerId], references: [id])
+  aiCredentialId     String?
+  phoneNumbers       PhoneNumber[]
+  conversations      Conversation[]
+  appointments       Appointment[]
+  createdAt          DateTime       @default(now())
 
   @@index([ownerId])
+}
+
+// A phone number registered under a Business (WABA). A Business can hold more
+// than one PhoneNumber; conversations belong to the number the customer
+// actually messaged, not to the WABA directly.
+model PhoneNumber {
+  id                   String         @id @default(cuid())
+  businessId           String
+  business             Business       @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  phoneNumberId        String         @unique // Meta's opaque technical id — webhook lookup key
+  displayPhone         String? // human-readable "+<código país> <número>", shown as the item title
+  whatsappCredentialId String?
+  isActive             Boolean        @default(true)
+  conversations        Conversation[]
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
+
+  @@index([businessId])
 }
 
 // Singleton (id is always "default") holding platform-wide AI defaults —
@@ -81,8 +97,10 @@ model Credential {
 
 model Conversation {
   id            String        @id @default(cuid())
-  businessId    String
+  businessId    String // denormalized copy of phoneNumber.businessId — kept so RLS policies and scope.ts stay a single-hop join; PhoneNumber.businessId is immutable so this can't drift
   business      Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  phoneNumberId String
+  phoneNumber   PhoneNumber   @relation(fields: [phoneNumberId], references: [id], onDelete: Cascade)
   customerPhone String
   customerName  String? // WhatsApp profile name from webhook `contacts[0].profile.name` — overwritten on every inbound message, never edited by hand
   nickname      String? // admin-set alias, takes display priority over customerName; webhook never touches this
@@ -94,8 +112,9 @@ model Conversation {
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
 
-  @@unique([businessId, customerPhone])
+  @@unique([phoneNumberId, customerPhone])
   @@index([businessId, lastMessageAt])
+  @@index([phoneNumberId, lastMessageAt])
 }
 
 model Message {
@@ -131,13 +150,14 @@ model Appointment {
 }
 
 model EventLog {
-  id         String   @id @default(cuid())
-  level      String // "error" | "warn" | "info"
-  source     String // "webhook" | "ai" | "whatsapp-send" | "auth" | "credentials"
-  message    String
-  detail     Json?
-  businessId String?
-  createdAt  DateTime @default(now())
+  id            String   @id @default(cuid())
+  level         String // "error" | "warn" | "info"
+  source        String // "webhook" | "ai" | "whatsapp-send" | "auth" | "credentials"
+  message       String
+  detail        Json?
+  businessId    String?
+  phoneNumberId String?
+  createdAt     DateTime @default(now())
 
   @@index([createdAt])
   @@index([source, createdAt])

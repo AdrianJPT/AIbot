@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { prisma } from "@/lib/db";
 import { encryptSecret } from "@/lib/crypto";
-import type { Business, Credential, User } from "@prisma/client";
+import type { Business, Credential, PhoneNumber, User } from "@prisma/client";
 
 export async function createTestUser(
   prefix: string,
@@ -16,17 +16,19 @@ export async function createTestUser(
 export async function createTestBusiness(
   ownerId: string,
   suffix: string
-): Promise<Business> {
+): Promise<Business & { phoneNumbers: PhoneNumber[] }> {
   return prisma.business.create({
     data: {
       name: `Test Business ${suffix}`,
-      phoneNumberId: `test-phone-${suffix}-${randomUUID()}`,
-      whatsappToken: "test-token",
       systemPrompt: "test prompt",
       welcomeMessage: "hola",
       businessInfo: {},
       ownerId,
+      phoneNumbers: {
+        create: { phoneNumberId: `test-phone-${suffix}-${randomUUID()}` },
+      },
     },
+    include: { phoneNumbers: true },
   });
 }
 
@@ -57,9 +59,13 @@ export async function createTestCredential(
 }
 
 export async function createTestConversation(businessId: string, suffix: string) {
+  const phoneNumber = await prisma.phoneNumber.findFirstOrThrow({
+    where: { businessId },
+  });
   return prisma.conversation.create({
     data: {
       businessId,
+      phoneNumberId: phoneNumber.id,
       customerPhone: `+549${suffix}`,
     },
   });

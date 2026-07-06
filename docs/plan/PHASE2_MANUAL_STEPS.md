@@ -63,27 +63,18 @@ magic-link URL directly instead of waiting for an email, use **Authentication
 → Logs** in the dashboard, or set up Inbucket if you're running Supabase
 locally via the CLI.
 
-## 5. First login + ownership backfill (do this once, after this PR is live)
+## 5. First login + ownership backfill — superseded
 
-Once the product owner logs in for the first time (Google or magic link), a
-`User` row is created automatically (`src/lib/auth.ts`). All *existing*
-businesses in the DB have `ownerId = null` at this point — they were created
-before ownership existed.
-
-Run the backfill script to assign them all to that user:
-
-```bash
-npx tsx prisma/scripts/assign-owner.ts --email owner@example.com
-# or
-npx tsx prisma/scripts/assign-owner.ts --user-id <supabase-uuid>
-```
-
-This is a one-off, manual step — it is **not** run automatically, and
-`Business.ownerId` stays nullable until this has been done in every
-environment (local, staging, prod). A follow-up migration to make `ownerId`
-required is intentionally deferred to a later PR (see
-`docs/plan/02-auth-multitenancy.md`, task 2.2) — only do that once you've
-confirmed every business in every environment has an owner.
+> **Update (docs/plan/07-waba-phone-numbers.md):** `Business.ownerId` is now
+> required at the schema level (migration
+> `20260706080000_business_owner_required`). Rather than backfill ownerless
+> rows, every environment's data was wiped and started fresh instead, so
+> `prisma/scripts/assign-owner.ts` (referenced below) was deleted as
+> obsolete — it can never find a null-`ownerId` row again, since Postgres
+> now rejects one outright. If you're following this checklist against a
+> *different* environment that still has legacy ownerless businesses, either
+> backfill them by hand before applying that migration, or wipe that
+> environment too.
 
 ## Checklist
 
@@ -94,5 +85,5 @@ confirmed every business in every environment has an owner.
 - [ ] `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`,
       `SUPABASE_SERVICE_ROLE_KEY` set in local `.env` and Railway
 - [ ] Product owner logged in once (creates their `User` row)
-- [ ] `prisma/scripts/assign-owner.ts` run against every environment with
-      existing ownerless businesses
+- [x] `Business.ownerId` required — resolved by wiping data instead of a
+      backfill script (see note above)

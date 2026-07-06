@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { Business } from "@prisma/client";
+import type { Business, PhoneNumber } from "@prisma/client";
 import {
   audioMessagePayload,
   documentMessagePayload,
@@ -11,7 +11,7 @@ import {
   TEST_PHONE_NUMBER_ID,
 } from "./fixtures/webhook-payload";
 
-const findFirstBusiness = vi.fn();
+const findFirstPhoneNumber = vi.fn();
 const findFirstMessage = vi.fn();
 const conversationUpsert = vi.fn();
 const conversationUpdate = vi.fn();
@@ -22,7 +22,7 @@ const messageCount = vi.fn();
 
 vi.mock("../db", () => ({
   prisma: {
-    business: { findFirst: (...args: unknown[]) => findFirstBusiness(...args) },
+    phoneNumber: { findFirst: (...args: unknown[]) => findFirstPhoneNumber(...args) },
     conversation: {
       upsert: (...args: unknown[]) => conversationUpsert(...args),
       update: (...args: unknown[]) => conversationUpdate(...args),
@@ -61,9 +61,11 @@ vi.mock("../ai/resolve", () => ({
   }),
 }));
 
-const sendBusinessMessage = vi.fn();
+const sendFromNumber = vi.fn();
+const resolveWhatsappToken = vi.fn();
 vi.mock("../whatsapp", () => ({
-  sendBusinessMessage: (...args: unknown[]) => sendBusinessMessage(...args),
+  sendFromNumber: (...args: unknown[]) => sendFromNumber(...args),
+  resolveWhatsappToken: (...args: unknown[]) => resolveWhatsappToken(...args),
 }));
 
 const downloadMediaBuffer = vi.fn();
@@ -80,28 +82,42 @@ const { processWebhookPayload } = await import("../message-handler");
 const business: Business = {
   id: "biz_1",
   name: "Test Business",
-  phoneNumberId: TEST_PHONE_NUMBER_ID,
-  whatsappToken: "test-token",
+  wabaId: null,
   systemPrompt: "You are a helpful assistant for {businessName}.",
   welcomeMessage: "Welcome to {businessName}",
   businessInfo: {},
   model: "gpt-4o-mini",
+  visionModel: "gpt-4o-mini",
+  audioModel: "whisper-1",
   maxHistoryMessages: 20,
   dailyAiLimit: 1000,
   isActive: true,
-  ownerId: null,
+  ownerId: "owner_1",
   aiCredentialId: null,
-  whatsappCredentialId: null,
   createdAt: new Date(),
 };
 
+const phoneNumber: PhoneNumber = {
+  id: "phone_1",
+  businessId: business.id,
+  phoneNumberId: TEST_PHONE_NUMBER_ID,
+  displayPhone: null,
+  whatsappCredentialId: null,
+  isActive: true,
+  createdAt: new Date(),
+  updatedAt: new Date(),
+};
+
+const TEST_TOKEN = "test-token";
+
 beforeEach(() => {
   vi.clearAllMocks();
-  findFirstBusiness.mockResolvedValue(business);
+  findFirstPhoneNumber.mockResolvedValue({ ...phoneNumber, business });
   findFirstMessage.mockResolvedValue(null);
   conversationUpsert.mockResolvedValue({
     id: "conv_1",
     businessId: business.id,
+    phoneNumberId: phoneNumber.id,
     customerPhone: "5215512345678",
     status: "active",
     createdAt: new Date(),
@@ -113,7 +129,8 @@ beforeEach(() => {
   messageUpdate.mockResolvedValue({});
   messageCount.mockResolvedValue(0);
   generateResponse.mockResolvedValue("Respuesta generada");
-  sendBusinessMessage.mockResolvedValue("wamid.OUTBOUND_001");
+  resolveWhatsappToken.mockResolvedValue(TEST_TOKEN);
+  sendFromNumber.mockResolvedValue("wamid.OUTBOUND_001");
 });
 
 describe("processWebhookPayload", () => {
@@ -131,8 +148,9 @@ describe("processWebhookPayload", () => {
       mediaType: "text",
       content: "Respuesta generada",
     });
-    expect(sendBusinessMessage).toHaveBeenCalledWith(
-      business,
+    expect(sendFromNumber).toHaveBeenCalledWith(
+      expect.objectContaining({ id: phoneNumber.id }),
+      business.ownerId,
       "5215512345678",
       "Respuesta generada"
     );
@@ -149,7 +167,7 @@ describe("processWebhookPayload", () => {
 
     expect(downloadMediaBuffer).toHaveBeenCalledWith(
       "MEDIA_ID_IMAGE_001",
-      business.whatsappToken
+      TEST_TOKEN
     );
     expect(messageCreate.mock.calls[0][0].data).toMatchObject({
       mediaType: "image",
@@ -188,7 +206,7 @@ describe("processWebhookPayload", () => {
     });
     // The pipeline still runs to completion and sends a reply — the
     // customer never sees total silence just because transcription failed.
-    expect(sendBusinessMessage).toHaveBeenCalledTimes(1);
+    expect(sendFromNumber).toHaveBeenCalledTimes(1);
   });
 
   it("still replies when describeImageFromBuffer throws, instead of leaving the customer with no response", async () => {
@@ -204,7 +222,7 @@ describe("processWebhookPayload", () => {
       mediaType: "image",
       content: "[Imagen del cliente — no se pudo procesar]",
     });
-    expect(sendBusinessMessage).toHaveBeenCalledTimes(1);
+    expect(sendFromNumber).toHaveBeenCalledTimes(1);
   });
 
   it("handles location messages", async () => {
@@ -258,7 +276,7 @@ describe("processWebhookPayload", () => {
     expect(messageUpdate).not.toHaveBeenCalled();
   });
 
-  it("captures the outbound wamid returned by sendBusinessMessage on the bot reply", async () => {
+  it("captures the outbound wamid returned by sendFromNumber on the bot reply", async () => {
     await processWebhookPayload(textMessagePayload);
 
     expect(messageUpdate).toHaveBeenCalledWith({
@@ -322,7 +340,7 @@ describe("processWebhookPayload", () => {
     await processWebhookPayload(textMessagePayload);
 
     expect(generateResponse).not.toHaveBeenCalled();
-    expect(sendBusinessMessage).not.toHaveBeenCalled();
+    expect(sendFromNumber).not.toHaveBeenCalled();
     expect(messageCreate).toHaveBeenCalledTimes(1);
     expect(messageCreate.mock.calls[0][0].data).toMatchObject({
       sentBy: "customer",
