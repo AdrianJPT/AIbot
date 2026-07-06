@@ -19,8 +19,10 @@ function formatLastActivity(date: Date | null): string {
 
 export function BusinessListTable({
   businesses,
+  isAdmin,
 }: {
   businesses: BusinessListItem[];
+  isAdmin: boolean;
 }) {
   if (businesses.length === 0) {
     return (
@@ -60,13 +62,21 @@ export function BusinessListTable({
               <TableCell className="text-muted-foreground">
                 {formatLastActivity(b.lastActivityAt)}
               </TableCell>
-              <TableCell>
+              <TableCell className="space-x-3">
                 <Link
-                  href={`/businesses/${b.id}/edit`}
+                  href={`/businesses/${b.id}`}
                   className="text-primary hover:underline"
                 >
-                  Editar
+                  Ver números
                 </Link>
+                {isAdmin && (
+                  <Link
+                    href={`/businesses/${b.id}/edit`}
+                    className="text-primary hover:underline"
+                  >
+                    Editar
+                  </Link>
+                )}
               </TableCell>
             </TableRow>
           ))}

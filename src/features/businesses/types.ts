@@ -37,6 +37,21 @@ export type BusinessDetail = {
   whatsappCredentialId?: string | null;
 };
 
+export type PhoneNumberItem = {
+  id: string;
+  phoneNumberId: string;
+  displayPhone: string | null;
+  isActive: boolean;
+};
+
+export type PhoneNumberInput = {
+  phoneNumberId: string;
+  displayPhone: string | null;
+  whatsappToken?: string;
+  whatsappCredentialId?: string | null;
+  isActive?: boolean;
+};
+
 export type BusinessInput = {
   name: string;
   phoneNumberId: string;
