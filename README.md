@@ -19,11 +19,14 @@ DIRECT_URL=postgresql://bot:password@localhost:5432/whatsapp_bot
 OPENAI_API_KEY=sk-...
 WEBHOOK_VERIFY_TOKEN=un_token_secreto_para_el_webhook
 WHATSAPP_APP_SECRET=...
+NEXT_PUBLIC_SITE_URL=https://tu-dominio-publico (http://localhost:3000 en local)
 NEXT_PUBLIC_SUPABASE_URL=https://xxxx.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=...
 SUPABASE_SERVICE_ROLE_KEY=...
 APP_ENCRYPTION_KEY=base64_de_32_bytes
 ```
+
+`NEXT_PUBLIC_SITE_URL` debe ser el dominio público real de la app (el de Railway en prod). Los redirects de auth (`/auth/callback`, `/auth/logout`, middleware) lo usan en vez de la URL del request — detrás del proxy de Railway, `req.nextUrl.origin` resuelve a la dirección interna del contenedor, no al dominio público.
 
 Cada **negocio** guarda su propio `phoneNumberId` y `whatsappToken` en la base de datos (panel **Negocios**).
 
