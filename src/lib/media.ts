@@ -39,7 +39,7 @@ export async function describeImageFromBuffer(
 
   return callWithFailover(business, async (client) => {
     const response = await client.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: business.visionModel,
       messages: [
         {
           role: "user",
@@ -69,7 +69,7 @@ export async function transcribeAudioBuffer(
     const file = await toFile(buffer, "audio.ogg", { type: "audio/ogg" });
     const response = await client.audio.transcriptions.create({
       file,
-      model: "whisper-1",
+      model: business.audioModel,
     });
     return response.text?.trim() || "[Audio sin transcripción]";
   });

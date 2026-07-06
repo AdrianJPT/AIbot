@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import type { User } from "@prisma/client";
 import { prisma } from "@/lib/db";
+import { isAdmin } from "@/lib/scope";
 import {
   cleanupOwnershipFixtures,
   createTestBusiness,
@@ -11,6 +12,10 @@ import {
 const getSessionUser = vi.fn();
 vi.mock("@/lib/auth", () => ({
   getSessionUser: () => getSessionUser(),
+  requireAdmin: async () => {
+    const user = await getSessionUser();
+    return user && isAdmin(user) ? user : null;
+  },
 }));
 
 function buildRequest(body: unknown): NextRequest {
@@ -71,21 +76,40 @@ describe("GET/POST /api/businesses", () => {
     expect(list.some((b: { ownerId: string }) => b.ownerId === other.id)).toBe(true);
   });
 
-  it("POST returns 401 when unauthenticated", async () => {
+  it("POST returns 404 when unauthenticated", async () => {
     getSessionUser.mockResolvedValueOnce(null);
     const { POST } = await import("../route");
 
     const res = await POST(buildRequest({}));
 
-    expect(res.status).toBe(401);
+    expect(res.status).toBe(404);
   });
 
-  it("POST creates a business owned by the authenticated user", async () => {
+  it("POST returns 404 for a non-admin caller", async () => {
     getSessionUser.mockResolvedValueOnce(owner);
     const { POST } = await import("../route");
 
     const res = await POST(
       buildRequest({
+        ownerId: owner.id,
+        name: "New Biz",
+        phoneNumberId: `test-new-${Date.now()}`,
+        whatsappToken: "tok",
+        systemPrompt: "prompt",
+        welcomeMessage: "hola",
+      })
+    );
+
+    expect(res.status).toBe(404);
+  });
+
+  it("POST creates a business owned by the given client when called by an admin", async () => {
+    getSessionUser.mockResolvedValueOnce(admin);
+    const { POST } = await import("../route");
+
+    const res = await POST(
+      buildRequest({
+        ownerId: owner.id,
         name: "New Biz",
         phoneNumberId: `test-new-${Date.now()}`,
         whatsappToken: "tok",

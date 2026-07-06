@@ -36,7 +36,7 @@ export function BusinessListTable({
         <TableHeader>
           <TableRow>
             <TableHead>Nombre</TableHead>
-            <TableHead>Phone ID</TableHead>
+            <TableHead>Número</TableHead>
             <TableHead>Activo</TableHead>
             <TableHead>Conversaciones</TableHead>
             <TableHead>No leídos</TableHead>
@@ -48,8 +48,11 @@ export function BusinessListTable({
           {businesses.map((b) => (
             <TableRow key={b.id}>
               <TableCell className="font-medium">{b.name}</TableCell>
-              <TableCell className="font-mono text-muted-foreground">
-                {b.phoneNumberId}
+              <TableCell>
+                <div>{b.displayPhone || "—"}</div>
+                <div className="font-mono text-xs text-muted-foreground">
+                  {b.phoneNumberId}
+                </div>
               </TableCell>
               <TableCell>{b.isActive ? "Sí" : "No"}</TableCell>
               <TableCell>{b.conversationsCount}</TableCell>

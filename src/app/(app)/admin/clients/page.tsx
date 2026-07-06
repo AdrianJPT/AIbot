@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { ClientsTable } from "@/features/admin/components/clients-table";
+import { InviteClientDialog } from "@/features/admin/containers/invite-client-dialog";
 import { prisma } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth";
 import { aggregateBusinessActivity } from "@/lib/business-activity";
@@ -39,7 +40,10 @@ export default async function AdminClientsPage() {
 
   return (
     <div>
-      <h1 className="mb-6 text-2xl font-bold">Clientes</h1>
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+        <h1 className="text-2xl font-bold">Clientes</h1>
+        <InviteClientDialog />
+      </div>
       <ClientsTable clients={clients} />
     </div>
   );

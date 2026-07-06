@@ -2,6 +2,7 @@ export type BusinessListItem = {
   id: string;
   name: string;
   phoneNumberId: string;
+  displayPhone: string | null;
   isActive: boolean;
   conversationsCount: number;
   unreadCount: number;
@@ -20,11 +21,14 @@ export type BusinessDetail = {
   id: string;
   name: string;
   phoneNumberId: string;
+  displayPhone?: string | null;
   whatsappToken: string;
   systemPrompt: string;
   welcomeMessage: string;
   businessInfo: unknown;
   model: string;
+  visionModel: string;
+  audioModel: string;
   maxHistoryMessages: number;
   isActive: boolean;
   aiCredentialId?: string | null;
@@ -34,13 +38,17 @@ export type BusinessDetail = {
 export type BusinessInput = {
   name: string;
   phoneNumberId: string;
+  displayPhone: string | null;
   whatsappToken: string;
   systemPrompt: string;
   welcomeMessage: string;
   businessInfo: unknown;
   model: string;
+  visionModel: string;
+  audioModel: string;
   maxHistoryMessages: number;
   isActive: boolean;
   aiCredentialId: string | null;
   whatsappCredentialId: string | null;
+  ownerId?: string;
 };

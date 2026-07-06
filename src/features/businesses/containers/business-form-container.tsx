@@ -13,8 +13,12 @@ import type { BusinessDetail, BusinessInput } from "@/features/businesses/types"
 
 export function BusinessFormContainer({
   business,
+  fixedOwnerId,
+  fixedOwnerLabel,
 }: {
   business?: BusinessDetail;
+  fixedOwnerId?: string;
+  fixedOwnerLabel?: string;
 }) {
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -32,7 +36,7 @@ export function BusinessFormContainer({
       toast.success(
         business ? "Negocio actualizado" : "Negocio creado"
       );
-      router.push("/businesses");
+      router.push(fixedOwnerId ? `/admin/clients/${fixedOwnerId}` : "/businesses");
       router.refresh();
     },
     onError: (error: Error) => {
@@ -55,15 +59,19 @@ export function BusinessFormContainer({
     const payload: BusinessInput = {
       name: fd.get("name") as string,
       phoneNumberId: fd.get("phoneNumberId") as string,
+      displayPhone: (fd.get("displayPhone") as string) || null,
       whatsappToken: fd.get("whatsappToken") as string,
       systemPrompt: fd.get("systemPrompt") as string,
       welcomeMessage: fd.get("welcomeMessage") as string,
       businessInfo,
       model: (fd.get("model") as string) || "gpt-4o-mini",
+      visionModel: (fd.get("visionModel") as string) || "gpt-4o-mini",
+      audioModel: (fd.get("audioModel") as string) || "whisper-1",
       maxHistoryMessages: Number(fd.get("maxHistoryMessages")) || 20,
       isActive: fd.get("isActive") === "on",
       aiCredentialId: (fd.get("aiCredentialId") as string) || null,
       whatsappCredentialId: (fd.get("whatsappCredentialId") as string) || null,
+      ...(fixedOwnerId && { ownerId: fixedOwnerId }),
     };
 
     mutation.mutate(payload);
@@ -73,6 +81,7 @@ export function BusinessFormContainer({
     <BusinessForm
       business={business}
       credentials={credentials.filter((c) => c.status !== "revoked")}
+      fixedOwnerLabel={fixedOwnerLabel}
       submitting={mutation.isPending}
       onSubmit={onSubmit}
     />

@@ -3,32 +3,32 @@ import { notFound, redirect } from "next/navigation";
 import { BusinessFormContainer } from "@/features/businesses/containers/business-form-container";
 import { prisma } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth";
-import { businessScope } from "@/lib/scope";
 
-export default async function EditBusinessPage({
+export default async function NewClientBusinessPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const user = await requireAdmin();
-  if (!user) redirect("/");
+  const admin = await requireAdmin();
+  if (!admin) redirect("/");
 
   const { id } = await params;
-  const business = await prisma.business.findFirst({
-    where: { id, ...businessScope(user) },
-  });
-  if (!business) notFound();
+  const client = await prisma.user.findUnique({ where: { id } });
+  if (!client) notFound();
 
   return (
     <div>
       <Link
-        href="/businesses"
+        href={`/admin/clients/${id}`}
         className="mb-4 inline-block text-muted-foreground hover:text-foreground"
       >
-        ← Negocios
+        ← {client.name || client.email}
       </Link>
-      <h1 className="mb-6 text-2xl font-bold">Editar negocio</h1>
-      <BusinessFormContainer business={business} />
+      <h1 className="mb-6 text-2xl font-bold">Nuevo número</h1>
+      <BusinessFormContainer
+        fixedOwnerId={client.id}
+        fixedOwnerLabel={client.name || client.email}
+      />
     </div>
   );
 }
