@@ -55,9 +55,9 @@ export async function PATCH(
         ...(body.systemPrompt != null && { systemPrompt: body.systemPrompt }),
         ...(body.welcomeMessage != null && { welcomeMessage: body.welcomeMessage }),
         ...(body.businessInfo != null && { businessInfo: body.businessInfo }),
-        ...(body.model != null && { model: body.model }),
-        ...(body.visionModel != null && { visionModel: body.visionModel }),
-        ...(body.audioModel != null && { audioModel: body.audioModel }),
+        ...("model" in body && { model: body.model || null }),
+        ...("visionModel" in body && { visionModel: body.visionModel || null }),
+        ...("audioModel" in body && { audioModel: body.audioModel || null }),
         ...(body.maxHistoryMessages != null && {
           maxHistoryMessages: body.maxHistoryMessages,
         }),

@@ -29,9 +29,9 @@ model Business {
   systemPrompt         String
   welcomeMessage       String
   businessInfo         Json
-  model                String         @default("gpt-4o-mini")
-  visionModel          String         @default("gpt-4o-mini")
-  audioModel           String         @default("whisper-1")
+  model                String? // null = inherit AppConfig.chatModel
+  visionModel          String? // null = inherit AppConfig.visionModel
+  audioModel           String? // null = inherit AppConfig.audioModel
   maxHistoryMessages   Int            @default(20)
   dailyAiLimit         Int            @default(1000)
   isActive             Boolean        @default(true)
@@ -44,6 +44,20 @@ model Business {
   createdAt            DateTime       @default(now())
 
   @@index([ownerId])
+}
+
+// Singleton (id is always "default") holding platform-wide AI defaults —
+// editable from /settings/credentials by the admin, no deploy required.
+// Business.model/visionModel/audioModel/aiCredentialId fall back to this
+// when left unset, so rolling out a new model to every client is a form
+// save, not a migration.
+model AppConfig {
+  id             String   @id @default("default")
+  aiCredentialId String?
+  chatModel      String   @default("gpt-4o-mini")
+  visionModel    String   @default("gpt-4o-mini")
+  audioModel     String   @default("whisper-1")
+  updatedAt      DateTime @updatedAt
 }
 
 model Credential {

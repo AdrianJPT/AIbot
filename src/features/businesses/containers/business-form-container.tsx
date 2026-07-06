@@ -64,9 +64,11 @@ export function BusinessFormContainer({
       systemPrompt: fd.get("systemPrompt") as string,
       welcomeMessage: fd.get("welcomeMessage") as string,
       businessInfo,
-      model: (fd.get("model") as string) || "gpt-4o-mini",
-      visionModel: (fd.get("visionModel") as string) || "gpt-4o-mini",
-      audioModel: (fd.get("audioModel") as string) || "whisper-1",
+      // Empty means "inherit the admin default" — the API converts "" to
+      // null, resolveModels() falls back to AppConfig at call time.
+      model: fd.get("model") as string,
+      visionModel: fd.get("visionModel") as string,
+      audioModel: fd.get("audioModel") as string,
       maxHistoryMessages: Number(fd.get("maxHistoryMessages")) || 20,
       isActive: fd.get("isActive") === "on",
       aiCredentialId: (fd.get("aiCredentialId") as string) || null,

@@ -4,6 +4,7 @@ import type { Business, Credential } from "@prisma/client";
 const credentialFindUnique = vi.fn();
 const credentialFindFirst = vi.fn();
 const credentialUpdate = vi.fn();
+const appConfigFindUnique = vi.fn();
 
 vi.mock("../../db", () => ({
   prisma: {
@@ -11,6 +12,9 @@ vi.mock("../../db", () => ({
       findUnique: (...args: unknown[]) => credentialFindUnique(...args),
       findFirst: (...args: unknown[]) => credentialFindFirst(...args),
       update: (...args: unknown[]) => credentialUpdate(...args),
+    },
+    appConfig: {
+      findUnique: (...args: unknown[]) => appConfigFindUnique(...args),
     },
   },
 }));
@@ -41,7 +45,7 @@ vi.mock("openai", () => ({
   },
 }));
 
-const { getAiClient, callWithFailover } = await import("../resolve");
+const { getAiClient, callWithFailover, resolveModels } = await import("../resolve");
 
 function makeBusiness(overrides: Partial<Business> = {}): Business {
   return {
@@ -86,6 +90,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   decryptSecret.mockImplementation((stored: string) => `decrypted:${stored}`);
   credentialUpdate.mockResolvedValue({});
+  appConfigFindUnique.mockResolvedValue(null);
 });
 
 describe("getAiClient resolution order", () => {
@@ -117,11 +122,69 @@ describe("getAiClient resolution order", () => {
 
   it("throws a clear error when neither business nor owner has a credential", async () => {
     credentialFindFirst.mockResolvedValue(null);
+    appConfigFindUnique.mockResolvedValue(null);
     const business = makeBusiness({ aiCredentialId: null, ownerId: null });
 
     await expect(getAiClient(business)).rejects.toThrow(
       /No AI credential is configured/
     );
+  });
+
+  it("falls back to AppConfig.aiCredentialId before the owner's active credential", async () => {
+    const credential = makeCredential({ id: "cred_appconfig" });
+    appConfigFindUnique.mockResolvedValue({ aiCredentialId: "cred_appconfig" });
+    credentialFindUnique.mockResolvedValue(credential);
+    const business = makeBusiness({ aiCredentialId: null });
+
+    const { credential: resolved } = await getAiClient(business);
+
+    expect(credentialFindUnique).toHaveBeenCalledWith({ where: { id: "cred_appconfig" } });
+    expect(credentialFindFirst).not.toHaveBeenCalled();
+    expect(resolved?.id).toBe("cred_appconfig");
+  });
+});
+
+describe("resolveModels", () => {
+  it("uses the business override when set", async () => {
+    const business = makeBusiness({ model: "biz-chat", visionModel: "biz-vision", audioModel: "biz-audio" });
+
+    const models = await resolveModels(business);
+
+    expect(models).toEqual({
+      chatModel: "biz-chat",
+      visionModel: "biz-vision",
+      audioModel: "biz-audio",
+    });
+  });
+
+  it("falls back to AppConfig when the business has no override", async () => {
+    appConfigFindUnique.mockResolvedValue({
+      chatModel: "config-chat",
+      visionModel: "config-vision",
+      audioModel: "config-audio",
+    });
+    const business = makeBusiness({ model: null, visionModel: null, audioModel: null });
+
+    const models = await resolveModels(business);
+
+    expect(models).toEqual({
+      chatModel: "config-chat",
+      visionModel: "config-vision",
+      audioModel: "config-audio",
+    });
+  });
+
+  it("falls back to the hardcoded default when neither business nor AppConfig has one", async () => {
+    appConfigFindUnique.mockResolvedValue(null);
+    const business = makeBusiness({ model: null, visionModel: null, audioModel: null });
+
+    const models = await resolveModels(business);
+
+    expect(models).toEqual({
+      chatModel: "gpt-4o-mini",
+      visionModel: "gpt-4o-mini",
+      audioModel: "whisper-1",
+    });
   });
 });
 

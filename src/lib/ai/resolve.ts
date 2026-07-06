@@ -1,8 +1,39 @@
 import OpenAI from "openai";
-import type { Business, Credential } from "@prisma/client";
+import type { AppConfig, Business, Credential } from "@prisma/client";
 import { prisma } from "../db";
 import { decryptSecret } from "../crypto";
 import { logEvent } from "../log";
+
+const FALLBACK_MODELS = {
+  chatModel: "gpt-4o-mini",
+  visionModel: "gpt-4o-mini",
+  audioModel: "whisper-1",
+};
+
+function getAppConfig(): Promise<AppConfig | null> {
+  return prisma.appConfig.findUnique({ where: { id: "default" } });
+}
+
+export type ResolvedModels = {
+  chatModel: string;
+  visionModel: string;
+  audioModel: string;
+};
+
+/**
+ * Resolves the models to use for a business: its own override, else the
+ * admin-managed AppConfig default, else a hardcoded last-resort fallback.
+ * Keeping this data-driven (not a code constant) means rolling a new model
+ * out to every client is a Settings save, not a deploy.
+ */
+export async function resolveModels(business: Business): Promise<ResolvedModels> {
+  const config = await getAppConfig();
+  return {
+    chatModel: business.model || config?.chatModel || FALLBACK_MODELS.chatModel,
+    visionModel: business.visionModel || config?.visionModel || FALLBACK_MODELS.visionModel,
+    audioModel: business.audioModel || config?.audioModel || FALLBACK_MODELS.audioModel,
+  };
+}
 
 const PROVIDER_BASE_URLS: Record<string, string> = {
   openrouter: "https://openrouter.ai/api/v1",
@@ -64,9 +95,10 @@ export type ResolvedAiClient = {
 
 /**
  * Resolves the OpenAI-compatible client to use for a business's AI calls.
- * Resolution order: business.aiCredentialId -> owner's active AI credential.
- * AI keys are managed exclusively in /settings/credentials — there is no
- * environment-variable fallback.
+ * Resolution order: business.aiCredentialId -> AppConfig.aiCredentialId
+ * (admin default) -> owner's active AI credential. AI keys are managed
+ * exclusively in /settings/credentials — there is no environment-variable
+ * fallback.
  */
 export async function getAiClient(business: Business): Promise<ResolvedAiClient> {
   let credential: Credential | null = null;
@@ -75,6 +107,15 @@ export async function getAiClient(business: Business): Promise<ResolvedAiClient>
     credential = await prisma.credential.findUnique({
       where: { id: business.aiCredentialId },
     });
+  }
+
+  if (!credential) {
+    const config = await getAppConfig();
+    if (config?.aiCredentialId) {
+      credential = await prisma.credential.findUnique({
+        where: { id: config.aiCredentialId },
+      });
+    }
   }
 
   if (!credential && business.ownerId) {
