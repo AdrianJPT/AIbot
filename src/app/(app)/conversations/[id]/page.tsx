@@ -36,6 +36,7 @@ export default async function ConversationDetailPage({
         id: conversation.id,
         customerPhone: conversation.customerPhone,
         customerName: conversation.customerName,
+        nickname: conversation.nickname,
         status: conversation.status,
         business: conversation.business,
       }}

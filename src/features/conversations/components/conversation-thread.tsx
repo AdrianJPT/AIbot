@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { ArrowDown, ArrowLeft, Download } from "lucide-react";
+import { ArrowDown, ArrowLeft, Archive, ArchiveRestore, Download, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { AppointmentsPanel } from "@/features/conversations/components/appointments-panel";
 import { HandoffToggle } from "@/features/conversations/components/handoff-toggle";
 import {
@@ -31,6 +32,9 @@ export function ConversationThread({
   onHandoffChange,
   handoffLoading,
   lastCustomerMessageAt,
+  onNicknameChange,
+  onDelete,
+  deleting,
 }: {
   conversation: ConversationDetail;
   messages: RenderableMessage[];
@@ -43,7 +47,12 @@ export function ConversationThread({
   onHandoffChange: (next: string) => void;
   handoffLoading: boolean;
   lastCustomerMessageAt: string | null;
+  onNicknameChange: (nickname: string) => void;
+  onDelete: () => void;
+  deleting: boolean;
 }) {
+  const [editingName, setEditingName] = useState(false);
+  const [nameDraft, setNameDraft] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
   const [isNearBottom, setIsNearBottom] = useState(true);
   const [showNewPill, setShowNewPill] = useState(false);
@@ -85,8 +94,22 @@ export function ConversationThread({
     }
   }
 
-  const name = conversation.customerName || conversation.customerPhone;
+  const name =
+    conversation.nickname || conversation.customerName || conversation.customerPhone;
   const outsideWindow = isOutsideWhatsAppWindow(lastCustomerMessageAt);
+  const isClosed = conversation.status === "closed";
+
+  function startEditingName() {
+    setNameDraft(conversation.nickname || "");
+    setEditingName(true);
+  }
+
+  function commitName() {
+    setEditingName(false);
+    if (nameDraft.trim() !== (conversation.nickname || "")) {
+      onNicknameChange(nameDraft.trim());
+    }
+  }
 
   return (
     <div className="flex h-full flex-col">
@@ -99,7 +122,29 @@ export function ConversationThread({
           <ArrowLeft className="h-5 w-5" />
         </Link>
         <div className="min-w-0 flex-1">
-          <div className="truncate font-semibold">{name}</div>
+          {editingName ? (
+            <Input
+              autoFocus
+              value={nameDraft}
+              placeholder={conversation.customerName || conversation.customerPhone}
+              onChange={(e) => setNameDraft(e.target.value)}
+              onBlur={commitName}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") commitName();
+                if (e.key === "Escape") setEditingName(false);
+              }}
+              className="h-7 max-w-xs"
+            />
+          ) : (
+            <button
+              type="button"
+              onClick={startEditingName}
+              className="truncate text-left font-semibold hover:underline"
+              title="Click para ponerle un apodo"
+            >
+              {name}
+            </button>
+          )}
           <div className="truncate text-xs text-muted-foreground">
             {conversation.customerPhone} · {conversation.business.name}
           </div>
@@ -114,6 +159,33 @@ export function ConversationThread({
         >
           <Download className="h-4 w-4" />
         </a>
+        <button
+          type="button"
+          onClick={() => onHandoffChange(isClosed ? "active" : "closed")}
+          className="text-muted-foreground hover:text-foreground"
+          title={isClosed ? "Reabrir conversación" : "Archivar conversación"}
+          aria-label={isClosed ? "Reabrir conversación" : "Archivar conversación"}
+        >
+          {isClosed ? (
+            <ArchiveRestore className="h-4 w-4" />
+          ) : (
+            <Archive className="h-4 w-4" />
+          )}
+        </button>
+        <button
+          type="button"
+          disabled={deleting}
+          onClick={() => {
+            if (confirm("¿Eliminar esta conversación? Se borra todo su historial.")) {
+              onDelete();
+            }
+          }}
+          className="text-muted-foreground hover:text-destructive"
+          title="Eliminar conversación"
+          aria-label="Eliminar conversación"
+        >
+          <Trash2 className="h-4 w-4" />
+        </button>
         <HandoffToggle
           status={conversation.status}
           onChange={onHandoffChange}

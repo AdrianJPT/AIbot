@@ -13,7 +13,8 @@ export function ConversationListItemRow({
   active: boolean;
   showBusinessBadge: boolean;
 }) {
-  const name = conversation.customerName || conversation.customerPhone;
+  const name =
+    conversation.nickname || conversation.customerName || conversation.customerPhone;
   const preview = previewText(conversation);
 
   return (
@@ -25,7 +26,10 @@ export function ConversationListItemRow({
       )}
     >
       <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/15 text-sm font-semibold text-primary">
-        {initialsFrom(conversation.customerName, conversation.customerPhone)}
+        {initialsFrom(
+          conversation.nickname || conversation.customerName,
+          conversation.customerPhone
+        )}
       </div>
 
       <div className="min-w-0 flex-1">

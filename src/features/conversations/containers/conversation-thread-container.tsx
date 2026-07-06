@@ -1,14 +1,17 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ConversationThread } from "@/features/conversations/components/conversation-thread";
 import type { RenderableMessage } from "@/features/conversations/components/message-bubble";
 import {
+  deleteConversation,
   fetchMessages,
   markConversationRead,
   sendManualMessage,
+  setConversationNickname,
   setConversationStatus,
 } from "@/features/conversations/api";
 import { useRealtimeMessages } from "@/features/conversations/hooks/use-realtime-messages";
@@ -25,8 +28,10 @@ export function ConversationThreadContainer({
   conversation: ConversationDetail;
   initialMessages: MessagesPage;
 }) {
+  const router = useRouter();
   const queryClient = useQueryClient();
   const [status, setStatus] = useState(initialConversation.status);
+  const [nickname, setNickname] = useState(initialConversation.nickname);
   const [pending, setPending] = useState<RenderableMessage[]>([]);
 
   useRealtimeMessages(initialConversation.id);
@@ -34,8 +39,9 @@ export function ConversationThreadContainer({
   useEffect(() => {
     // Reset local overrides when navigating between conversations.
     setStatus(initialConversation.status);
+    setNickname(initialConversation.nickname);
     setPending([]);
-  }, [initialConversation.id, initialConversation.status]);
+  }, [initialConversation.id, initialConversation.status, initialConversation.nickname]);
 
   useEffect(() => {
     markConversationRead(initialConversation.id).catch(() => {
@@ -87,6 +93,26 @@ export function ConversationThreadContainer({
     onError: () => toast.error("No se pudo actualizar el estado"),
   });
 
+  const nicknameMutation = useMutation({
+    mutationFn: (next: string) => setConversationNickname(initialConversation.id, next),
+    onSuccess: (_data, next) => {
+      setNickname(next || null);
+      toast.success("Apodo actualizado");
+      queryClient.invalidateQueries({ queryKey: conversationKeys.list() });
+    },
+    onError: () => toast.error("No se pudo actualizar el apodo"),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: () => deleteConversation(initialConversation.id),
+    onSuccess: () => {
+      toast.success("Conversación eliminada");
+      queryClient.invalidateQueries({ queryKey: conversationKeys.list() });
+      router.push("/conversations");
+    },
+    onError: () => toast.error("No se pudo eliminar la conversación"),
+  });
+
   const sendMutation = useMutation({
     mutationFn: ({ text }: { text: string; tempId: string }) =>
       sendManualMessage(initialConversation.id, text),
@@ -132,7 +158,7 @@ export function ConversationThreadContainer({
 
   return (
     <ConversationThread
-      conversation={{ ...initialConversation, status }}
+      conversation={{ ...initialConversation, status, nickname }}
       messages={messages}
       onLoadOlder={() => fetchNextPage()}
       hasMoreOlder={Boolean(hasNextPage)}
@@ -143,6 +169,9 @@ export function ConversationThreadContainer({
       onHandoffChange={(next) => handoffMutation.mutate(next)}
       handoffLoading={handoffMutation.isPending}
       lastCustomerMessageAt={lastCustomerMessageAt}
+      onNicknameChange={(next) => nicknameMutation.mutate(next)}
+      onDelete={() => deleteMutation.mutate()}
+      deleting={deleteMutation.isPending}
     />
   );
 }
