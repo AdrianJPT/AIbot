@@ -27,6 +27,16 @@ export async function POST(
     );
   }
 
+  const appConfig = await prisma.appConfig.findFirst({
+    where: { id: "default", aiCredentialId: id },
+  });
+  if (appConfig) {
+    return NextResponse.json(
+      { error: "No se puede revocar: es la credencial de IA por defecto en Configuración" },
+      { status: 409 }
+    );
+  }
+
   const updated = await prisma.credential.update({
     where: { id },
     data: { status: "revoked" },

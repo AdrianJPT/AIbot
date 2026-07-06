@@ -119,6 +119,7 @@ export function CredentialTable({
                           variant="secondary"
                           disabled={busy || c.status === "revoked"}
                           onClick={() => onTest(c)}
+                          title="Hace una llamada real y mínima al proveedor para confirmar que la clave funciona, sin cambiar su estado."
                         >
                           Probar
                         </Button>
@@ -127,6 +128,7 @@ export function CredentialTable({
                           size="sm"
                           disabled={busy || c.status !== "standby"}
                           onClick={() => onActivate(c.id)}
+                          title="La pone en uso y pasa a standby cualquier otra credencial activa del mismo tipo."
                         >
                           Activar
                         </Button>
@@ -136,6 +138,7 @@ export function CredentialTable({
                           variant="outline"
                           disabled={busy || c.status === "revoked"}
                           onClick={() => onRevoke(c.id)}
+                          title="Deja de poder usarse (no se borra). Bloqueado si algún negocio o el default de Configuración la está usando."
                         >
                           Revocar
                         </Button>
@@ -145,6 +148,7 @@ export function CredentialTable({
                           variant="destructive"
                           disabled={busy || c.status !== "revoked"}
                           onClick={() => onDelete(c.id)}
+                          title="Borra la credencial para siempre. Solo se puede eliminar una vez revocada y sin uso."
                         >
                           Eliminar
                         </Button>
