@@ -173,6 +173,40 @@ describe("processWebhookPayload", () => {
     });
   });
 
+  it("still replies when transcribeAudioBuffer throws, instead of leaving the customer with no response", async () => {
+    downloadMediaBuffer.mockResolvedValue({
+      buffer: Buffer.from("fake-audio"),
+      mimeType: "audio/ogg",
+    });
+    transcribeAudioBuffer.mockRejectedValue(new Error("404 no such endpoint"));
+
+    await processWebhookPayload(audioMessagePayload);
+
+    expect(messageCreate.mock.calls[0][0].data).toMatchObject({
+      mediaType: "audio",
+      content: "[Audio del cliente — no se pudo transcribir]",
+    });
+    // The pipeline still runs to completion and sends a reply — the
+    // customer never sees total silence just because transcription failed.
+    expect(sendBusinessMessage).toHaveBeenCalledTimes(1);
+  });
+
+  it("still replies when describeImageFromBuffer throws, instead of leaving the customer with no response", async () => {
+    downloadMediaBuffer.mockResolvedValue({
+      buffer: Buffer.from("fake-image"),
+      mimeType: "image/jpeg",
+    });
+    describeImageFromBuffer.mockRejectedValue(new Error("invalid model for provider"));
+
+    await processWebhookPayload(imageMessagePayload);
+
+    expect(messageCreate.mock.calls[0][0].data).toMatchObject({
+      mediaType: "image",
+      content: "[Imagen del cliente — no se pudo procesar]",
+    });
+    expect(sendBusinessMessage).toHaveBeenCalledTimes(1);
+  });
+
   it("handles location messages", async () => {
     await processWebhookPayload(locationMessagePayload);
 

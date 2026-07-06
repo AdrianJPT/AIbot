@@ -406,20 +406,48 @@ async function parseUserContent(
     case "image": {
       const id = message.image?.id;
       if (!id) return null;
-      const { buffer, mimeType } = await downloadMediaBuffer(id, token);
-      const desc = await describeImageFromBuffer(business, buffer, mimeType);
-      return {
-        content: `[Imagen del cliente] ${desc}`,
-        mediaType: "image",
-      };
+      try {
+        const { buffer, mimeType } = await downloadMediaBuffer(id, token);
+        const desc = await describeImageFromBuffer(business, buffer, mimeType);
+        return {
+          content: `[Imagen del cliente] ${desc}`,
+          mediaType: "image",
+        };
+      } catch (err) {
+        await logEvent(
+          "error",
+          "ai",
+          "describeImageFromBuffer failed",
+          { error: describeError(err) },
+          business.id
+        );
+        return {
+          content: "[Imagen del cliente — no se pudo procesar]",
+          mediaType: "image",
+        };
+      }
     }
     case "audio":
     case "voice": {
       const id = message.audio?.id || message.voice?.id;
       if (!id) return null;
-      const { buffer } = await downloadMediaBuffer(id, token);
-      const text = await transcribeAudioBuffer(business, buffer);
-      return { content: `[Audio del cliente] ${text}`, mediaType: "audio" };
+      try {
+        const { buffer } = await downloadMediaBuffer(id, token);
+        const text = await transcribeAudioBuffer(business, buffer);
+        return { content: `[Audio del cliente] ${text}`, mediaType: "audio" };
+      } catch (err) {
+        await logEvent(
+          "error",
+          "ai",
+          "transcribeAudioBuffer failed",
+          { error: describeError(err) },
+          business.id
+        );
+        return {
+          content: "[Audio del cliente — no se pudo transcribir]",
+          mediaType: "audio",
+        };
+      }
     }
     case "location": {
       const loc = message.location;
