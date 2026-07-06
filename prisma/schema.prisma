@@ -84,7 +84,8 @@ model Conversation {
   businessId    String
   business      Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
   customerPhone String
-  customerName  String? // WhatsApp profile name from webhook `contacts[0].profile.name`
+  customerName  String? // WhatsApp profile name from webhook `contacts[0].profile.name` — overwritten on every inbound message, never edited by hand
+  nickname      String? // admin-set alias, takes display priority over customerName; webhook never touches this
   status        String        @default("active")
   lastMessageAt DateTime      @default(now()) // denormalized for list ordering — bumped on every message insert
   unreadCount   Int           @default(0) // customer messages since admin last opened the thread

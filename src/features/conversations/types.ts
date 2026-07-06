@@ -12,6 +12,7 @@ export type ConversationListItem = {
   id: string;
   customerPhone: string;
   customerName: string | null;
+  nickname: string | null;
   status: string; // "active" | "handed_off" | "closed"
   lastMessageAt: string;
   unreadCount: number;
@@ -23,6 +24,7 @@ export type ConversationDetail = {
   id: string;
   customerPhone: string;
   customerName: string | null;
+  nickname: string | null;
   status: string;
   business: { id: string; name: string };
 };

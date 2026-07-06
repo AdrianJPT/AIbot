@@ -42,6 +42,18 @@ export function setConversationStatus(id: string, status: string) {
   });
 }
 
+export function setConversationNickname(id: string, nickname: string) {
+  return request(`/api/conversations/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ nickname }),
+  });
+}
+
+export function deleteConversation(id: string) {
+  return request(`/api/conversations/${id}`, { method: "DELETE" });
+}
+
 export function fetchConversationAppointments(
   id: string
 ): Promise<ConversationAppointment[]> {
