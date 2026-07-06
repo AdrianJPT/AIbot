@@ -29,6 +29,9 @@ describe("GET /api/conversations", () => {
     admin = await createTestUser("search-admin", "admin");
     business = await createTestBusiness(owner.id, "conv-search");
     const otherBusiness = await createTestBusiness(other.id, "conv-search-other");
+    const secondPhoneNumber = await prisma.phoneNumber.create({
+      data: { businessId: business.id, phoneNumberId: `conv-search-second-${business.id}` },
+    });
     await prisma.conversation.create({
       data: {
         businessId: business.id,
@@ -40,7 +43,7 @@ describe("GET /api/conversations", () => {
     await prisma.conversation.create({
       data: {
         businessId: business.id,
-        phoneNumberId: business.phoneNumbers[0].id,
+        phoneNumberId: secondPhoneNumber.id,
         customerPhone: "+5215599998888",
         customerName: "Luis Pérez",
       },
@@ -97,6 +100,17 @@ describe("GET /api/conversations", () => {
     const body = await res.json();
 
     expect(body).toHaveLength(2);
+  });
+
+  it("filters by phoneNumberId, scoping to just that number's conversations", async () => {
+    getSessionUser.mockResolvedValueOnce(owner);
+    const { GET } = await import("../route");
+
+    const res = await GET(buildRequest(`?phoneNumberId=${business.phoneNumbers[0].id}`));
+    const body = await res.json();
+
+    expect(body).toHaveLength(1);
+    expect(body[0].customerName).toBe("Ana García");
   });
 
   it("returns conversations across every owner for an admin caller", async () => {

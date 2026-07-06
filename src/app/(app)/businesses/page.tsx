@@ -1,13 +1,13 @@
 import { redirect } from "next/navigation";
 import { BusinessListTable } from "@/features/businesses/components/business-list-table";
 import { prisma } from "@/lib/db";
-import { requireAdmin } from "@/lib/auth";
-import { businessScope } from "@/lib/scope";
+import { getSessionUser } from "@/lib/auth";
+import { businessScope, isAdmin } from "@/lib/scope";
 import { aggregateBusinessActivity } from "@/lib/business-activity";
 import { flattenBusinessPhoneNumber } from "@/lib/business-phone-compat";
 
 export default async function BusinessesPage() {
-  const user = await requireAdmin();
+  const user = await getSessionUser();
   if (!user) redirect("/");
 
   const list = await prisma.business.findMany({
@@ -29,14 +29,16 @@ export default async function BusinessesPage() {
       <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
         <h1 className="text-2xl font-bold">Negocios</h1>
       </div>
-      <p className="mb-4 text-sm text-muted-foreground">
-        Los números se dan de alta desde{" "}
-        <a href="/admin/clients" className="text-primary hover:underline">
-          Clientes
-        </a>
-        , eligiendo el cliente dueño.
-      </p>
-      <BusinessListTable businesses={businesses} />
+      {isAdmin(user) && (
+        <p className="mb-4 text-sm text-muted-foreground">
+          Los números se dan de alta desde{" "}
+          <a href="/admin/clients" className="text-primary hover:underline">
+            Clientes
+          </a>
+          , eligiendo el cliente dueño.
+        </p>
+      )}
+      <BusinessListTable businesses={businesses} isAdmin={isAdmin(user)} />
     </div>
   );
 }

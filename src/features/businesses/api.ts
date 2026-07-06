@@ -1,4 +1,9 @@
-import type { BusinessInput, CredentialOption } from "@/features/businesses/types";
+import type {
+  BusinessInput,
+  CredentialOption,
+  PhoneNumberInput,
+  PhoneNumberItem,
+} from "@/features/businesses/types";
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, init);
@@ -24,6 +29,18 @@ export function createBusiness(payload: BusinessInput) {
 export function updateBusiness(id: string, payload: Partial<BusinessInput>) {
   return request(`/api/businesses/${id}`, {
     method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
+export function fetchPhoneNumbers(businessId: string): Promise<PhoneNumberItem[]> {
+  return request(`/api/businesses/${businessId}/phone-numbers`);
+}
+
+export function addPhoneNumber(businessId: string, payload: PhoneNumberInput) {
+  return request(`/api/businesses/${businessId}/phone-numbers`, {
+    method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { ConversationList } from "@/features/conversations/components/conversation-list";
 import { fetchConversations } from "@/features/conversations/api";
@@ -22,6 +22,13 @@ export function ConversationListPaneContainer() {
   const pathname = usePathname();
   const activeId = pathname.match(/^\/conversations\/([^/]+)/)?.[1];
 
+  const searchParams = useSearchParams();
+  const phoneNumberId = searchParams.get("phoneNumberId") ?? undefined;
+  // Only trust `label` when a phoneNumberId filter is actually active —
+  // otherwise a URL with just `?label=...` would show a "viewing X" banner
+  // over an unfiltered list.
+  const numberFilterLabel = phoneNumberId ? searchParams.get("label") ?? undefined : undefined;
+
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [filter, setFilter] = useState<ConversationFilter>("all");
@@ -36,8 +43,8 @@ export function ConversationListPaneContainer() {
   }, [search]);
 
   const { data: conversations = [], isLoading } = useQuery({
-    queryKey: conversationKeys.list(debouncedSearch),
-    queryFn: () => fetchConversations(debouncedSearch),
+    queryKey: [...conversationKeys.list(debouncedSearch), phoneNumberId],
+    queryFn: () => fetchConversations(debouncedSearch, phoneNumberId),
   });
 
   const businessCount = useMemo(
@@ -60,6 +67,7 @@ export function ConversationListPaneContainer() {
       filter={filter}
       onFilterChange={setFilter}
       showBusinessBadge={businessCount > 1}
+      numberFilterLabel={numberFilterLabel}
       loading={isLoading}
     />
   );

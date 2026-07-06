@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ConversationListItemRow } from "@/features/conversations/components/conversation-list-item";
@@ -23,6 +24,7 @@ export function ConversationList({
   filter,
   onFilterChange,
   showBusinessBadge,
+  numberFilterLabel,
   loading,
 }: {
   conversations: ConversationListItem[];
@@ -32,12 +34,22 @@ export function ConversationList({
   filter: ConversationFilter;
   onFilterChange: (value: ConversationFilter) => void;
   showBusinessBadge: boolean;
+  numberFilterLabel?: string;
   loading: boolean;
 }) {
   return (
     <div className="flex h-full flex-col">
       <div className="space-y-3 border-b border-border p-3">
         <h1 className="px-1 text-lg font-bold">Conversaciones</h1>
+        {numberFilterLabel && (
+          <p className="px-1 text-sm text-muted-foreground">
+            Viendo <span className="font-medium text-foreground">{numberFilterLabel}</span>{" "}
+            ·{" "}
+            <Link href="/conversations" className="text-primary hover:underline">
+              Ver todas
+            </Link>
+          </p>
+        )}
         <Input
           value={search}
           onChange={(e) => onSearchChange(e.target.value)}

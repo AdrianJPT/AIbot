@@ -8,6 +8,7 @@ export async function GET(req: NextRequest) {
   if (!user) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
   const businessId = req.nextUrl.searchParams.get("businessId");
+  const phoneNumberId = req.nextUrl.searchParams.get("phoneNumberId");
   const status = req.nextUrl.searchParams.get("status");
   const q = req.nextUrl.searchParams.get("q")?.trim();
 
@@ -15,6 +16,7 @@ export async function GET(req: NextRequest) {
     where: {
       ...conversationScope(user),
       ...(businessId && { businessId }),
+      ...(phoneNumberId && { phoneNumberId }),
       ...(status && { status }),
       // `mode: "insensitive"` compiles to ILIKE on Postgres.
       ...(q && {
