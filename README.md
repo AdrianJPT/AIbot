@@ -4,7 +4,7 @@ Plataforma multi-tenant: Next.js + PostgreSQL (Prisma) + Meta WhatsApp Cloud API
 
 ## Requisitos
 
-- Node.js 20+
+- Node.js 22+
 - PostgreSQL 16 (local o Docker)
 - Cuenta Meta Business + WhatsApp Cloud API
 - API key de OpenAI
@@ -15,8 +15,14 @@ Copia `.env.example` a `.env`:
 
 ```env
 DATABASE_URL=postgresql://bot:password@localhost:5432/whatsapp_bot
+DIRECT_URL=postgresql://bot:password@localhost:5432/whatsapp_bot
 OPENAI_API_KEY=sk-...
 WEBHOOK_VERIFY_TOKEN=un_token_secreto_para_el_webhook
+WHATSAPP_APP_SECRET=...
+NEXT_PUBLIC_SUPABASE_URL=https://xxxx.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=...
+SUPABASE_SERVICE_ROLE_KEY=...
+APP_ENCRYPTION_KEY=base64_de_32_bytes
 ```
 
 Cada **negocio** guarda su propio `phoneNumberId` y `whatsappToken` en la base de datos (panel **Negocios**).
@@ -38,18 +44,16 @@ Abre [http://localhost:3000](http://localhost:3000).
 2. En Meta Developers, webhook **Callback URL**: `https://tu-dominio-o-ngrok/api/webhook` y el mismo **Verify token** que `WEBHOOK_VERIFY_TOKEN`.
 3. Suscríbete al campo **messages**.
 
-## Docker
+## Docker local
 
 ```bash
-# .env en la raíz o exporta variables
-set DB_PASSWORD=tu_password
-set OPENAI_API_KEY=sk-...
-set WEBHOOK_VERIFY_TOKEN=tu_token
-
+# crea .env en la raíz con las variables de arriba
 docker compose up --build
 ```
 
-La app ejecuta `prisma db push` al arrancar. Crea negocios desde el panel (o `npm run db:seed` contra la URL de la base si expones el puerto 5432).
+Ese comando levanta Postgres + app y hace `prisma db push` dentro del contenedor para dejar el schema listo.
+
+Si querés login local real, necesitás un proyecto de Supabase para `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_ANON_KEY`; Docker sólo te resuelve la app y la base local, no el proveedor de auth.
 
 ## Panel admin
 
