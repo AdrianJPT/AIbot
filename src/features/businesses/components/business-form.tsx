@@ -1,9 +1,20 @@
+"use client";
+
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import type { BusinessDetail, CredentialOption } from "@/features/businesses/types";
+
+const MODEL_HINTS: Record<string, string> = {
+  openai: "ej: gpt-4o-mini (chat/visión) · whisper-1 (audio)",
+  google:
+    "ej: gemini-2.0-flash (chat/visión) · Google NO soporta transcripción de audio por esta vía — dejá el campo audio vacío o usá una credencial OpenAI para esta capacidad",
+  openrouter:
+    "formato proveedor/modelo, ej: openai/gpt-4o-mini, google/gemini-2.0-flash-001",
+};
 
 export function BusinessForm({
   business,
@@ -28,6 +39,10 @@ export function BusinessForm({
 
   const aiCredentials = credentials.filter((c) => c.kind === "ai");
   const waCredentials = credentials.filter((c) => c.kind === "whatsapp");
+
+  const initialAiCredential = aiCredentials.find((c) => c.id === business?.aiCredentialId);
+  const [aiProvider, setAiProvider] = useState(initialAiCredential?.provider ?? "");
+  const modelHint = MODEL_HINTS[aiProvider];
 
   return (
     <form onSubmit={onSubmit} className="max-w-3xl space-y-4">
@@ -88,6 +103,10 @@ export function BusinessForm({
           id="aiCredentialId"
           name="aiCredentialId"
           defaultValue={business?.aiCredentialId || ""}
+          onChange={(e) => {
+            const selected = aiCredentials.find((c) => c.id === e.target.value);
+            setAiProvider(selected?.provider ?? "");
+          }}
           className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         >
           <option value="">Usar clave global por defecto</option>
@@ -192,6 +211,7 @@ export function BusinessForm({
         </a>
         . Completalos solo si este cliente necesita un modelo distinto.
       </p>
+      {modelHint && <p className="-mt-2 text-xs text-muted-foreground">{modelHint}</p>}
 
       <div className="space-y-1.5 max-w-[200px]">
         <Label htmlFor="maxHistoryMessages">Max historial</Label>
