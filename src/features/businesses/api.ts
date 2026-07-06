@@ -21,7 +21,7 @@ export function createBusiness(payload: BusinessInput) {
   });
 }
 
-export function updateBusiness(id: string, payload: BusinessInput) {
+export function updateBusiness(id: string, payload: Partial<BusinessInput>) {
   return request(`/api/businesses/${id}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },

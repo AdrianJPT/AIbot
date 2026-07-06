@@ -24,11 +24,14 @@ model Business {
   id                   String         @id @default(cuid())
   name                 String
   phoneNumberId        String         @unique
+  displayPhone         String? // human-readable "+<código país> <número>", shown as the item title; phoneNumberId above is Meta's opaque technical id
   whatsappToken        String
   systemPrompt         String
   welcomeMessage       String
   businessInfo         Json
   model                String         @default("gpt-4o-mini")
+  visionModel          String         @default("gpt-4o-mini")
+  audioModel           String         @default("whisper-1")
   maxHistoryMessages   Int            @default(20)
   dailyAiLimit         Int            @default(1000)
   isActive             Boolean        @default(true)

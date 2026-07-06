@@ -10,11 +10,13 @@ export function BusinessForm({
   credentials,
   submitting,
   onSubmit,
+  fixedOwnerLabel,
 }: {
   business?: BusinessDetail;
   credentials: CredentialOption[];
   submitting: boolean;
   onSubmit: (e: React.FormEvent<HTMLFormElement>) => void;
+  fixedOwnerLabel?: string;
 }) {
   const infoStr = business
     ? JSON.stringify(business.businessInfo, null, 2)
@@ -29,27 +31,48 @@ export function BusinessForm({
 
   return (
     <form onSubmit={onSubmit} className="max-w-3xl space-y-4">
+      {fixedOwnerLabel && (
+        <div className="space-y-1.5">
+          <Label>Cliente</Label>
+          <Input value={fixedOwnerLabel} disabled />
+        </div>
+      )}
+
       <div className="space-y-1.5">
         <Label htmlFor="name">Nombre</Label>
         <Input id="name" name="name" required defaultValue={business?.name} />
       </div>
 
       <div className="space-y-1.5">
-        <Label htmlFor="phoneNumberId">Phone Number ID (Meta)</Label>
+        <Label htmlFor="displayPhone">Número de WhatsApp</Label>
+        <Input
+          id="displayPhone"
+          name="displayPhone"
+          required
+          placeholder="ej: +54 9 11 1234-5678"
+          defaultValue={business?.displayPhone ?? ""}
+        />
+      </div>
+
+      <div className="space-y-1.5">
+        <Label htmlFor="phoneNumberId">ID técnico (Meta)</Label>
         <Input
           id="phoneNumberId"
           name="phoneNumberId"
           required
           defaultValue={business?.phoneNumberId}
         />
+        <p className="text-xs text-muted-foreground">
+          El Phone Number ID que asigna Meta al registrar el número en la
+          WABA — se encuentra en WhatsApp Manager, no es el número en sí.
+        </p>
       </div>
 
       <div className="space-y-1.5">
-        <Label htmlFor="whatsappToken">WhatsApp token</Label>
+        <Label htmlFor="whatsappToken">WhatsApp token (fallback, opcional)</Label>
         <Input
           id="whatsappToken"
           name="whatsappToken"
-          required
           type="password"
           autoComplete="off"
           defaultValue={business?.whatsappToken}
@@ -135,24 +158,44 @@ export function BusinessForm({
 
       <div className="flex gap-4">
         <div className="flex-1 space-y-1.5">
-          <Label htmlFor="model">Modelo</Label>
+          <Label htmlFor="model">Modelo (chat)</Label>
           <Input
             id="model"
             name="model"
+            placeholder="ej: gpt-4o-mini"
             defaultValue={business?.model || "gpt-4o-mini"}
           />
         </div>
         <div className="flex-1 space-y-1.5">
-          <Label htmlFor="maxHistoryMessages">Max historial</Label>
+          <Label htmlFor="visionModel">Modelo visión</Label>
           <Input
-            id="maxHistoryMessages"
-            name="maxHistoryMessages"
-            type="number"
-            min={1}
-            max={100}
-            defaultValue={business?.maxHistoryMessages ?? 20}
+            id="visionModel"
+            name="visionModel"
+            placeholder="ej: gpt-4o"
+            defaultValue={business?.visionModel || "gpt-4o-mini"}
           />
         </div>
+        <div className="flex-1 space-y-1.5">
+          <Label htmlFor="audioModel">Modelo audio</Label>
+          <Input
+            id="audioModel"
+            name="audioModel"
+            placeholder="ej: whisper-1"
+            defaultValue={business?.audioModel || "whisper-1"}
+          />
+        </div>
+      </div>
+
+      <div className="space-y-1.5 max-w-[200px]">
+        <Label htmlFor="maxHistoryMessages">Max historial</Label>
+        <Input
+          id="maxHistoryMessages"
+          name="maxHistoryMessages"
+          type="number"
+          min={1}
+          max={100}
+          defaultValue={business?.maxHistoryMessages ?? 20}
+        />
       </div>
 
       <div className="flex items-center gap-2">
