@@ -26,9 +26,9 @@ export type BusinessDetail = {
   systemPrompt: string;
   welcomeMessage: string;
   businessInfo: unknown;
-  model: string;
-  visionModel: string;
-  audioModel: string;
+  model: string | null;
+  visionModel: string | null;
+  audioModel: string | null;
   maxHistoryMessages: number;
   isActive: boolean;
   aiCredentialId?: string | null;

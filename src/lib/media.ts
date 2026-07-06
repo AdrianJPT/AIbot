@@ -1,7 +1,7 @@
 import axios from "axios";
 import type { Business } from "@prisma/client";
 import { toFile } from "openai/uploads";
-import { callWithFailover } from "./ai/resolve";
+import { callWithFailover, resolveModels } from "./ai/resolve";
 
 const API_VERSION = "v21.0";
 
@@ -36,10 +36,11 @@ export async function describeImageFromBuffer(
 ): Promise<string> {
   const base64 = buffer.toString("base64");
   const dataUrl = `data:${mimeType};base64,${base64}`;
+  const { visionModel } = await resolveModels(business);
 
   return callWithFailover(business, async (client) => {
     const response = await client.chat.completions.create({
-      model: business.visionModel,
+      model: visionModel,
       messages: [
         {
           role: "user",
@@ -65,11 +66,13 @@ export async function transcribeAudioBuffer(
   business: Business,
   buffer: Buffer
 ): Promise<string> {
+  const { audioModel } = await resolveModels(business);
+
   return callWithFailover(business, async (client) => {
     const file = await toFile(buffer, "audio.ogg", { type: "audio/ogg" });
     const response = await client.audio.transcriptions.create({
       file,
-      model: business.audioModel,
+      model: audioModel,
     });
     return response.text?.trim() || "[Audio sin transcripción]";
   });

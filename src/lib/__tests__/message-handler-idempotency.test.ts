@@ -42,6 +42,11 @@ const callWithFailover = vi.fn((_business: unknown, fn: (client: unknown) => unk
 vi.mock("../ai/resolve", () => ({
   callWithFailover: (...args: Parameters<typeof callWithFailover>) =>
     callWithFailover(...args),
+  resolveModels: async () => ({
+    chatModel: "gpt-4o-mini",
+    visionModel: "gpt-4o-mini",
+    audioModel: "whisper-1",
+  }),
 }));
 
 const sendBusinessMessage = vi.fn();

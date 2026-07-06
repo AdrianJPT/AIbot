@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth";
 import { CredentialsPanelContainer } from "@/features/credentials/containers/credentials-panel-container";
+import { AiDefaultsContainer } from "@/features/settings/containers/ai-defaults-container";
 
 export default async function CredentialsPage() {
   const user = await requireAdmin();
@@ -23,10 +24,25 @@ export default async function CredentialsPage() {
     },
   });
 
+  const aiDefaults = await prisma.appConfig.upsert({
+    where: { id: "default" },
+    update: {},
+    create: { id: "default" },
+    select: { aiCredentialId: true, chatModel: true, visionModel: true, audioModel: true },
+  });
+
   return (
-    <div>
-      <h1 className="mb-6 text-2xl font-bold">Credenciales</h1>
-      <CredentialsPanelContainer initialCredentials={credentials} />
+    <div className="space-y-8">
+      <div>
+        <h1 className="mb-6 text-2xl font-bold">Credenciales</h1>
+        <CredentialsPanelContainer initialCredentials={credentials} />
+      </div>
+      <AiDefaultsContainer
+        initialDefaults={aiDefaults}
+        credentials={credentials
+          .filter((c) => c.kind === "ai" && c.status !== "revoked")
+          .map(({ id, label, provider, status }) => ({ id, label, provider, status }))}
+      />
     </div>
   );
 }

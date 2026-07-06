@@ -162,8 +162,8 @@ export function BusinessForm({
           <Input
             id="model"
             name="model"
-            placeholder="ej: gpt-4o-mini"
-            defaultValue={business?.model || "gpt-4o-mini"}
+            placeholder="vacío = default de Admin"
+            defaultValue={business?.model ?? ""}
           />
         </div>
         <div className="flex-1 space-y-1.5">
@@ -171,8 +171,8 @@ export function BusinessForm({
           <Input
             id="visionModel"
             name="visionModel"
-            placeholder="ej: gpt-4o"
-            defaultValue={business?.visionModel || "gpt-4o-mini"}
+            placeholder="vacío = default de Admin"
+            defaultValue={business?.visionModel ?? ""}
           />
         </div>
         <div className="flex-1 space-y-1.5">
@@ -180,11 +180,18 @@ export function BusinessForm({
           <Input
             id="audioModel"
             name="audioModel"
-            placeholder="ej: whisper-1"
-            defaultValue={business?.audioModel || "whisper-1"}
+            placeholder="vacío = default de Admin"
+            defaultValue={business?.audioModel ?? ""}
           />
         </div>
       </div>
+      <p className="-mt-2 text-xs text-muted-foreground">
+        Dejalos vacíos para heredar los modelos por defecto configurados en{" "}
+        <a href="/settings/credentials" className="text-primary hover:underline">
+          Configuración
+        </a>
+        . Completalos solo si este cliente necesita un modelo distinto.
+      </p>
 
       <div className="space-y-1.5 max-w-[200px]">
         <Label htmlFor="maxHistoryMessages">Max historial</Label>
