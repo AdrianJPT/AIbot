@@ -31,3 +31,5 @@ function validateEnv(): void {
 }
 
 validateEnv();
+
+export {};
