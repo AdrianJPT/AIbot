@@ -48,7 +48,7 @@ async function findActiveWhatsappCredential(
  */
 export async function resolveWhatsappToken(
   phoneNumber: PhoneNumber,
-  ownerId: string | null
+  ownerId: string
 ): Promise<string> {
   let credential: Credential | null = null;
 
@@ -61,7 +61,7 @@ export async function resolveWhatsappToken(
       .catch(() => null);
   }
 
-  if (!credential && ownerId) {
+  if (!credential) {
     const fallback = await findActiveWhatsappCredential(ownerId);
     if (fallback) {
       credential = await prisma.credential.update({
@@ -94,7 +94,7 @@ export async function resolveWhatsappToken(
  */
 export async function sendFromNumber(
   phoneNumber: PhoneNumber,
-  ownerId: string | null,
+  ownerId: string,
   to: string,
   text: string
 ): Promise<string | undefined> {

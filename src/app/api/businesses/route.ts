@@ -3,8 +3,9 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { getSessionUser, requireAdmin } from "@/lib/auth";
 import { businessScope } from "@/lib/scope";
-import { ensureWhatsappCredential } from "@/lib/whatsapp";
 import { flattenBusinessPhoneNumber } from "@/lib/business-phone-compat";
+import { createBusinessForOwner, validateCreateBusinessInput } from "@/lib/businesses/create";
+import { ownsCredentials } from "@/lib/credentials/usage";
 
 // GET stays open to any authenticated caller (scoped by businessScope) — it
 // also backs the client-facing business picker on /appointments/new, not
@@ -28,33 +29,15 @@ export async function POST(req: NextRequest) {
   if (!admin) return NextResponse.json({ error: "No encontrado" }, { status: 404 });
 
   const body = await req.json();
-  const {
-    ownerId,
-    name,
-    phoneNumberId,
-    displayPhone,
-    whatsappToken,
-    systemPrompt,
-    welcomeMessage,
-    businessInfo,
-    model,
-    visionModel,
-    audioModel,
-    maxHistoryMessages,
-    isActive,
-    aiCredentialId,
-    whatsappCredentialId,
-  } = body;
+  const { ownerId } = body;
 
-  if (!ownerId || !name || !phoneNumberId || !systemPrompt || !welcomeMessage) {
+  if (!ownerId) {
     return NextResponse.json({ error: "Faltan campos requeridos" }, { status: 400 });
   }
 
-  if (!whatsappToken && !whatsappCredentialId) {
-    return NextResponse.json(
-      { error: "Asigná una credencial de WhatsApp o cargá un token" },
-      { status: 400 }
-    );
+  const validationError = validateCreateBusinessInput(body);
+  if (validationError) {
+    return NextResponse.json({ error: validationError }, { status: 400 });
   }
 
   const owner = await prisma.user.findUnique({ where: { id: ownerId } });
@@ -62,43 +45,18 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Cliente inválido" }, { status: 400 });
   }
 
-  if (aiCredentialId || whatsappCredentialId) {
-    const owned = await ownsCredentials(admin.id, [aiCredentialId, whatsappCredentialId]);
+  if (body.aiCredentialId || body.whatsappCredentialId) {
+    const owned = await ownsCredentials(admin.id, [
+      body.aiCredentialId,
+      body.whatsappCredentialId,
+    ]);
     if (!owned) {
       return NextResponse.json({ error: "Credencial inválida" }, { status: 400 });
     }
   }
 
-  const resolvedWhatsappCredentialId =
-    whatsappCredentialId ||
-    (whatsappToken
-      ? await ensureWhatsappCredential(ownerId, `WhatsApp (${name})`, whatsappToken)
-      : null);
-
   try {
-    const b = await prisma.business.create({
-      data: {
-        name,
-        systemPrompt,
-        welcomeMessage,
-        businessInfo: businessInfo ?? {},
-        model: model || null,
-        visionModel: visionModel || null,
-        audioModel: audioModel || null,
-        maxHistoryMessages: maxHistoryMessages ?? 20,
-        isActive: isActive !== false,
-        ownerId,
-        aiCredentialId: aiCredentialId || null,
-        phoneNumbers: {
-          create: {
-            phoneNumberId,
-            displayPhone: displayPhone || null,
-            whatsappCredentialId: resolvedWhatsappCredentialId,
-          },
-        },
-      },
-      include: { phoneNumbers: true },
-    });
+    const b = await createBusinessForOwner(ownerId, body);
     return NextResponse.json(flattenBusinessPhoneNumber(b));
   } catch (err) {
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
@@ -109,16 +67,4 @@ export async function POST(req: NextRequest) {
     }
     throw err;
   }
-}
-
-async function ownsCredentials(
-  ownerId: string,
-  ids: Array<string | null | undefined>
-): Promise<boolean> {
-  const wanted = ids.filter((id): id is string => Boolean(id));
-  if (wanted.length === 0) return true;
-  const count = await prisma.credential.count({
-    where: { id: { in: wanted }, ownerId },
-  });
-  return count === wanted.length;
 }

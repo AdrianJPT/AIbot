@@ -124,7 +124,7 @@ describe("getAiClient resolution order", () => {
   it("throws a clear error when neither business nor owner has a credential", async () => {
     credentialFindFirst.mockResolvedValue(null);
     appConfigFindUnique.mockResolvedValue(null);
-    const business = makeBusiness({ aiCredentialId: null, ownerId: null });
+    const business = makeBusiness({ aiCredentialId: null });
 
     await expect(getAiClient(business)).rejects.toThrow(
       /No AI credential is configured/

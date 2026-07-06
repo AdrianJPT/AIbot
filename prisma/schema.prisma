@@ -33,8 +33,8 @@ model Business {
   maxHistoryMessages Int            @default(20)
   dailyAiLimit       Int            @default(1000)
   isActive           Boolean        @default(true)
-  ownerId            String?
-  owner              User?          @relation(fields: [ownerId], references: [id])
+  ownerId            String
+  owner              User           @relation(fields: [ownerId], references: [id])
   aiCredentialId     String?
   phoneNumbers       PhoneNumber[]
   conversations      Conversation[]

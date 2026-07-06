@@ -20,3 +20,20 @@ export async function findCredentialUsageBusinessName(
   });
   return phoneNumber?.business.name ?? null;
 }
+
+/**
+ * Checks that every given credential id (ignoring null/undefined entries)
+ * belongs to `ownerId`. Used before assigning a credential to a business
+ * so an admin can't wire in someone else's credential.
+ */
+export async function ownsCredentials(
+  ownerId: string,
+  ids: Array<string | null | undefined>
+): Promise<boolean> {
+  const wanted = ids.filter((id): id is string => Boolean(id));
+  if (wanted.length === 0) return true;
+  const count = await prisma.credential.count({
+    where: { id: { in: wanted }, ownerId },
+  });
+  return count === wanted.length;
+}

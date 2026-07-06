@@ -118,7 +118,7 @@ export async function getAiClient(business: Business): Promise<ResolvedAiClient>
     }
   }
 
-  if (!credential && business.ownerId) {
+  if (!credential) {
     credential = await findActiveAiCredential(business.ownerId);
   }
 
@@ -187,8 +187,6 @@ export async function callWithFailover<T>(
         data: { lastError: errorMessage(err) },
       })
       .catch(() => undefined);
-
-    if (!business.ownerId) throw err;
 
     const standby = await findStandbyAiCredential(business.ownerId, credential.id);
     if (!standby) throw err;

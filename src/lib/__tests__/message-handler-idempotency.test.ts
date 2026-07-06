@@ -71,7 +71,7 @@ const business: Business = {
   maxHistoryMessages: 20,
   dailyAiLimit: 1000,
   isActive: true,
-  ownerId: null,
+  ownerId: "owner_1",
   aiCredentialId: null,
   createdAt: new Date(),
 };

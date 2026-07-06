@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
@@ -93,6 +94,13 @@ Reglas:
 ];
 
 async function main() {
+  const ownerEmail = process.env.SEED_OWNER_EMAIL || "seed-owner@example.com";
+  const owner = await prisma.user.upsert({
+    where: { email: ownerEmail },
+    update: {},
+    create: { id: randomUUID(), email: ownerEmail, role: "client" },
+  });
+
   for (const b of businesses) {
     const existing = await prisma.phoneNumber.findUnique({
       where: { phoneNumberId: b.phoneNumberId },
@@ -120,6 +128,7 @@ async function main() {
         model: "gpt-4o-mini",
         maxHistoryMessages: 20,
         isActive: true,
+        ownerId: owner.id,
         phoneNumbers: { create: { phoneNumberId: b.phoneNumberId } },
       },
     });

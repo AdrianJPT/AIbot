@@ -35,7 +35,7 @@ model User {
 }
 ```
 - Add to `Business`: `ownerId String?` + relation + `@@index([ownerId])`. Nullable at first: existing rows have no owner.
-- Backfill strategy: after the first login of the product owner, a one-off script (`prisma/scripts/assign-owner.ts`, run with `tsx`) assigns all ownerless businesses to that user. Then a follow-up migration makes `ownerId` required.
+- Backfill strategy: after the first login of the product owner, a one-off script (`prisma/scripts/assign-owner.ts`, run with `tsx`) assigns all ownerless businesses to that user. Then a follow-up migration makes `ownerId` required. **Superseded** — see `docs/plan/07-waba-phone-numbers.md`: `ownerId` was made required by wiping existing data instead, and the backfill script was deleted as obsolete.
 
 ### 2.3 Supabase client helpers
 

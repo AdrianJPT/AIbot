@@ -5,6 +5,7 @@ import { getSessionUser, requireAdmin } from "@/lib/auth";
 import { businessScope } from "@/lib/scope";
 import { ensureWhatsappCredential } from "@/lib/whatsapp";
 import { flattenBusinessPhoneNumber } from "@/lib/business-phone-compat";
+import { ownsCredentials } from "@/lib/credentials/usage";
 
 // GET stays open to any authenticated caller (scoped by businessScope).
 export async function GET(
@@ -55,13 +56,11 @@ export async function PATCH(
   }
 
   if (body.aiCredentialId || body.whatsappCredentialId) {
-    const wanted = [body.aiCredentialId, body.whatsappCredentialId].filter(
-      (v): v is string => Boolean(v)
-    );
-    const count = await prisma.credential.count({
-      where: { id: { in: wanted }, ownerId: admin.id },
-    });
-    if (count !== wanted.length) {
+    const owned = await ownsCredentials(admin.id, [
+      body.aiCredentialId,
+      body.whatsappCredentialId,
+    ]);
+    if (!owned) {
       return NextResponse.json({ error: "Credencial inválida" }, { status: 400 });
     }
   }
@@ -72,15 +71,6 @@ export async function PATCH(
   // freshly-typed token take effect.
   let resolvedWhatsappCredentialId: string | null | undefined;
   if (body.whatsappToken) {
-    if (!existing.ownerId) {
-      return NextResponse.json(
-        {
-          error:
-            "No se puede asignar un token de WhatsApp: el negocio no tiene un cliente asignado",
-        },
-        { status: 400 }
-      );
-    }
     resolvedWhatsappCredentialId = await ensureWhatsappCredential(
       existing.ownerId,
       `WhatsApp (${existing.name})`,
