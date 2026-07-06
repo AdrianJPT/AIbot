@@ -45,9 +45,12 @@ Values come from Supabase project **Settings → API**:
 
 | Var | Where to find it |
 |-----|-------------------|
+| `NEXT_PUBLIC_SITE_URL` | Your public app domain (Railway's public domain in prod, `http://localhost:3000` locally) — **not** the internal `0.0.0.0:<port>` address Railway shows in its Networking tab |
 | `NEXT_PUBLIC_SUPABASE_URL` | Settings → API → Project URL |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Settings → API → Project API keys → `anon` `public` |
 | `SUPABASE_SERVICE_ROLE_KEY` | Settings → API → Project API keys → `service_role` (**secret**, never expose client-side) |
+
+Auth redirects (`/auth/callback`, `/auth/logout`, the middleware's unauthenticated redirect) use `NEXT_PUBLIC_SITE_URL` instead of the incoming request's URL. Behind Railway's proxy, `req.nextUrl.origin` resolves to the container's internal bind address (e.g. `http://0.0.0.0:8080`) instead of the public domain, which sends users to an unreachable URL right after Google OAuth consent.
 
 `src/lib/env.ts` now requires all three at process start — the app will
 refuse to boot without them (same as the existing `WHATSAPP_APP_SECRET`

@@ -24,6 +24,7 @@ export default defineConfig({
       APP_ENCRYPTION_KEY: "s1IiLGg+kAXY1ILiWKmXgF9tM66SYnnmkqFFUBfcnBM=",
       WEBHOOK_VERIFY_TOKEN: "test-verify-token",
       WHATSAPP_APP_SECRET: "test-app-secret",
+      NEXT_PUBLIC_SITE_URL: "http://localhost:3000",
       NEXT_PUBLIC_SUPABASE_URL: "https://test.supabase.co",
       NEXT_PUBLIC_SUPABASE_ANON_KEY:
         "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiJ9.test-anon-key",
