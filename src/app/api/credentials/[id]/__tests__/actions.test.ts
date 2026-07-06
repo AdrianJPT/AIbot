@@ -215,6 +215,28 @@ describe("/api/credentials/[id] actions", () => {
         data: { aiCredentialId: null },
       });
     });
+
+    it("returns 409 when it's the AppConfig default AI credential", async () => {
+      getSessionUser.mockResolvedValueOnce(admin);
+      const { POST } = await import("../revoke/route");
+      const cred = await createTestCredential(owner.id, { kind: "ai" });
+      await prisma.appConfig.upsert({
+        where: { id: "default" },
+        update: { aiCredentialId: cred.id },
+        create: { id: "default", aiCredentialId: cred.id },
+      });
+
+      const res = await POST(buildRequest("https://example.com"), ctx(cred.id));
+      const body = await res.json();
+
+      expect(res.status).toBe(409);
+      expect(body.error).toMatch(/por defecto/);
+
+      await prisma.appConfig.update({
+        where: { id: "default" },
+        data: { aiCredentialId: null },
+      });
+    });
   });
 
   describe("DELETE /", () => {
@@ -238,6 +260,28 @@ describe("/api/credentials/[id] actions", () => {
 
       const row = await prisma.credential.findUnique({ where: { id: cred.id } });
       expect(row).toBeNull();
+    });
+
+    it("returns 409 when it's the AppConfig default AI credential, even if revoked", async () => {
+      getSessionUser.mockResolvedValueOnce(admin);
+      const { DELETE } = await import("../route");
+      const cred = await createTestCredential(owner.id, { kind: "ai", status: "revoked" });
+      await prisma.appConfig.upsert({
+        where: { id: "default" },
+        update: { aiCredentialId: cred.id },
+        create: { id: "default", aiCredentialId: cred.id },
+      });
+
+      const res = await DELETE(buildRequest("https://example.com"), ctx(cred.id));
+      const body = await res.json();
+
+      expect(res.status).toBe(409);
+      expect(body.error).toMatch(/por defecto/);
+
+      await prisma.appConfig.update({
+        where: { id: "default" },
+        data: { aiCredentialId: null },
+      });
     });
 
     it("returns 404 for a non-admin caller", async () => {

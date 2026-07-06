@@ -34,6 +34,16 @@ export async function DELETE(
     );
   }
 
+  const appConfig = await prisma.appConfig.findFirst({
+    where: { id: "default", aiCredentialId: id },
+  });
+  if (appConfig) {
+    return NextResponse.json(
+      { error: "No se puede eliminar: es la credencial de IA por defecto en Configuración" },
+      { status: 409 }
+    );
+  }
+
   await prisma.credential.delete({ where: { id } });
   return NextResponse.json({ ok: true });
 }
