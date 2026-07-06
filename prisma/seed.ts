@@ -6,7 +6,6 @@ const businesses = [
   {
     name: "Restaurante El Buen Sabor",
     phoneNumberId: process.env.SEED_PHONE_NUMBER_ID || "REPLACE_PHONE_NUMBER_ID",
-    whatsappToken: process.env.SEED_WHATSAPP_TOKEN || "REPLACE_WHATSAPP_TOKEN",
     welcomeMessage:
       "¡Hola! Bienvenido a {businessName} ¿En qué puedo ayudarte?",
     systemPrompt: `Eres el asistente virtual de {businessName}. Ayudas con reservaciones, menú, horarios y ubicación. Responde en español, amable y conciso.
@@ -29,7 +28,6 @@ Reglas:
   {
     name: "Barbería The Classic Cut",
     phoneNumberId: "REPLACE_PHONE_NUMBER_ID_2",
-    whatsappToken: "REPLACE_WHATSAPP_TOKEN_2",
     welcomeMessage: "¡Qué onda! Bienvenido a {businessName} ¿En qué te ayudo?",
     systemPrompt: `Eres el asistente virtual de {businessName}. Citas, servicios y precios. Español, tono casual.
 
@@ -51,7 +49,6 @@ Reglas:
   {
     name: "Hotel Vista Mar",
     phoneNumberId: "REPLACE_PHONE_NUMBER_ID_3",
-    whatsappToken: "REPLACE_WHATSAPP_TOKEN_3",
     welcomeMessage: "¡Bienvenido a {businessName}! ¿En qué podemos asistirle?",
     systemPrompt: `Eres el asistente virtual de {businessName}. Reservas, amenidades, check-in/out. Español, profesional.
 
@@ -75,7 +72,6 @@ Reglas:
   {
     name: "Inmobiliaria Hogar Ideal",
     phoneNumberId: "REPLACE_PHONE_NUMBER_ID_4",
-    whatsappToken: "REPLACE_WHATSAPP_TOKEN_4",
     welcomeMessage:
       "¡Hola! Bienvenido a {businessName} ¿Buscas comprar, rentar o vender?",
     systemPrompt: `Eres el asistente virtual de {businessName}. Propiedades y visitas. Español, profesional.
@@ -98,24 +94,33 @@ Reglas:
 
 async function main() {
   for (const b of businesses) {
-    await prisma.business.upsert({
+    const existing = await prisma.phoneNumber.findUnique({
       where: { phoneNumberId: b.phoneNumberId },
-      create: {
+    });
+
+    if (existing) {
+      await prisma.business.update({
+        where: { id: existing.businessId },
+        data: {
+          name: b.name,
+          systemPrompt: b.systemPrompt,
+          welcomeMessage: b.welcomeMessage,
+          businessInfo: b.businessInfo,
+        },
+      });
+      continue;
+    }
+
+    await prisma.business.create({
+      data: {
         name: b.name,
-        phoneNumberId: b.phoneNumberId,
-        whatsappToken: b.whatsappToken,
         systemPrompt: b.systemPrompt,
         welcomeMessage: b.welcomeMessage,
         businessInfo: b.businessInfo,
         model: "gpt-4o-mini",
         maxHistoryMessages: 20,
         isActive: true,
-      },
-      update: {
-        name: b.name,
-        systemPrompt: b.systemPrompt,
-        welcomeMessage: b.welcomeMessage,
-        businessInfo: b.businessInfo,
+        phoneNumbers: { create: { phoneNumberId: b.phoneNumberId } },
       },
     });
   }

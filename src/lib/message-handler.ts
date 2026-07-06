@@ -1,4 +1,4 @@
-import type { Business } from "@prisma/client";
+import type { Business, PhoneNumber } from "@prisma/client";
 import type { ChatCompletionMessageParam } from "openai/resources/chat/completions";
 import { prisma } from "./db";
 import { generateResponse } from "./ai/generate";
@@ -9,7 +9,7 @@ import {
   downloadMediaBuffer,
   transcribeAudioBuffer,
 } from "./media";
-import { sendBusinessMessage } from "./whatsapp";
+import { resolveWhatsappToken, sendFromNumber } from "./whatsapp";
 import { logEvent } from "./log";
 
 const FALLBACK_REPLY =
@@ -70,18 +70,25 @@ export async function processWebhookPayload(body: unknown): Promise<void> {
   if (!value) return;
 
   const metadata = value.metadata as { phone_number_id?: string } | undefined;
-  const phoneNumberId = metadata?.phone_number_id;
-  if (!phoneNumberId) return;
+  const metaPhoneNumberId = metadata?.phone_number_id;
+  if (!metaPhoneNumberId) return;
 
-  const business = await prisma.business.findFirst({
-    where: { phoneNumberId, isActive: true },
+  const phoneNumber = await prisma.phoneNumber.findFirst({
+    where: {
+      phoneNumberId: metaPhoneNumberId,
+      isActive: true,
+      business: { isActive: true },
+    },
+    include: { business: true },
   });
-  if (!business) return;
+  if (!phoneNumber) return;
+
+  const { business } = phoneNumber;
 
   const statuses = value.statuses as WaStatus[] | undefined;
   if (statuses?.length) {
     for (const status of statuses) {
-      await handleStatusUpdate(business.id, status);
+      await handleStatusUpdate(business.id, phoneNumber.id, status);
     }
   }
 
@@ -95,7 +102,7 @@ export async function processWebhookPayload(body: unknown): Promise<void> {
   for (const message of messages) {
     const customerName = contacts?.find((c) => c.wa_id === message.from)?.profile
       ?.name;
-    await handleOneMessage(business, message, customerName);
+    await handleOneMessage(business, phoneNumber, message, customerName);
   }
 }
 
@@ -106,6 +113,7 @@ export async function processWebhookPayload(body: unknown): Promise<void> {
  */
 async function handleStatusUpdate(
   businessId: string,
+  phoneNumberId: string,
   status: WaStatus
 ): Promise<void> {
   if (!status?.id || !KNOWN_STATUSES.has(status.status)) return;
@@ -126,13 +134,15 @@ async function handleStatusUpdate(
       "whatsapp-send",
       "Message delivery failed",
       { wamid: status.id, errors: status.errors, messageId: message.id },
-      businessId
+      businessId,
+      phoneNumberId
     );
   }
 }
 
 async function handleOneMessage(
   business: Business,
+  phoneNumber: PhoneNumber,
   message: WaMessage,
   customerName?: string
 ): Promise<void> {
@@ -145,18 +155,19 @@ async function handleOneMessage(
     if (existing) return;
   }
 
-  const parsed = await parseUserContent(business, message);
+  const parsed = await parseUserContent(business, phoneNumber, message);
   if (!parsed) return;
 
   const conversation = await prisma.conversation.upsert({
     where: {
-      businessId_customerPhone: {
-        businessId: business.id,
+      phoneNumberId_customerPhone: {
+        phoneNumberId: phoneNumber.id,
         customerPhone: from,
       },
     },
     create: {
       businessId: business.id,
+      phoneNumberId: phoneNumber.id,
       customerPhone: from,
       status: "active",
     },
@@ -202,7 +213,7 @@ async function handleOneMessage(
   ]);
 
   try {
-    const wamid = await sendBusinessMessage(business, from, reply);
+    const wamid = await sendFromNumber(phoneNumber, business.ownerId, from, reply);
     if (wamid) {
       await prisma.message.update({
         where: { id: outboundMessage.id },
@@ -215,7 +226,8 @@ async function handleOneMessage(
       "whatsapp-send",
       "sendMessage failed",
       { error: describeError(err), conversationId: conversation.id },
-      business.id
+      business.id,
+      phoneNumber.id
     );
     await prisma.message.update({
       where: { id: outboundMessage.id },
@@ -386,10 +398,9 @@ async function loadHistory(
 
 async function parseUserContent(
   business: Business,
+  phoneNumber: PhoneNumber,
   message: WaMessage
 ): Promise<{ content: string; mediaType: string } | null> {
-  const token = business.whatsappToken;
-
   switch (message.type) {
     case "text":
       return {
@@ -407,6 +418,7 @@ async function parseUserContent(
       const id = message.image?.id;
       if (!id) return null;
       try {
+        const token = await resolveWhatsappToken(phoneNumber, business.ownerId);
         const { buffer, mimeType } = await downloadMediaBuffer(id, token);
         const desc = await describeImageFromBuffer(business, buffer, mimeType);
         return {
@@ -419,7 +431,8 @@ async function parseUserContent(
           "ai",
           "describeImageFromBuffer failed",
           { error: describeError(err) },
-          business.id
+          business.id,
+          phoneNumber.id
         );
         return {
           content: "[Imagen del cliente — no se pudo procesar]",
@@ -432,6 +445,7 @@ async function parseUserContent(
       const id = message.audio?.id || message.voice?.id;
       if (!id) return null;
       try {
+        const token = await resolveWhatsappToken(phoneNumber, business.ownerId);
         const { buffer } = await downloadMediaBuffer(id, token);
         const text = await transcribeAudioBuffer(business, buffer);
         return { content: `[Audio del cliente] ${text}`, mediaType: "audio" };
@@ -441,7 +455,8 @@ async function parseUserContent(
           "ai",
           "transcribeAudioBuffer failed",
           { error: describeError(err) },
-          business.id
+          business.id,
+          phoneNumber.id
         );
         return {
           content: "[Audio del cliente — no se pudo transcribir]",

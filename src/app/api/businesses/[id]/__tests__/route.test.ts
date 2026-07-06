@@ -76,7 +76,7 @@ describe("PATCH/DELETE /api/businesses/[id]", () => {
     getSessionUser.mockResolvedValueOnce(admin);
     const { PATCH } = await import("../route");
 
-    const res = await PATCH(buildPatch({ phoneNumberId: other.phoneNumberId }), {
+    const res = await PATCH(buildPatch({ phoneNumberId: other.phoneNumbers[0].phoneNumberId }), {
       params: Promise.resolve({ id: business.id }),
     });
     const body = await res.json();

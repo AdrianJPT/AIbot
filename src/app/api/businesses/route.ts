@@ -3,6 +3,8 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { getSessionUser, requireAdmin } from "@/lib/auth";
 import { businessScope } from "@/lib/scope";
+import { ensureWhatsappCredential } from "@/lib/whatsapp";
+import { flattenBusinessPhoneNumber } from "@/lib/business-phone-compat";
 
 // GET stays open to any authenticated caller (scoped by businessScope) — it
 // also backs the client-facing business picker on /appointments/new, not
@@ -14,8 +16,9 @@ export async function GET() {
   const list = await prisma.business.findMany({
     where: businessScope(user),
     orderBy: { name: "asc" },
+    include: { phoneNumbers: true },
   });
-  return NextResponse.json(list);
+  return NextResponse.json(list.map(flattenBusinessPhoneNumber));
 }
 
 // Creating a business (registering a client's phone number) is admin-only —
@@ -66,13 +69,16 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  const resolvedWhatsappCredentialId =
+    whatsappCredentialId ||
+    (whatsappToken
+      ? await ensureWhatsappCredential(ownerId, `WhatsApp (${name})`, whatsappToken)
+      : null);
+
   try {
     const b = await prisma.business.create({
       data: {
         name,
-        phoneNumberId,
-        displayPhone: displayPhone || null,
-        whatsappToken: whatsappToken || "",
         systemPrompt,
         welcomeMessage,
         businessInfo: businessInfo ?? {},
@@ -83,10 +89,17 @@ export async function POST(req: NextRequest) {
         isActive: isActive !== false,
         ownerId,
         aiCredentialId: aiCredentialId || null,
-        whatsappCredentialId: whatsappCredentialId || null,
+        phoneNumbers: {
+          create: {
+            phoneNumberId,
+            displayPhone: displayPhone || null,
+            whatsappCredentialId: resolvedWhatsappCredentialId,
+          },
+        },
       },
+      include: { phoneNumbers: true },
     });
-    return NextResponse.json(b);
+    return NextResponse.json(flattenBusinessPhoneNumber(b));
   } catch (err) {
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
       return NextResponse.json(

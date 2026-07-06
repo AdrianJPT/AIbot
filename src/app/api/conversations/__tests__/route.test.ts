@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
-import type { Business, User } from "@prisma/client";
+import type { Business, PhoneNumber, User } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import {
   cleanupOwnershipFixtures,
@@ -21,7 +21,7 @@ describe("GET /api/conversations", () => {
   let owner: User;
   let other: User;
   let admin: User;
-  let business: Business;
+  let business: Business & { phoneNumbers: PhoneNumber[] };
 
   beforeAll(async () => {
     owner = await createTestUser("search-owner");
@@ -32,6 +32,7 @@ describe("GET /api/conversations", () => {
     await prisma.conversation.create({
       data: {
         businessId: business.id,
+        phoneNumberId: business.phoneNumbers[0].id,
         customerPhone: "+5215500001111",
         customerName: "Ana García",
       },
@@ -39,6 +40,7 @@ describe("GET /api/conversations", () => {
     await prisma.conversation.create({
       data: {
         businessId: business.id,
+        phoneNumberId: business.phoneNumbers[0].id,
         customerPhone: "+5215599998888",
         customerName: "Luis Pérez",
       },
@@ -46,6 +48,7 @@ describe("GET /api/conversations", () => {
     await prisma.conversation.create({
       data: {
         businessId: otherBusiness.id,
+        phoneNumberId: otherBusiness.phoneNumbers[0].id,
         customerPhone: "+5215511112222",
         customerName: "Otro cliente",
       },

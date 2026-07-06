@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth";
 import { businessScope } from "@/lib/scope";
 import { aggregateBusinessActivity } from "@/lib/business-activity";
+import { flattenBusinessPhoneNumber } from "@/lib/business-phone-compat";
 
 export default async function BusinessesPage() {
   const user = await requireAdmin();
@@ -13,12 +14,13 @@ export default async function BusinessesPage() {
     where: businessScope(user),
     orderBy: { name: "asc" },
     include: {
+      phoneNumbers: true,
       conversations: { select: { unreadCount: true, lastMessageAt: true } },
     },
   });
 
   const businesses = list.map(({ conversations, ...business }) => ({
-    ...business,
+    ...flattenBusinessPhoneNumber(business),
     ...aggregateBusinessActivity(conversations),
   }));
 

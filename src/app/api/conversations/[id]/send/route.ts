@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { sendBusinessMessage } from "@/lib/whatsapp";
+import { sendFromNumber } from "@/lib/whatsapp";
 import { getSessionUser } from "@/lib/auth";
 import { logEvent } from "@/lib/log";
 import { conversationScope } from "@/lib/scope";
@@ -21,7 +21,7 @@ export async function POST(
 
   const conv = await prisma.conversation.findFirst({
     where: { id, ...conversationScope(user) },
-    include: { business: true },
+    include: { business: true, phoneNumber: true },
   });
   if (!conv) {
     return NextResponse.json({ error: "No encontrado" }, { status: 404 });
@@ -30,7 +30,12 @@ export async function POST(
   let wamid: string | undefined;
   let sendFailed = false;
   try {
-    wamid = await sendBusinessMessage(conv.business, conv.customerPhone, text.trim());
+    wamid = await sendFromNumber(
+      conv.phoneNumber,
+      conv.business.ownerId,
+      conv.customerPhone,
+      text.trim()
+    );
   } catch (err) {
     sendFailed = true;
     await logEvent(
@@ -38,7 +43,8 @@ export async function POST(
       "whatsapp-send",
       "sendMessage failed",
       { error: err instanceof Error ? err.message : String(err), conversationId: conv.id },
-      conv.business.id
+      conv.business.id,
+      conv.phoneNumberId
     );
   }
 

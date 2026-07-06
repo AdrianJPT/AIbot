@@ -4,6 +4,7 @@ import { BusinessFormContainer } from "@/features/businesses/containers/business
 import { prisma } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth";
 import { businessScope } from "@/lib/scope";
+import { flattenBusinessPhoneNumber } from "@/lib/business-phone-compat";
 
 export default async function EditBusinessPage({
   params,
@@ -16,6 +17,7 @@ export default async function EditBusinessPage({
   const { id } = await params;
   const business = await prisma.business.findFirst({
     where: { id, ...businessScope(user) },
+    include: { phoneNumbers: true },
   });
   if (!business) notFound();
 
@@ -28,7 +30,7 @@ export default async function EditBusinessPage({
         ← Negocios
       </Link>
       <h1 className="mb-6 text-2xl font-bold">Editar negocio</h1>
-      <BusinessFormContainer business={business} />
+      <BusinessFormContainer business={flattenBusinessPhoneNumber(business)} />
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth";
+import { findCredentialUsageBusinessName } from "@/lib/credentials/usage";
 
 export async function DELETE(
   _req: NextRequest,
@@ -20,15 +21,11 @@ export async function DELETE(
     );
   }
 
-  const referencingBusiness = await prisma.business.findFirst({
-    where: {
-      OR: [{ aiCredentialId: id }, { whatsappCredentialId: id }],
-    },
-  });
-  if (referencingBusiness) {
+  const referencingBusinessName = await findCredentialUsageBusinessName(id);
+  if (referencingBusinessName) {
     return NextResponse.json(
       {
-        error: `No se puede eliminar: está en uso por el negocio "${referencingBusiness.name}"`,
+        error: `No se puede eliminar: está en uso por el negocio "${referencingBusinessName}"`,
       },
       { status: 409 }
     );

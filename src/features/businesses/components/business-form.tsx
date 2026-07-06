@@ -75,7 +75,7 @@ export function BusinessForm({
           id="phoneNumberId"
           name="phoneNumberId"
           required
-          defaultValue={business?.phoneNumberId}
+          defaultValue={business?.phoneNumberId ?? undefined}
         />
         <p className="text-xs text-muted-foreground">
           El Phone Number ID que asigna Meta al registrar el número en la
