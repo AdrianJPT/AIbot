@@ -24,7 +24,7 @@ export default async function NewClientBusinessPage({
       >
         ← {client.name || client.email}
       </Link>
-      <h1 className="mb-6 text-2xl font-bold">Nuevo número</h1>
+      <h1 className="mb-6 text-2xl font-bold">Nuevo negocio</h1>
       <BusinessFormContainer
         fixedOwnerId={client.id}
         fixedOwnerLabel={client.name || client.email}

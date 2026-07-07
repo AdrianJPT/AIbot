@@ -8,7 +8,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { addPhoneNumber, fetchCredentials } from "@/features/businesses/api";
 
-export function AddPhoneNumberFormContainer({ businessId }: { businessId: string }) {
+export function AddPhoneNumberFormContainer({
+  businessId,
+  onSuccess,
+}: {
+  businessId: string;
+  // Fires after a successful add, in addition to the query invalidation
+  // below — needed on pages that render a server-fetched table (e.g. the
+  // client detail page's businesses table) so it also picks up the change.
+  onSuccess?: () => void;
+}) {
   const [open, setOpen] = useState(false);
   const queryClient = useQueryClient();
   const { data: credentials = [] } = useQuery({
@@ -28,6 +37,7 @@ export function AddPhoneNumberFormContainer({ businessId }: { businessId: string
       toast.success("Número agregado");
       setOpen(false);
       queryClient.invalidateQueries({ queryKey: ["phoneNumbers", businessId] });
+      onSuccess?.();
     },
     onError: (error: Error) => toast.error(error.message || "Error al agregar"),
   });

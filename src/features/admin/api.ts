@@ -21,3 +21,10 @@ export function inviteClient(payload: {
     body: JSON.stringify(payload),
   });
 }
+
+export function resendClientInvite(clientId: string) {
+  return request<{ ok: true; method: "invite" | "magiclink" }>(
+    `/api/admin/clients/${clientId}/resend-invite`,
+    { method: "POST" }
+  );
+}
