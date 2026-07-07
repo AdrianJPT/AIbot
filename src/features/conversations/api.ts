@@ -1,6 +1,7 @@
 import type {
   ConversationAppointment,
   ConversationListItem,
+  ConversationMessage,
   MessagesPage,
 } from "@/features/conversations/types";
 
@@ -65,7 +66,10 @@ export function fetchConversationAppointments(
   return request(`/api/conversations/${id}/appointments`);
 }
 
-export function sendManualMessage(id: string, text: string) {
+export function sendManualMessage(
+  id: string,
+  text: string
+): Promise<ConversationMessage> {
   return request(`/api/conversations/${id}/send`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
