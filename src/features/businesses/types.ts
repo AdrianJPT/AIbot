@@ -36,6 +36,13 @@ export type BusinessDetail = {
   whatsappCredentialId?: string | null;
 };
 
+// Lightweight shape for the conversations list's business filter — just
+// enough to populate a <select>, ignoring the rest of BusinessListItem.
+export type BusinessOption = {
+  id: string;
+  name: string;
+};
+
 export type PhoneNumberItem = {
   id: string;
   phoneNumberId: string;
