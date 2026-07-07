@@ -5,6 +5,8 @@ export type Credential = {
   label: string;
   keyLast4: string;
   baseUrl: string | null;
+  isActive: boolean;
+  priority: number;
   lastUsedAt: string | Date | null;
   lastError: string | null;
   createdAt: string | Date;
@@ -22,4 +24,6 @@ export type UpdateCredentialInput = {
   label?: string;
   baseUrl?: string;
   key?: string;
+  isActive?: boolean;
+  priority?: number;
 };

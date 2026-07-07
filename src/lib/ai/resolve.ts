@@ -64,46 +64,52 @@ function buildClientForCredential(credential: Credential): OpenAI {
   return getOrBuildClient(cacheKeyFor(credential), () => {
     const apiKey = decryptSecret(credential.encryptedKey);
     const baseURL = credential.baseUrl || PROVIDER_BASE_URLS[credential.provider];
-    return new OpenAI({ apiKey, baseURL });
+    // Explicit timeout/maxRetries: callWithAiCredential already implements
+    // its own targeted single 429-retry per candidate and iterates multiple
+    // candidates, so we don't want the SDK's own defaults (10 min timeout,
+    // 2 retries) compounding on top of that — an unreachable/hanging
+    // baseURL on one candidate must fail fast so the chain can move on to
+    // the next one instead of stalling a customer-facing WhatsApp reply.
+    return new OpenAI({ apiKey, baseURL, timeout: 20_000, maxRetries: 0 });
   });
 }
 
-export type ResolvedAiClient = {
-  client: OpenAI;
-  credential: Credential | null;
-};
-
 /**
- * Resolves the OpenAI-compatible client to use for a business's AI calls.
- * Resolution order: business.aiCredentialId -> AppConfig.aiCredentialId
- * (admin default) -> throw. AI keys are managed exclusively in
- * /settings/credentials — there is no environment-variable fallback.
+ * Builds the ordered candidate list callWithAiCredential iterates over.
+ *
+ * If business.aiCredentialId is set, that's an explicit per-business pin —
+ * it's respected as a hard override with NO fallback to other credentials,
+ * because an admin who pinned a specific key for this business chose that
+ * on purpose. The pin must still be a valid, active "ai" credential: if it
+ * was deactivated or somehow points at a non-"ai" row, that's treated as
+ * "no working credential for this business" (empty candidate list) rather
+ * than silently falling through to the global chain — the pin is meant to
+ * be an explicit override, not a soft preference.
+ *
+ * Otherwise the candidates are every active "ai" Credential system-wide,
+ * ordered by priority ascending (ties by createdAt ascending) — this is the
+ * global fallback chain, intentionally NOT scoped by business.ownerId. This
+ * app has a single admin operating the whole platform: Credential rows are
+ * always created with ownerId = the creating admin's id (see
+ * src/app/api/credentials/route.ts), but Business.ownerId is very often a
+ * client user's id, not the admin's — so scoping this query by
+ * business.ownerId would return an empty chain for every business owned by
+ * a client, breaking AI for the common case. This matches the old
+ * AppConfig.aiCredentialId behavior it replaces, which had no ownerId
+ * scoping at all (see schema.prisma's AppConfig comment).
  */
-export async function getAiClient(business: Business): Promise<ResolvedAiClient> {
-  let credential: Credential | null = null;
-
+async function resolveCandidates(business: Business): Promise<Credential[]> {
   if (business.aiCredentialId) {
-    credential = await prisma.credential.findUnique({
-      where: { id: business.aiCredentialId },
+    const pinned = await prisma.credential.findUnique({
+      where: { id: business.aiCredentialId, isActive: true, kind: "ai" },
     });
+    return pinned ? [pinned] : [];
   }
 
-  if (!credential) {
-    const config = await getAppConfig();
-    if (config?.aiCredentialId) {
-      credential = await prisma.credential.findUnique({
-        where: { id: config.aiCredentialId },
-      });
-    }
-  }
-
-  if (!credential) {
-    throw new Error(
-      "No AI credential is configured for this business. Add one in /settings/credentials."
-    );
-  }
-
-  return { client: buildClientForCredential(credential), credential };
+  return prisma.credential.findMany({
+    where: { kind: "ai", isActive: true },
+    orderBy: [{ priority: "asc" }, { createdAt: "asc" }],
+  });
 }
 
 function extractStatus(err: unknown): number | undefined {
@@ -138,18 +144,6 @@ function extractErrorCode(err: unknown): string | undefined {
   ) ?? undefined;
 }
 
-/**
- * 401/403 (bad/revoked key) and 429 (rate limit/quota) are all cases where
- * retrying against the *same* credential unconditionally would be pointless
- * or wasteful — they share the same "give up on this credential and tell
- * the admin" bookkeeping path below. 429 additionally gets one short retry
- * first (see RETRY_DELAY_MS) since those often clear in under a second.
- */
-function isFailoverEligible(err: unknown): boolean {
-  const status = extractStatus(err);
-  return status === 401 || status === 403 || status === 429;
-}
-
 function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
@@ -160,72 +154,32 @@ function delay(ms: number): Promise<void> {
 
 const RATE_LIMIT_RETRY_DELAY_MS = 800;
 
+async function markCredentialSuccess(credential: Credential): Promise<void> {
+  await prisma.credential
+    .update({
+      where: { id: credential.id },
+      data: { lastUsedAt: new Date(), lastError: null },
+    })
+    .catch(() => undefined);
+}
+
 /**
- * Resolves a client for the business and invokes fn with it. On success,
- * marks the credential as recently used and clears any prior error
- * (best-effort — a failure to persist this bookkeeping shouldn't fail the
- * call).
- *
- * On a 429 (rate limit/quota), does ONE short retry against the SAME
- * client/credential first — transient rate limits often clear in under a
- * second, and retrying beats failing straight to the generic fallback
- * reply. If that retry also fails (or the error was 401/403 to begin
- * with), persists lastError on the credential and logs an EventLog with
- * source "credentials", then rethrows — there is no standby credential to
- * fail over to anymore, so the caller (or the admin, via
- * /settings/credentials) has to fix the key.
+ * Persists lastError on the given credential and logs an EventLog — the
+ * bookkeeping an admin sees in /settings/credentials after a candidate in
+ * the chain fails. 429 gets a "Rate limited: " prefix so lastError
+ * distinguishes "this key is fine, just throttled right now" from every
+ * other failure (bad/revoked key, unsupported model/modality, network
+ * blip, ...), which all read as "this key is broken, look at it".
  */
-export async function callWithAiCredential<T>(
+async function recordCredentialFailure(
   business: Business,
-  fn: (client: OpenAI) => Promise<T>
-): Promise<T> {
-  const { client, credential } = await getAiClient(business);
-
-  const markSuccess = async () => {
-    if (credential) {
-      await prisma.credential
-        .update({
-          where: { id: credential.id },
-          data: { lastUsedAt: new Date(), lastError: null },
-        })
-        .catch(() => undefined);
-    }
-  };
-
-  let err: unknown;
-  try {
-    const result = await fn(client);
-    await markSuccess();
-    return result;
-  } catch (firstErr) {
-    err = firstErr;
-  }
-
-  if (extractStatus(err) === 429) {
-    await delay(RATE_LIMIT_RETRY_DELAY_MS);
-    try {
-      const result = await fn(client);
-      await markSuccess();
-      return result;
-    } catch (retryErr) {
-      err = retryErr;
-    }
-  }
-
-  if (!credential || !isFailoverEligible(err)) {
-    throw err;
-  }
-
+  credential: Credential,
+  err: unknown
+): Promise<void> {
   const code = extractErrorCode(err);
-  // 401/403 (bad/revoked key) and 429 (rate limit/quota) share the same
-  // failover bookkeeping path, but they mean very different things to an
-  // admin glancing at /settings/credentials: one means "this key is broken,
-  // replace it", the other means "this key is fine, it's just being
-  // throttled right now". Prefix the 429 case so lastError distinguishes
-  // them instead of showing an identical-looking destructive-red message
-  // for both.
   const persistedMessage =
     extractStatus(err) === 429 ? `Rate limited: ${errorMessage(err)}` : errorMessage(err);
+
   await logEvent(
     "error",
     "credentials",
@@ -240,6 +194,68 @@ export async function callWithAiCredential<T>(
       data: { lastError: persistedMessage },
     })
     .catch(() => undefined);
+}
 
-  throw err;
+/**
+ * Calls fn against the business's ordered credential chain (see
+ * resolveCandidates: the explicit business.aiCredentialId pin if set, with
+ * no fallback — else every active "ai" Credential system-wide, in priority
+ * order).
+ *
+ * Tries each candidate in turn. For the current candidate: on success,
+ * marks lastUsedAt/clears lastError on THAT credential and returns
+ * immediately — no further candidate is tried. On a 429, does ONE short
+ * retry against the SAME credential first (transient rate limits often
+ * clear in under a second) before giving up on it.
+ *
+ * On failure — whether it's the 429-after-retry case or ANY other error
+ * (401/403, a provider that doesn't support the requested model/modality,
+ * a network blip, whatever) — persists lastError on that specific
+ * credential and logs an EventLog, then moves on to the next candidate.
+ * There's no longer a fixed "failover-eligible" status allowlist: the
+ * entire point of an ordered fallback chain is resilience regardless of
+ * *why* a given credential failed. If every candidate fails, rethrows the
+ * LAST error encountered so the caller's existing catch/logging is
+ * unaffected.
+ */
+export async function callWithAiCredential<T>(
+  business: Business,
+  fn: (client: OpenAI) => Promise<T>
+): Promise<T> {
+  const candidates = await resolveCandidates(business);
+
+  if (candidates.length === 0) {
+    throw new Error(
+      "No AI credential is configured for this business. Add one in /settings/credentials."
+    );
+  }
+
+  let lastErr: unknown;
+
+  for (const credential of candidates) {
+    const client = buildClientForCredential(credential);
+
+    try {
+      const result = await fn(client);
+      await markCredentialSuccess(credential);
+      return result;
+    } catch (firstErr) {
+      lastErr = firstErr;
+    }
+
+    if (extractStatus(lastErr) === 429) {
+      await delay(RATE_LIMIT_RETRY_DELAY_MS);
+      try {
+        const result = await fn(client);
+        await markCredentialSuccess(credential);
+        return result;
+      } catch (retryErr) {
+        lastErr = retryErr;
+      }
+    }
+
+    await recordCredentialFailure(business, credential, lastErr);
+  }
+
+  throw lastErr;
 }

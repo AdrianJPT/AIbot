@@ -12,6 +12,8 @@ const CREDENTIAL_LIST_SELECT = {
   label: true,
   keyLast4: true,
   baseUrl: true,
+  isActive: true,
+  priority: true,
   lastUsedAt: true,
   lastError: true,
   createdAt: true,
@@ -23,7 +25,7 @@ export async function GET() {
   if (!user) return NextResponse.json({ error: "No encontrado" }, { status: 404 });
 
   const list = await prisma.credential.findMany({
-    orderBy: [{ kind: "asc" }, { createdAt: "desc" }],
+    orderBy: [{ kind: "asc" }, { priority: "asc" }, { createdAt: "asc" }],
     select: CREDENTIAL_LIST_SELECT,
   });
   return NextResponse.json(list);
@@ -46,6 +48,20 @@ export async function POST(req: NextRequest) {
   const encryptedKey = encryptSecret(key);
   const keyLast4 = key.slice(-4);
 
+  // New "ai" credentials are appended at the END of the existing chain, so
+  // adding a fallback key never silently promotes it to primary — an admin
+  // has to explicitly reorder it. Priority/isActive aren't meaningful for
+  // "whatsapp" credentials, so they just keep the schema defaults there.
+  let priority = 0;
+  if (kind === "ai") {
+    const highest = await prisma.credential.findFirst({
+      where: { ownerId: user.id, kind: "ai" },
+      orderBy: { priority: "desc" },
+      select: { priority: true },
+    });
+    priority = (highest?.priority ?? -1) + 1;
+  }
+
   const created = await prisma.credential.create({
     data: {
       ownerId: user.id,
@@ -55,6 +71,8 @@ export async function POST(req: NextRequest) {
       encryptedKey,
       keyLast4,
       baseUrl: kind === "ai" ? baseUrl || null : null,
+      isActive: true,
+      priority,
     },
     select: CREDENTIAL_LIST_SELECT,
   });

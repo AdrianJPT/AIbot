@@ -1,5 +1,4 @@
 export type AiDefaults = {
-  aiCredentialId: string | null;
   whatsappCredentialId: string | null;
   chatModel: string;
   visionModel: string;

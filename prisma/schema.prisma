@@ -65,12 +65,14 @@ model PhoneNumber {
 
 // Singleton (id is always "default") holding platform-wide AI defaults —
 // editable from /settings/credentials by the admin, no deploy required.
-// Business.model/visionModel/audioModel/aiCredentialId fall back to this
-// when left unset, so rolling out a new model to every client is a form
-// save, not a migration.
+// Business.model/visionModel/audioModel fall back to this when left unset,
+// so rolling out a new model to every client is a form save, not a
+// migration. There is no aiCredentialId here anymore — a business without
+// its own pin now resolves against its owner's ordered chain of active
+// Credential rows (see getAiClient()/callWithAiCredential() in
+// src/lib/ai/resolve.ts) instead of a single platform-wide default.
 model AppConfig {
   id                   String   @id @default("default")
-  aiCredentialId       String?
   whatsappCredentialId String?
   chatModel            String   @default("gpt-4o-mini")
   visionModel          String   @default("gpt-4o-mini")
@@ -88,6 +90,8 @@ model Credential {
   encryptedKey String // AES-256-GCM: base64(iv):base64(ciphertext):base64(authTag)
   keyLast4     String
   baseUrl      String? // ai only; null = provider default
+  isActive     Boolean   @default(true) // ai only; inactive credentials are skipped in the fallback chain
+  priority     Int       @default(0) // ai only; ascending — lower tried first, ties broken by createdAt asc
   lastUsedAt   DateTime?
   lastError    String?
   createdAt    DateTime  @default(now())

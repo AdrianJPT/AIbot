@@ -40,6 +40,8 @@ export async function createTestCredential(
     label: string;
     key: string;
     baseUrl: string | null;
+    isActive: boolean;
+    priority: number;
   }> = {}
 ): Promise<Credential> {
   const key = overrides.key ?? `sk-test-${randomUUID()}`;
@@ -52,6 +54,8 @@ export async function createTestCredential(
       encryptedKey: encryptSecret(key),
       keyLast4: key.slice(-4),
       baseUrl: overrides.baseUrl ?? null,
+      ...(overrides.isActive !== undefined && { isActive: overrides.isActive }),
+      ...(overrides.priority !== undefined && { priority: overrides.priority }),
     },
   });
 }

@@ -39,3 +39,11 @@ export function updateCredential(
     body: JSON.stringify(payload),
   });
 }
+
+export function swapCredentialPriority(id: string, withId: string): Promise<unknown> {
+  return request(`/api/credentials/${id}/swap-priority`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ withId }),
+  });
+}

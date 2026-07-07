@@ -58,20 +58,20 @@ describe("GET/PATCH /api/settings/ai-defaults", () => {
 
     expect(res.status).toBe(200);
     expect(body).toMatchObject({
-      aiCredentialId: null,
       chatModel: "gpt-4o-mini",
       visionModel: "gpt-4o-mini",
       audioModel: "whisper-1",
     });
+    expect(body.aiCredentialId).toBeUndefined();
   });
 
-  it("PATCH rejects a credential not owned by the admin", async () => {
+  it("PATCH rejects a whatsapp credential not owned by the admin", async () => {
     getSessionUser.mockResolvedValueOnce(admin);
     const { PATCH } = await import("../route");
 
     const res = await PATCH(
       buildPatch({
-        aiCredentialId: "does-not-exist",
+        whatsappCredentialId: "does-not-exist",
         chatModel: "gpt-4o-mini",
         visionModel: "gpt-4o-mini",
         audioModel: "whisper-1",
@@ -81,14 +81,14 @@ describe("GET/PATCH /api/settings/ai-defaults", () => {
     expect(res.status).toBe(400);
   });
 
-  it("PATCH updates the defaults for a valid admin-owned credential", async () => {
-    const credential = await createTestCredential(admin.id, { kind: "ai" });
+  it("PATCH updates the defaults for a valid admin-owned whatsapp credential", async () => {
+    const credential = await createTestCredential(admin.id, { kind: "whatsapp" });
     getSessionUser.mockResolvedValueOnce(admin);
     const { PATCH } = await import("../route");
 
     const res = await PATCH(
       buildPatch({
-        aiCredentialId: credential.id,
+        whatsappCredentialId: credential.id,
         chatModel: "gemini-2.0-flash",
         visionModel: "gemini-2.0-flash",
         audioModel: "whisper-1",
@@ -97,7 +97,7 @@ describe("GET/PATCH /api/settings/ai-defaults", () => {
     const body = await res.json();
 
     expect(res.status).toBe(200);
-    expect(body.aiCredentialId).toBe(credential.id);
+    expect(body.whatsappCredentialId).toBe(credential.id);
     expect(body.chatModel).toBe("gemini-2.0-flash");
   });
 });

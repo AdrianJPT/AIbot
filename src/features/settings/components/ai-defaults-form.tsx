@@ -1,36 +1,21 @@
 "use client";
 
-import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { AiCredentialOption, AiDefaults } from "@/features/settings/types";
 
-const MODEL_HINTS: Record<string, string> = {
-  openai: "ej: gpt-4o-mini (chat/visión) · whisper-1 (audio)",
-  google:
-    "ej: gemini-2.0-flash (chat/visión) · Google NO soporta transcripción de audio por esta vía — el campo audio necesita una credencial OpenAI",
-  openrouter:
-    "formato proveedor/modelo, ej: openai/gpt-4o-mini, google/gemini-2.0-flash-001",
-};
-
 export function AiDefaultsForm({
   defaults,
-  credentials,
   whatsappCredentials,
   saving,
   onSubmit,
 }: {
   defaults: AiDefaults;
-  credentials: AiCredentialOption[];
   whatsappCredentials: AiCredentialOption[];
   saving: boolean;
   onSubmit: (e: React.FormEvent<HTMLFormElement>) => void;
 }) {
-  const initialCredential = credentials.find((c) => c.id === defaults.aiCredentialId);
-  const [provider, setProvider] = useState(initialCredential?.provider ?? "");
-  const hint = MODEL_HINTS[provider];
-
   return (
     <form onSubmit={onSubmit} className="max-w-2xl space-y-4 rounded-lg border border-border p-6">
       <div>
@@ -38,29 +23,11 @@ export function AiDefaultsForm({
         <p className="text-sm text-muted-foreground">
           Se usan para cualquier negocio o número que no tenga su propia
           credencial o modelo asignado. Cambiarlos acá aplica a todos los
-          clientes sin override, sin necesidad de deploy.
+          clientes sin override, sin necesidad de deploy. La credencial de IA
+          por defecto ya no se elige acá — un negocio sin credencial propia
+          usa la cadena de credenciales de IA activas de toda la plataforma,
+          ordenable en la tabla de arriba.
         </p>
-      </div>
-
-      <div className="space-y-1.5">
-        <Label htmlFor="defaultAiCredentialId">Credencial de IA por defecto</Label>
-        <select
-          id="defaultAiCredentialId"
-          name="aiCredentialId"
-          defaultValue={defaults.aiCredentialId ?? ""}
-          onChange={(e) => {
-            const selected = credentials.find((c) => c.id === e.target.value);
-            setProvider(selected?.provider ?? "");
-          }}
-          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-        >
-          <option value="">Ninguna (cada negocio necesita la suya)</option>
-          {credentials.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.label} ({c.provider})
-            </option>
-          ))}
-        </select>
       </div>
 
       <div className="space-y-1.5">
@@ -120,14 +87,12 @@ export function AiDefaultsForm({
         </div>
       </div>
 
-      {hint ? (
-        <p className="text-xs text-muted-foreground">{hint}</p>
-      ) : (
-        <p className="text-xs text-muted-foreground">
-          Elegí una credencial arriba para ver ejemplos de nombres de modelo válidos
-          para ese proveedor.
-        </p>
-      )}
+      <p className="text-xs text-muted-foreground">
+        Formato de modelo esperado según el proveedor de la credencial que
+        termine sirviendo la respuesta: ej. gpt-4o-mini / whisper-1 (OpenAI),
+        gemini-2.0-flash (Google — sin audio por esta vía), o
+        proveedor/modelo (OpenRouter, ej. openai/gpt-4o-mini).
+      </p>
 
       <Button type="submit" disabled={saving}>
         {saving ? "Guardando..." : "Guardar defaults"}
