@@ -12,7 +12,8 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
 export function inviteClient(payload: {
   email: string;
   name?: string;
-  business: Omit<BusinessInput, "ownerId">;
+  business?: Omit<BusinessInput, "ownerId">;
+  businessId?: string;
 }) {
   return request("/api/admin/clients", {
     method: "POST",
