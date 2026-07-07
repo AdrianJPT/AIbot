@@ -4,6 +4,7 @@ import { requireAdmin } from "@/lib/auth";
 
 const SELECT = {
   aiCredentialId: true,
+  whatsappCredentialId: true,
   chatModel: true,
   visionModel: true,
   audioModel: true,
@@ -32,11 +33,20 @@ export async function PATCH(req: NextRequest) {
   if (!admin) return NextResponse.json({ error: "No encontrado" }, { status: 404 });
 
   const body = await req.json();
-  const { aiCredentialId, chatModel, visionModel, audioModel } = body;
+  const { aiCredentialId, whatsappCredentialId, chatModel, visionModel, audioModel } = body;
 
   if (aiCredentialId) {
     const owned = await prisma.credential.count({
       where: { id: aiCredentialId, ownerId: admin.id, kind: "ai" },
+    });
+    if (!owned) {
+      return NextResponse.json({ error: "Credencial inválida" }, { status: 400 });
+    }
+  }
+
+  if (whatsappCredentialId) {
+    const owned = await prisma.credential.count({
+      where: { id: whatsappCredentialId, ownerId: admin.id, kind: "whatsapp" },
     });
     if (!owned) {
       return NextResponse.json({ error: "Credencial inválida" }, { status: 400 });
@@ -52,10 +62,17 @@ export async function PATCH(req: NextRequest) {
 
   const config = await prisma.appConfig.upsert({
     where: { id: "default" },
-    update: { aiCredentialId: aiCredentialId || null, chatModel, visionModel, audioModel },
+    update: {
+      aiCredentialId: aiCredentialId || null,
+      whatsappCredentialId: whatsappCredentialId || null,
+      chatModel,
+      visionModel,
+      audioModel,
+    },
     create: {
       id: "default",
       aiCredentialId: aiCredentialId || null,
+      whatsappCredentialId: whatsappCredentialId || null,
       chatModel,
       visionModel,
       audioModel,

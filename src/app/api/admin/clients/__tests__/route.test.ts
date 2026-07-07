@@ -69,12 +69,76 @@ describe("POST /api/admin/clients", () => {
     getSessionUser.mockResolvedValueOnce(admin);
     const { POST } = await import("../route");
 
-    const res = await POST(buildRequest({ email: "no-business@test.local" }));
+    const res = await POST(
+      buildRequest({ email: "no-business@test.local", business: { name: "Solo nombre" } })
+    );
     const body = await res.json();
 
     expect(res.status).toBe(400);
     expect(inviteUserByEmail).not.toHaveBeenCalled();
     expect(body.error).toBeTruthy();
+  });
+
+  it("invites without any business (assign later)", async () => {
+    getSessionUser.mockResolvedValueOnce(admin);
+    const newId = randomUUID();
+    const email = `invited-bare-${newId}@test.local`;
+    inviteUserByEmail.mockResolvedValueOnce({
+      data: { user: { id: newId } },
+      error: null,
+    });
+    const { POST } = await import("../route");
+
+    const res = await POST(buildRequest({ email }));
+    invitedIds.push(newId);
+
+    expect(res.status).toBe(200);
+    const businesses = await prisma.business.count({ where: { ownerId: newId } });
+    expect(businesses).toBe(0);
+  });
+
+  it("hands over an existing business via businessId", async () => {
+    getSessionUser.mockResolvedValueOnce(admin);
+    const existing = await prisma.business.create({
+      data: {
+        name: "Pre-built business",
+        systemPrompt: "p",
+        welcomeMessage: "w",
+        businessInfo: {},
+        ownerId: admin.id,
+      },
+    });
+    const newId = randomUUID();
+    const email = `invited-handover-${newId}@test.local`;
+    inviteUserByEmail.mockResolvedValueOnce({
+      data: { user: { id: newId } },
+      error: null,
+    });
+    const { POST } = await import("../route");
+
+    const res = await POST(buildRequest({ email, businessId: existing.id }));
+    invitedIds.push(newId);
+
+    expect(res.status).toBe(200);
+    const stored = await prisma.business.findUnique({ where: { id: existing.id } });
+    expect(stored?.ownerId).toBe(newId);
+  });
+
+  it("returns 400 when both business and businessId are sent, without inviting", async () => {
+    inviteUserByEmail.mockClear();
+    getSessionUser.mockResolvedValueOnce(admin);
+    const { POST } = await import("../route");
+
+    const res = await POST(
+      buildRequest({
+        email: "both@test.local",
+        businessId: "some-id",
+        business: validBusiness("both"),
+      })
+    );
+
+    expect(res.status).toBe(400);
+    expect(inviteUserByEmail).not.toHaveBeenCalled();
   });
 
   it("invites the user via Supabase, precreates the Prisma User row, and creates their business+number", async () => {

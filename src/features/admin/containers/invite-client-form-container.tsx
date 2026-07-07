@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -10,14 +11,23 @@ import { BusinessFormFields } from "@/features/businesses/components/business-fo
 import { fetchCredentials } from "@/features/businesses/api";
 import { inviteClient } from "@/features/admin/api";
 
+type BusinessMode = "existing" | "new" | "none";
+
 /**
- * Combined "invite a new client" flow: collects the client's email/name
- * together with their first business + phone number in one screen, so the
- * business is already assigned (Business.ownerId is required) before the
- * invite email goes out — see docs/plan/07-waba-phone-numbers.md.
+ * "Invite a new client" flow. The business can be an existing admin-built
+ * one (business-first onboarding: set it up, then hand it over here), a new
+ * one created inline, or none at all (assign later from the business's
+ * edit page) — see docs/plan/07-waba-phone-numbers.md.
  */
-export function InviteClientFormContainer() {
+export function InviteClientFormContainer({
+  assignableBusinesses,
+}: {
+  assignableBusinesses: { id: string; name: string }[];
+}) {
   const router = useRouter();
+  const [businessMode, setBusinessMode] = useState<BusinessMode>(
+    assignableBusinesses.length > 0 ? "existing" : "new"
+  );
   const { data: credentials = [] } = useQuery({
     queryKey: ["credentials"],
     queryFn: fetchCredentials,
@@ -26,7 +36,7 @@ export function InviteClientFormContainer() {
   const mutation = useMutation({
     mutationFn: inviteClient,
     onSuccess: () => {
-      toast.success("Cliente invitado con su negocio asignado");
+      toast.success("Cliente invitado");
       router.push("/admin/clients");
       router.refresh();
     },
@@ -37,6 +47,24 @@ export function InviteClientFormContainer() {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
 
+    const email = fd.get("clientEmail") as string;
+    const name = (fd.get("clientName") as string) || undefined;
+
+    if (businessMode === "existing") {
+      const businessId = fd.get("businessId") as string;
+      if (!businessId) {
+        toast.error("Elegí el negocio a asignar");
+        return;
+      }
+      mutation.mutate({ email, name, businessId });
+      return;
+    }
+
+    if (businessMode === "none") {
+      mutation.mutate({ email, name });
+      return;
+    }
+
     let businessInfo: Record<string, string> = {};
     try {
       businessInfo = JSON.parse((fd.get("businessInfo") as string) || "{}");
@@ -46,11 +74,11 @@ export function InviteClientFormContainer() {
     }
 
     mutation.mutate({
-      email: fd.get("clientEmail") as string,
-      name: (fd.get("clientName") as string) || undefined,
+      email,
+      name,
       business: {
         name: fd.get("name") as string,
-        phoneNumberId: fd.get("phoneNumberId") as string,
+        phoneNumberId: (fd.get("phoneNumberId") as string) || null,
         displayPhone: (fd.get("displayPhone") as string) || null,
         whatsappToken: fd.get("whatsappToken") as string,
         systemPrompt: fd.get("systemPrompt") as string,
@@ -86,8 +114,45 @@ export function InviteClientFormContainer() {
       </div>
 
       <div className="space-y-4 rounded-lg border p-4">
-        <h2 className="font-medium">Negocio y número</h2>
-        <BusinessFormFields credentials={credentials} />
+        <h2 className="font-medium">Negocio</h2>
+        <div className="space-y-1.5">
+          <Label htmlFor="businessMode">Qué negocio asignarle</Label>
+          <select
+            id="businessMode"
+            value={businessMode}
+            onChange={(e) => setBusinessMode(e.target.value as BusinessMode)}
+            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          >
+            <option value="existing" disabled={assignableBusinesses.length === 0}>
+              Un negocio existente
+            </option>
+            <option value="new">Crear uno nuevo</option>
+            <option value="none">Ninguno (asignar después)</option>
+          </select>
+        </div>
+
+        {businessMode === "existing" && (
+          <div className="space-y-1.5">
+            <Label htmlFor="businessId">Negocio</Label>
+            <select
+              id="businessId"
+              name="businessId"
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            >
+              {assignableBusinesses.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.name}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-muted-foreground">
+              Solo se listan los negocios que todavía son tuyos (creados desde
+              Negocios y aún sin cliente).
+            </p>
+          </div>
+        )}
+
+        {businessMode === "new" && <BusinessFormFields credentials={credentials} />}
       </div>
 
       <Button type="submit" disabled={mutation.isPending}>

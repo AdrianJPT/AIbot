@@ -65,6 +65,15 @@ export async function PATCH(
     }
   }
 
+  // Reassigning the owner is how an admin-built business gets handed to a
+  // client during onboarding.
+  if (body.ownerId != null && body.ownerId !== existing.ownerId) {
+    const owner = await prisma.user.findUnique({ where: { id: body.ownerId } });
+    if (!owner) {
+      return NextResponse.json({ error: "Cliente inválido" }, { status: 400 });
+    }
+  }
+
   // A pasted raw token always wins over whatsappCredentialId — the edit
   // form submits whatsappCredentialId on every save (even as null), so
   // checking `"whatsappCredentialId" in body` first would never let a
@@ -103,6 +112,7 @@ export async function PATCH(
           maxHistoryMessages: body.maxHistoryMessages,
         }),
         ...(body.isActive != null && { isActive: body.isActive }),
+        ...(body.ownerId != null && { ownerId: body.ownerId }),
         ...("aiCredentialId" in body && { aiCredentialId: body.aiCredentialId || null }),
         ...(currentPhoneNumber &&
           Object.keys(phoneNumberChanges).length > 0 && {

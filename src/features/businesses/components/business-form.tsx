@@ -26,10 +26,14 @@ export function BusinessFormFields({
   business,
   credentials,
   fixedOwnerLabel,
+  owners,
+  currentOwnerId,
 }: {
   business?: BusinessDetail;
   credentials: CredentialOption[];
   fixedOwnerLabel?: string;
+  owners?: { id: string; label: string }[];
+  currentOwnerId?: string;
 }) {
   const infoStr = business
     ? JSON.stringify(business.businessInfo, null, 2)
@@ -55,38 +59,60 @@ export function BusinessFormFields({
         </div>
       )}
 
+      {owners && (
+        <div className="space-y-1.5">
+          <Label htmlFor="ownerId">Cliente</Label>
+          <select
+            id="ownerId"
+            name="ownerId"
+            defaultValue={currentOwnerId ?? ""}
+            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          >
+            {owners.map((o) => (
+              <option key={o.id} value={o.id}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+          <p className="text-xs text-muted-foreground">
+            Asignar el negocio a un cliente le da acceso a sus chats desde su
+            propia cuenta. Mientras sea tuyo, solo lo ves vos.
+          </p>
+        </div>
+      )}
+
       <div className="space-y-1.5">
         <Label htmlFor="name">Nombre</Label>
         <Input id="name" name="name" required defaultValue={business?.name} />
       </div>
 
       <div className="space-y-1.5">
-        <Label htmlFor="displayPhone">Número de WhatsApp</Label>
+        <Label htmlFor="displayPhone">Número de WhatsApp (opcional)</Label>
         <Input
           id="displayPhone"
           name="displayPhone"
-          required
           placeholder="ej: +54 9 11 1234-5678"
           defaultValue={business?.displayPhone ?? ""}
         />
       </div>
 
       <div className="space-y-1.5">
-        <Label htmlFor="phoneNumberId">ID técnico (Meta)</Label>
+        <Label htmlFor="phoneNumberId">ID técnico (Meta, opcional)</Label>
         <Input
           id="phoneNumberId"
           name="phoneNumberId"
-          required
           defaultValue={business?.phoneNumberId ?? undefined}
         />
         <p className="text-xs text-muted-foreground">
           El Phone Number ID que asigna Meta al registrar el número en la
           WABA — se encuentra en WhatsApp Manager, no es el número en sí.
+          Podés dejarlo vacío y agregar los números después, desde la página
+          del negocio.
         </p>
       </div>
 
       <div className="space-y-1.5">
-        <Label htmlFor="whatsappToken">WhatsApp token (fallback, opcional)</Label>
+        <Label htmlFor="whatsappToken">WhatsApp token (opcional)</Label>
         <Input
           id="whatsappToken"
           name="whatsappToken"
@@ -95,7 +121,8 @@ export function BusinessFormFields({
           defaultValue={business?.whatsappToken}
         />
         <p className="text-xs text-muted-foreground">
-          Se usa solo si no hay una credencial de WhatsApp asignada abajo.
+          Vacío = el número hereda la credencial de WhatsApp por defecto de
+          Configuración. Cargalo solo si este número usa un token propio.
         </p>
       </div>
 
@@ -130,7 +157,7 @@ export function BusinessFormFields({
           defaultValue={business?.whatsappCredentialId || ""}
           className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         >
-          <option value="">Usar el token ingresado arriba</option>
+          <option value="">Heredar de Configuración (o usar el token de arriba)</option>
           {waCredentials.map((c) => (
             <option key={c.id} value={c.id}>
               {c.label} ({c.status})
@@ -247,12 +274,16 @@ export function BusinessForm({
   submitting,
   onSubmit,
   fixedOwnerLabel,
+  owners,
+  currentOwnerId,
 }: {
   business?: BusinessDetail;
   credentials: CredentialOption[];
   submitting: boolean;
   onSubmit: (e: React.FormEvent<HTMLFormElement>) => void;
   fixedOwnerLabel?: string;
+  owners?: { id: string; label: string }[];
+  currentOwnerId?: string;
 }) {
   return (
     <form onSubmit={onSubmit} className="max-w-3xl space-y-4">
@@ -260,6 +291,8 @@ export function BusinessForm({
         business={business}
         credentials={credentials}
         fixedOwnerLabel={fixedOwnerLabel}
+        owners={owners}
+        currentOwnerId={currentOwnerId}
       />
       <Button type="submit" disabled={submitting}>
         {submitting ? "Guardando…" : "Guardar"}

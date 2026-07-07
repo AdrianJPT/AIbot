@@ -22,18 +22,16 @@ export async function GET() {
   return NextResponse.json(list.map(flattenBusinessPhoneNumber));
 }
 
-// Creating a business (registering a client's phone number) is admin-only —
-// numbers are managed from Admin > Clients > [client], never self-service.
+// Creating a business is admin-only — never self-service. When no ownerId
+// is given the business starts owned by the admin (business-first
+// onboarding: set it up completely, then hand it to a client from its edit
+// page or the invite flow).
 export async function POST(req: NextRequest) {
   const admin = await requireAdmin();
   if (!admin) return NextResponse.json({ error: "No encontrado" }, { status: 404 });
 
   const body = await req.json();
-  const { ownerId } = body;
-
-  if (!ownerId) {
-    return NextResponse.json({ error: "Faltan campos requeridos" }, { status: 400 });
-  }
+  const ownerId = body.ownerId || admin.id;
 
   const validationError = validateCreateBusinessInput(body);
   if (validationError) {

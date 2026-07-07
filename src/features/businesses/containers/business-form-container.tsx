@@ -15,10 +15,14 @@ export function BusinessFormContainer({
   business,
   fixedOwnerId,
   fixedOwnerLabel,
+  owners,
+  currentOwnerId,
 }: {
   business?: BusinessDetail;
   fixedOwnerId?: string;
   fixedOwnerLabel?: string;
+  owners?: { id: string; label: string }[];
+  currentOwnerId?: string;
 }) {
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -58,7 +62,7 @@ export function BusinessFormContainer({
 
     const payload: BusinessInput = {
       name: fd.get("name") as string,
-      phoneNumberId: fd.get("phoneNumberId") as string,
+      phoneNumberId: (fd.get("phoneNumberId") as string) || null,
       displayPhone: (fd.get("displayPhone") as string) || null,
       whatsappToken: fd.get("whatsappToken") as string,
       systemPrompt: fd.get("systemPrompt") as string,
@@ -74,6 +78,7 @@ export function BusinessFormContainer({
       aiCredentialId: (fd.get("aiCredentialId") as string) || null,
       whatsappCredentialId: (fd.get("whatsappCredentialId") as string) || null,
       ...(fixedOwnerId && { ownerId: fixedOwnerId }),
+      ...(owners && fd.get("ownerId") && { ownerId: fd.get("ownerId") as string }),
     };
 
     mutation.mutate(payload);
@@ -84,6 +89,8 @@ export function BusinessFormContainer({
       business={business}
       credentials={credentials.filter((c) => c.status !== "revoked")}
       fixedOwnerLabel={fixedOwnerLabel}
+      owners={owners}
+      currentOwnerId={currentOwnerId}
       submitting={mutation.isPending}
       onSubmit={onSubmit}
     />

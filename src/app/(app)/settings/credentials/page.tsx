@@ -28,7 +28,13 @@ export default async function CredentialsPage() {
     where: { id: "default" },
     update: {},
     create: { id: "default" },
-    select: { aiCredentialId: true, chatModel: true, visionModel: true, audioModel: true },
+    select: {
+      aiCredentialId: true,
+      whatsappCredentialId: true,
+      chatModel: true,
+      visionModel: true,
+      audioModel: true,
+    },
   });
 
   return (
@@ -41,6 +47,9 @@ export default async function CredentialsPage() {
         initialDefaults={aiDefaults}
         credentials={credentials
           .filter((c) => c.kind === "ai" && c.status !== "revoked")
+          .map(({ id, label, provider, status }) => ({ id, label, provider, status }))}
+        whatsappCredentials={credentials
+          .filter((c) => c.kind === "whatsapp" && c.status !== "revoked")
           .map(({ id, label, provider, status }) => ({ id, label, provider, status }))}
       />
     </div>

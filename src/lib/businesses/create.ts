@@ -3,7 +3,7 @@ import { ensureWhatsappCredential } from "@/lib/whatsapp";
 
 export type CreateBusinessInput = {
   name: string;
-  phoneNumberId: string;
+  phoneNumberId?: string | null;
   displayPhone?: string | null;
   whatsappToken?: string | null;
   systemPrompt: string;
@@ -19,27 +19,31 @@ export type CreateBusinessInput = {
 };
 
 /**
- * Validates the required fields for creating a business + its first
- * PhoneNumber. Shared by the standalone businesses route and the
+ * Validates the required fields for creating a business. The first
+ * PhoneNumber is optional (numbers can be added later from the business
+ * page), and so are WhatsApp/AI credentials — numbers without an explicit
+ * credential inherit the platform default at send time (see
+ * resolveWhatsappToken). Shared by the standalone businesses route and the
  * combined client-invite flow so both enforce the same rules.
  */
 export function validateCreateBusinessInput(
   input: Partial<CreateBusinessInput>
 ): string | null {
-  if (!input.name || !input.phoneNumberId || !input.systemPrompt || !input.welcomeMessage) {
+  if (!input.name || !input.systemPrompt || !input.welcomeMessage) {
     return "Faltan campos requeridos del negocio";
   }
-  if (!input.whatsappToken && !input.whatsappCredentialId) {
-    return "Asigná una credencial de WhatsApp o cargá un token";
+  if ((input.whatsappToken || input.whatsappCredentialId) && !input.phoneNumberId) {
+    return "Cargaste un token de WhatsApp pero falta el ID técnico del número";
   }
   return null;
 }
 
 /**
- * Creates a Business + its first PhoneNumber for an already-existing
- * owner. A pasted whatsappToken is wrapped into a new encrypted
+ * Creates a Business, plus its first PhoneNumber when phoneNumberId is
+ * given. A pasted whatsappToken is wrapped into a new encrypted
  * Credential (never stored in plaintext) unless whatsappCredentialId is
- * given directly. Shared by POST /api/businesses and the admin
+ * given directly; with neither, the number inherits the platform default
+ * credential at send time. Shared by POST /api/businesses and the admin
  * client-invite flow (see docs/plan/07-waba-phone-numbers.md).
  */
 export async function createBusinessForOwner(
@@ -65,13 +69,15 @@ export async function createBusinessForOwner(
       isActive: input.isActive !== false,
       ownerId,
       aiCredentialId: input.aiCredentialId || null,
-      phoneNumbers: {
-        create: {
-          phoneNumberId: input.phoneNumberId,
-          displayPhone: input.displayPhone || null,
-          whatsappCredentialId: resolvedWhatsappCredentialId,
+      ...(input.phoneNumberId && {
+        phoneNumbers: {
+          create: {
+            phoneNumberId: input.phoneNumberId,
+            displayPhone: input.displayPhone || null,
+            whatsappCredentialId: resolvedWhatsappCredentialId,
+          },
         },
-      },
+      }),
     },
     include: { phoneNumbers: true },
   });

@@ -21,6 +21,15 @@ export default async function EditBusinessPage({
   });
   if (!business) notFound();
 
+  const users = await prisma.user.findMany({
+    orderBy: { createdAt: "asc" },
+    select: { id: true, name: true, email: true, role: true },
+  });
+  const owners = users.map((u) => ({
+    id: u.id,
+    label: `${u.name || u.email}${u.role === "admin" ? " (admin)" : ""}`,
+  }));
+
   return (
     <div>
       <Link
@@ -30,7 +39,11 @@ export default async function EditBusinessPage({
         ← Negocios
       </Link>
       <h1 className="mb-6 text-2xl font-bold">Editar negocio</h1>
-      <BusinessFormContainer business={flattenBusinessPhoneNumber(business)} />
+      <BusinessFormContainer
+        business={flattenBusinessPhoneNumber(business)}
+        owners={owners}
+        currentOwnerId={business.ownerId}
+      />
     </div>
   );
 }

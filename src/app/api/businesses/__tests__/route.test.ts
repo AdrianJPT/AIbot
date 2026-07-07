@@ -124,4 +124,45 @@ describe("GET/POST /api/businesses", () => {
 
     await prisma.business.delete({ where: { id: created.id } });
   });
+
+  it("POST without ownerId creates a business owned by the admin, with no number and no credential", async () => {
+    getSessionUser.mockResolvedValueOnce(admin);
+    const { POST } = await import("../route");
+
+    const res = await POST(
+      buildRequest({
+        name: "Business-first Biz",
+        systemPrompt: "prompt",
+        welcomeMessage: "hola",
+      })
+    );
+    const created = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(created.ownerId).toBe(admin.id);
+
+    const stored = await prisma.business.findUnique({
+      where: { id: created.id },
+      include: { phoneNumbers: true },
+    });
+    expect(stored?.phoneNumbers).toHaveLength(0);
+
+    await prisma.business.delete({ where: { id: created.id } });
+  });
+
+  it("POST rejects a WhatsApp token without a phoneNumberId to attach it to", async () => {
+    getSessionUser.mockResolvedValueOnce(admin);
+    const { POST } = await import("../route");
+
+    const res = await POST(
+      buildRequest({
+        name: "Tokened Biz",
+        systemPrompt: "prompt",
+        welcomeMessage: "hola",
+        whatsappToken: "tok",
+      })
+    );
+
+    expect(res.status).toBe(400);
+  });
 });
