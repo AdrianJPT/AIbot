@@ -38,12 +38,12 @@ vi.mock("../ai/generate", () => ({
 }));
 
 const fakeAiClient = { marker: "fake-ai-client" };
-const callWithFailover = vi.fn((_business: unknown, fn: (client: unknown) => unknown) =>
+const callWithAiCredential = vi.fn((_business: unknown, fn: (client: unknown) => unknown) =>
   fn(fakeAiClient)
 );
 vi.mock("../ai/resolve", () => ({
-  callWithFailover: (...args: Parameters<typeof callWithFailover>) =>
-    callWithFailover(...args),
+  callWithAiCredential: (...args: Parameters<typeof callWithAiCredential>) =>
+    callWithAiCredential(...args),
   resolveModels: async () => ({
     chatModel: "gpt-4o-mini",
     visionModel: "gpt-4o-mini",

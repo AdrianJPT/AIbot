@@ -1,4 +1,8 @@
-import type { Credential, NewCredentialInput } from "@/features/credentials/types";
+import type {
+  Credential,
+  NewCredentialInput,
+  UpdateCredentialInput,
+} from "@/features/credentials/types";
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, init);
@@ -21,24 +25,16 @@ export function createCredential(payload: NewCredentialInput): Promise<Credentia
   });
 }
 
-export function activateCredential(id: string) {
-  return request(`/api/credentials/${id}/activate`, { method: "POST" });
-}
-
-export function revokeCredential(id: string) {
-  return request(`/api/credentials/${id}/revoke`, { method: "POST" });
-}
-
 export function deleteCredential(id: string) {
   return request(`/api/credentials/${id}`, { method: "DELETE" });
 }
 
-export function testCredential(
+export function updateCredential(
   id: string,
-  payload: { phoneNumberId?: string } = {}
-): Promise<{ ok: boolean; error?: string }> {
-  return request(`/api/credentials/${id}/test`, {
-    method: "POST",
+  payload: UpdateCredentialInput
+): Promise<Credential> {
+  return request<Credential>(`/api/credentials/${id}`, {
+    method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });

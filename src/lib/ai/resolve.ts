@@ -68,26 +68,6 @@ function buildClientForCredential(credential: Credential): OpenAI {
   });
 }
 
-async function findActiveAiCredential(ownerId: string): Promise<Credential | null> {
-  return prisma.credential.findFirst({
-    where: { ownerId, kind: "ai", status: "active" },
-  });
-}
-
-async function findStandbyAiCredential(
-  ownerId: string,
-  excludeCredentialId: string
-): Promise<Credential | null> {
-  return prisma.credential.findFirst({
-    where: {
-      ownerId,
-      kind: "ai",
-      status: "standby",
-      id: { not: excludeCredentialId },
-    },
-  });
-}
-
 export type ResolvedAiClient = {
   client: OpenAI;
   credential: Credential | null;
@@ -96,9 +76,8 @@ export type ResolvedAiClient = {
 /**
  * Resolves the OpenAI-compatible client to use for a business's AI calls.
  * Resolution order: business.aiCredentialId -> AppConfig.aiCredentialId
- * (admin default) -> owner's active AI credential. AI keys are managed
- * exclusively in /settings/credentials — there is no environment-variable
- * fallback.
+ * (admin default) -> throw. AI keys are managed exclusively in
+ * /settings/credentials — there is no environment-variable fallback.
  */
 export async function getAiClient(business: Business): Promise<ResolvedAiClient> {
   let credential: Credential | null = null;
@@ -116,10 +95,6 @@ export async function getAiClient(business: Business): Promise<ResolvedAiClient>
         where: { id: config.aiCredentialId },
       });
     }
-  }
-
-  if (!credential) {
-    credential = await findActiveAiCredential(business.ownerId);
   }
 
   if (!credential) {
@@ -146,12 +121,15 @@ function errorMessage(err: unknown): string {
 }
 
 /**
- * Resolves a client for the business, invokes fn with it, and on a
- * 401/403 from the provider automatically retries once against the
- * owner's standby AI credential (if any). Persists lastError on the
- * failing credential and logs an EventLog with source "credentials".
+ * Resolves a client for the business and invokes fn with it. On success,
+ * marks the credential as recently used and clears any prior error
+ * (best-effort — a failure to persist this bookkeeping shouldn't fail the
+ * call). On a 401/403 from the provider, persists lastError on the
+ * credential and logs an EventLog with source "credentials", then
+ * rethrows — there is no standby credential to fail over to anymore, so
+ * the caller (or the admin, via /settings/credentials) has to fix the key.
  */
-export async function callWithFailover<T>(
+export async function callWithAiCredential<T>(
   business: Business,
   fn: (client: OpenAI) => Promise<T>
 ): Promise<T> {
@@ -188,10 +166,6 @@ export async function callWithFailover<T>(
       })
       .catch(() => undefined);
 
-    const standby = await findStandbyAiCredential(business.ownerId, credential.id);
-    if (!standby) throw err;
-
-    const standbyClient = buildClientForCredential(standby);
-    return fn(standbyClient);
+    throw err;
   }
 }

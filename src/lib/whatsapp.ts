@@ -2,7 +2,6 @@ import axios from "axios";
 import type { Credential, PhoneNumber } from "@prisma/client";
 import { prisma } from "./db";
 import { decryptSecret, encryptSecret } from "./crypto";
-import { logEvent } from "./log";
 
 const API_VERSION = "v21.0";
 
@@ -30,23 +29,13 @@ export async function sendMessage(
   return res.data?.messages?.[0]?.id;
 }
 
-async function findActiveWhatsappCredential(
-  ownerId: string
-): Promise<Credential | null> {
-  return prisma.credential.findFirst({
-    where: { ownerId, kind: "whatsapp", status: "active" },
-  });
-}
-
 /**
  * Resolves the WhatsApp access token to use for a phone number. Resolution
- * order: phoneNumber.whatsappCredentialId -> owner's active whatsapp
- * credential -> AppConfig.whatsappCredentialId (the admin-managed platform
- * default). Numbers created without an explicit credential inherit the
- * platform default by design, so that step is not warn-logged — only the
- * owner-wide fallback is (a transition path for numbers that predate the
- * credential system). Throws if nothing resolves, since there is no legacy
- * plaintext token to fall back to anymore.
+ * order: phoneNumber.whatsappCredentialId -> AppConfig.whatsappCredentialId
+ * (the admin-managed platform default). Numbers created without an
+ * explicit credential inherit the platform default by design. Throws if
+ * nothing resolves, since there is no legacy plaintext token to fall back
+ * to anymore.
  */
 export async function resolveWhatsappToken(
   phoneNumber: PhoneNumber,
@@ -64,35 +53,14 @@ export async function resolveWhatsappToken(
   }
 
   if (!credential) {
-    const fallback = await findActiveWhatsappCredential(ownerId);
-    if (fallback) {
-      credential = await prisma.credential.update({
-        where: { id: fallback.id },
-        data: { lastUsedAt: new Date() },
-      });
-      await logEvent(
-        "warn",
-        "whatsapp-send",
-        "Resolved WhatsApp token via owner-wide fallback credential, not PhoneNumber.whatsappCredentialId",
-        { credentialId: credential.id },
-        undefined,
-        phoneNumber.id
-      );
-    }
-  }
-
-  if (!credential) {
     const config = await prisma.appConfig.findUnique({ where: { id: "default" } });
-    const platformDefault = config?.whatsappCredentialId
-      ? await prisma.credential.findFirst({
-          where: { id: config.whatsappCredentialId, status: "active" },
+    if (config?.whatsappCredentialId) {
+      credential = await prisma.credential
+        .update({
+          where: { id: config.whatsappCredentialId },
+          data: { lastUsedAt: new Date() },
         })
-      : null;
-    if (platformDefault) {
-      credential = await prisma.credential.update({
-        where: { id: platformDefault.id },
-        data: { lastUsedAt: new Date() },
-      });
+        .catch(() => null);
     }
   }
 
@@ -142,7 +110,6 @@ export async function ensureWhatsappCredential(
       label,
       encryptedKey: encryptSecret(rawToken),
       keyLast4: rawToken.slice(-4),
-      status: "active",
     },
   });
   return credential.id;

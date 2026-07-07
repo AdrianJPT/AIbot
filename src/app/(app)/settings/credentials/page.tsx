@@ -17,7 +17,6 @@ export default async function CredentialsPage() {
       label: true,
       keyLast4: true,
       baseUrl: true,
-      status: true,
       lastUsedAt: true,
       lastError: true,
       createdAt: true,
@@ -46,11 +45,11 @@ export default async function CredentialsPage() {
       <AiDefaultsContainer
         initialDefaults={aiDefaults}
         credentials={credentials
-          .filter((c) => c.kind === "ai" && c.status !== "revoked")
-          .map(({ id, label, provider, status }) => ({ id, label, provider, status }))}
+          .filter((c) => c.kind === "ai")
+          .map(({ id, label, provider }) => ({ id, label, provider }))}
         whatsappCredentials={credentials
-          .filter((c) => c.kind === "whatsapp" && c.status !== "revoked")
-          .map(({ id, label, provider, status }) => ({ id, label, provider, status }))}
+          .filter((c) => c.kind === "whatsapp")
+          .map(({ id, label, provider }) => ({ id, label, provider }))}
       />
     </div>
   );

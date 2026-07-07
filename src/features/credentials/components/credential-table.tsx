@@ -1,4 +1,6 @@
-import { Badge } from "@/components/ui/badge";
+"use client";
+
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -9,43 +11,98 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import type { Credential } from "@/features/credentials/types";
+import type { Credential, UpdateCredentialInput } from "@/features/credentials/types";
 
-function statusVariant(status: string): "default" | "secondary" | "destructive" {
-  if (status === "active") return "default";
-  if (status === "revoked") return "destructive";
-  return "secondary";
-}
+function EditRow({
+  credential,
+  busy,
+  onCancel,
+  onSave,
+}: {
+  credential: Credential;
+  busy: boolean;
+  onCancel: () => void;
+  onSave: (payload: UpdateCredentialInput) => void;
+}) {
+  const [label, setLabel] = useState(credential.label);
+  const [baseUrl, setBaseUrl] = useState(credential.baseUrl ?? "");
+  const [key, setKey] = useState("");
 
-function statusLabel(status: string): string {
-  if (status === "active") return "Activa";
-  if (status === "revoked") return "Revocada";
-  return "En espera";
+  function handleSave() {
+    onSave({
+      label,
+      ...(credential.kind === "ai" && { baseUrl: baseUrl || undefined }),
+      ...(key && { key }),
+    });
+  }
+
+  return (
+    <TableRow className="bg-muted/40 align-top">
+      <TableCell colSpan={5}>
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="space-y-1.5">
+            <label className="text-xs text-muted-foreground">Label</label>
+            <Input
+              value={label}
+              onChange={(e) => setLabel(e.target.value)}
+              className="h-8 w-40 text-sm"
+            />
+          </div>
+          {credential.kind === "ai" && (
+            <div className="space-y-1.5">
+              <label className="text-xs text-muted-foreground">Base URL</label>
+              <Input
+                value={baseUrl}
+                onChange={(e) => setBaseUrl(e.target.value)}
+                placeholder="default del proveedor"
+                className="h-8 w-56 text-sm"
+              />
+            </div>
+          )}
+          <div className="space-y-1.5">
+            <label className="text-xs text-muted-foreground">Clave</label>
+            <Input
+              type="password"
+              value={key}
+              onChange={(e) => setKey(e.target.value)}
+              placeholder="Dejar vacío para no cambiarla"
+              className="h-8 w-56 text-sm"
+            />
+          </div>
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              size="sm"
+              disabled={busy || !label}
+              onClick={handleSave}
+            >
+              Guardar
+            </Button>
+            <Button type="button" size="sm" variant="ghost" onClick={onCancel}>
+              Cancelar
+            </Button>
+          </div>
+        </div>
+      </TableCell>
+    </TableRow>
+  );
 }
 
 export function CredentialTable({
   title,
   credentials,
   busyId,
-  testResults,
-  phoneNumberIds,
-  onPhoneNumberIdChange,
-  onTest,
-  onActivate,
-  onRevoke,
+  onUpdate,
   onDelete,
 }: {
   title: string;
   credentials: Credential[];
   busyId: string | null;
-  testResults: Record<string, string>;
-  phoneNumberIds: Record<string, string>;
-  onPhoneNumberIdChange: (id: string, value: string) => void;
-  onTest: (credential: Credential) => void;
-  onActivate: (id: string) => void;
-  onRevoke: (id: string) => void;
+  onUpdate: (id: string, payload: UpdateCredentialInput) => void;
   onDelete: (id: string) => void;
 }) {
+  const [editingId, setEditingId] = useState<string | null>(null);
+
   return (
     <div>
       <h2 className="mb-2 text-lg font-semibold">{title}</h2>
@@ -61,7 +118,6 @@ export function CredentialTable({
                 <TableHead>Label</TableHead>
                 <TableHead>Proveedor</TableHead>
                 <TableHead>Clave</TableHead>
-                <TableHead>Estado</TableHead>
                 <TableHead>Último uso</TableHead>
                 <TableHead />
               </TableRow>
@@ -69,6 +125,20 @@ export function CredentialTable({
             <TableBody>
               {credentials.map((c) => {
                 const busy = busyId === c.id;
+                if (editingId === c.id) {
+                  return (
+                    <EditRow
+                      key={c.id}
+                      credential={c}
+                      busy={busy}
+                      onCancel={() => setEditingId(null)}
+                      onSave={(payload) => {
+                        onUpdate(c.id, payload);
+                        setEditingId(null);
+                      }}
+                    />
+                  );
+                }
                 return (
                   <TableRow key={c.id} className="align-top">
                     <TableCell className="font-medium">{c.label}</TableCell>
@@ -77,22 +147,12 @@ export function CredentialTable({
                     </TableCell>
                     <TableCell className="font-mono text-muted-foreground">
                       •••• {c.keyLast4}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={statusVariant(c.status)}>
-                        {statusLabel(c.status)}
-                      </Badge>
                       {c.lastError && (
                         <p
                           className="mt-1 max-w-xs text-xs text-destructive"
                           title={c.lastError}
                         >
                           {c.lastError}
-                        </p>
-                      )}
-                      {testResults[c.id] && (
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          {testResults[c.id]}
                         </p>
                       )}
                     </TableCell>
@@ -103,52 +163,22 @@ export function CredentialTable({
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-wrap items-center gap-2">
-                        {c.kind === "whatsapp" && (
-                          <Input
-                            placeholder="phone_number_id"
-                            value={phoneNumberIds[c.id] || ""}
-                            onChange={(e) =>
-                              onPhoneNumberIdChange(c.id, e.target.value)
-                            }
-                            className="h-8 w-32 text-xs"
-                          />
-                        )}
                         <Button
                           type="button"
                           size="sm"
                           variant="secondary"
-                          disabled={busy || c.status === "revoked"}
-                          onClick={() => onTest(c)}
-                          title="Hace una llamada real y mínima al proveedor para confirmar que la clave funciona, sin cambiar su estado."
+                          disabled={busy}
+                          onClick={() => setEditingId(c.id)}
                         >
-                          Probar
-                        </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          disabled={busy || c.status !== "standby"}
-                          onClick={() => onActivate(c.id)}
-                          title="La pone en uso y pasa a standby cualquier otra credencial activa del mismo tipo."
-                        >
-                          Activar
-                        </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          disabled={busy || c.status === "revoked"}
-                          onClick={() => onRevoke(c.id)}
-                          title="Deja de poder usarse (no se borra). Bloqueado si algún negocio o el default de Configuración la está usando."
-                        >
-                          Revocar
+                          Editar
                         </Button>
                         <Button
                           type="button"
                           size="sm"
                           variant="destructive"
-                          disabled={busy || c.status !== "revoked"}
+                          disabled={busy}
                           onClick={() => onDelete(c.id)}
-                          title="Borra la credencial para siempre. Solo se puede eliminar una vez revocada y sin uso."
+                          title="Borra la credencial para siempre. Bloqueado si algún negocio, número o el default de Configuración la está usando."
                         >
                           Eliminar
                         </Button>

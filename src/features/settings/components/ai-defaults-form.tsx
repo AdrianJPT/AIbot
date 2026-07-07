@@ -57,7 +57,7 @@ export function AiDefaultsForm({
           <option value="">Ninguna (cada negocio necesita la suya)</option>
           {credentials.map((c) => (
             <option key={c.id} value={c.id}>
-              {c.label} ({c.provider}, {c.status})
+              {c.label} ({c.provider})
             </option>
           ))}
         </select>
@@ -76,7 +76,7 @@ export function AiDefaultsForm({
           <option value="">Ninguna (cada número necesita la suya)</option>
           {whatsappCredentials.map((c) => (
             <option key={c.id} value={c.id}>
-              {c.label} ({c.status})
+              {c.label}
             </option>
           ))}
         </select>

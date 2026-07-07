@@ -7,14 +7,12 @@ import { toast } from "sonner";
 import { AddCredentialForm } from "@/features/credentials/components/add-credential-form";
 import { CredentialTable } from "@/features/credentials/components/credential-table";
 import {
-  activateCredential,
   createCredential,
   deleteCredential,
   fetchCredentials,
-  revokeCredential,
-  testCredential,
+  updateCredential,
 } from "@/features/credentials/api";
-import type { Credential } from "@/features/credentials/types";
+import type { Credential, UpdateCredentialInput } from "@/features/credentials/types";
 
 const GROUPS: Array<{ kind: string; title: string }> = [
   { kind: "ai", title: "IA" },
@@ -34,9 +32,6 @@ export function CredentialsPanelContainer({
     queryFn: fetchCredentials,
     initialData: initialCredentials,
   });
-
-  const [testResults, setTestResults] = useState<Record<string, string>>({});
-  const [phoneNumberIds, setPhoneNumberIds] = useState<Record<string, string>>({});
 
   const [kind, setKind] = useState<"ai" | "whatsapp">("ai");
   const [provider, setProvider] = useState("openai");
@@ -61,22 +56,14 @@ export function CredentialsPanelContainer({
     onError: (error: Error) => toast.error(error.message || "Error al guardar"),
   });
 
-  const activateMutation = useMutation({
-    mutationFn: (id: string) => activateCredential(id),
+  const updateMutation = useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: UpdateCredentialInput }) =>
+      updateCredential(id, payload),
     onSuccess: () => {
-      toast.success("Credencial activada");
+      toast.success("Credencial actualizada");
       refresh();
     },
-    onError: (error: Error) => toast.error(error.message || "Error"),
-  });
-
-  const revokeMutation = useMutation({
-    mutationFn: (id: string) => revokeCredential(id),
-    onSuccess: () => {
-      toast.success("Credencial revocada");
-      refresh();
-    },
-    onError: (error: Error) => toast.error(error.message || "Error"),
+    onError: (error: Error) => toast.error(error.message || "Error al guardar"),
   });
 
   const deleteMutation = useMutation({
@@ -88,32 +75,8 @@ export function CredentialsPanelContainer({
     onError: (error: Error) => toast.error(error.message || "Error"),
   });
 
-  const testMutation = useMutation({
-    mutationFn: (credential: Credential) =>
-      testCredential(
-        credential.id,
-        credential.kind === "whatsapp"
-          ? { phoneNumberId: phoneNumberIds[credential.id] }
-          : {}
-      ).then((result) => ({ credential, result })),
-    onSuccess: ({ credential, result }) => {
-      setTestResults((prev) => ({
-        ...prev,
-        [credential.id]: result.ok ? "OK" : result.error || "Falló",
-      }));
-      refresh();
-    },
-    onError: (_error: Error, credential: Credential) => {
-      setTestResults((prev) => ({ ...prev, [credential.id]: "Error de red" }));
-    },
-  });
-
   const busyId =
-    activateMutation.variables ??
-    revokeMutation.variables ??
-    deleteMutation.variables ??
-    testMutation.variables?.id ??
-    null;
+    updateMutation.variables?.id ?? deleteMutation.variables ?? null;
 
   function onAdd(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -134,15 +97,13 @@ export function CredentialsPanelContainer({
           title={g.title}
           credentials={credentials.filter((c) => c.kind === g.kind)}
           busyId={busyId}
-          testResults={testResults}
-          phoneNumberIds={phoneNumberIds}
-          onPhoneNumberIdChange={(id, value) =>
-            setPhoneNumberIds((prev) => ({ ...prev, [id]: value }))
-          }
-          onTest={(credential) => testMutation.mutate(credential)}
-          onActivate={(id) => activateMutation.mutate(id)}
-          onRevoke={(id) => revokeMutation.mutate(id)}
-          onDelete={(id) => deleteMutation.mutate(id)}
+          onUpdate={(id, payload) => updateMutation.mutate({ id, payload })}
+          onDelete={(id) => {
+            if (!confirm("¿Eliminar esta credencial? Esta acción no se puede deshacer.")) {
+              return;
+            }
+            deleteMutation.mutate(id);
+          }}
         />
       ))}
 

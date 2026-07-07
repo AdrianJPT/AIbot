@@ -87,7 +87,7 @@ export function BusinessFormContainer({
   return (
     <BusinessForm
       business={business}
-      credentials={credentials.filter((c) => c.status !== "revoked")}
+      credentials={credentials}
       fixedOwnerLabel={fixedOwnerLabel}
       owners={owners}
       currentOwnerId={currentOwnerId}

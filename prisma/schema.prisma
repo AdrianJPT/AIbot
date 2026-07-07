@@ -87,13 +87,12 @@ model Credential {
   encryptedKey String // AES-256-GCM: base64(iv):base64(ciphertext):base64(authTag)
   keyLast4     String
   baseUrl      String? // ai only; null = provider default
-  status       String    @default("standby") // "active" | "standby" | "revoked"
   lastUsedAt   DateTime?
   lastError    String?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
-  @@index([ownerId, kind, status])
+  @@index([ownerId, kind])
 }
 
 model Conversation {

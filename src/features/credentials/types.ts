@@ -5,7 +5,6 @@ export type Credential = {
   label: string;
   keyLast4: string;
   baseUrl: string | null;
-  status: string;
   lastUsedAt: string | Date | null;
   lastError: string | null;
   createdAt: string | Date;
@@ -17,4 +16,10 @@ export type NewCredentialInput = {
   label: string;
   key: string;
   baseUrl?: string;
+};
+
+export type UpdateCredentialInput = {
+  label?: string;
+  baseUrl?: string;
+  key?: string;
 };

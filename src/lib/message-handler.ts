@@ -2,7 +2,7 @@ import type { Business, PhoneNumber } from "@prisma/client";
 import type { ChatCompletionMessageParam } from "openai/resources/chat/completions";
 import { prisma } from "./db";
 import { generateResponse } from "./ai/generate";
-import { callWithFailover, resolveModels } from "./ai/resolve";
+import { callWithAiCredential, resolveModels } from "./ai/resolve";
 import { buildSystemPrompt } from "./prompt";
 import {
   describeImageFromBuffer,
@@ -328,7 +328,7 @@ async function resolveAiReply(
   try {
     const systemPrompt = buildSystemPrompt(business);
     const { chatModel } = await resolveModels(business);
-    return await callWithFailover(business, (client) =>
+    return await callWithAiCredential(business, (client) =>
       generateResponse(client, systemPrompt, history, content, chatModel)
     );
   } catch (err) {
