@@ -131,11 +131,23 @@ export function ConversationThreadContainer({
         },
       ]);
     },
-    onSuccess: (_data, { tempId }) => {
+    onSuccess: (msg, { tempId }) => {
       setPending((prev) => prev.filter((m) => m.id !== tempId));
-      queryClient.invalidateQueries({
-        queryKey: conversationKeys.messages(initialConversation.id),
-      });
+      // Seed the confirmed message straight from the response instead of
+      // invalidating — invalidation triggers a refetch (or waits for the
+      // Realtime INSERT event) that can lag a few seconds behind the temp
+      // bubble being removed, causing a visible disappear/reappear flicker.
+      queryClient.setQueryData<{ pages: MessagesPage[]; pageParams: unknown[] }>(
+        conversationKeys.messages(initialConversation.id),
+        (old) => {
+          if (!old) return old;
+          const [firstPage, ...rest] = old.pages;
+          return {
+            ...old,
+            pages: [{ ...firstPage, messages: [msg, ...firstPage.messages] }, ...rest],
+          };
+        }
+      );
       queryClient.invalidateQueries({ queryKey: conversationKeys.list() });
     },
     onError: (_error, { tempId }) => {
