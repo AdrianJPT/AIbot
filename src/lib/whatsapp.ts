@@ -41,10 +41,12 @@ async function findActiveWhatsappCredential(
 /**
  * Resolves the WhatsApp access token to use for a phone number. Resolution
  * order: phoneNumber.whatsappCredentialId -> owner's active whatsapp
- * credential. The owner-wide fallback is a transition path only (the number
- * should carry its own credential) — every use is warn-logged so it can be
- * retired once production shows zero hits. Throws if neither resolves,
- * since there is no legacy plaintext token to fall back to anymore.
+ * credential -> AppConfig.whatsappCredentialId (the admin-managed platform
+ * default). Numbers created without an explicit credential inherit the
+ * platform default by design, so that step is not warn-logged — only the
+ * owner-wide fallback is (a transition path for numbers that predate the
+ * credential system). Throws if nothing resolves, since there is no legacy
+ * plaintext token to fall back to anymore.
  */
 export async function resolveWhatsappToken(
   phoneNumber: PhoneNumber,
@@ -76,6 +78,21 @@ export async function resolveWhatsappToken(
         undefined,
         phoneNumber.id
       );
+    }
+  }
+
+  if (!credential) {
+    const config = await prisma.appConfig.findUnique({ where: { id: "default" } });
+    const platformDefault = config?.whatsappCredentialId
+      ? await prisma.credential.findFirst({
+          where: { id: config.whatsappCredentialId, status: "active" },
+        })
+      : null;
+    if (platformDefault) {
+      credential = await prisma.credential.update({
+        where: { id: platformDefault.id },
+        data: { lastUsedAt: new Date() },
+      });
     }
   }
 

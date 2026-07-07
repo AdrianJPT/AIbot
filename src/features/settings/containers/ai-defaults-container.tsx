@@ -9,9 +9,11 @@ import type { AiCredentialOption, AiDefaults } from "@/features/settings/types";
 export function AiDefaultsContainer({
   initialDefaults,
   credentials,
+  whatsappCredentials,
 }: {
   initialDefaults: AiDefaults;
   credentials: AiCredentialOption[];
+  whatsappCredentials: AiCredentialOption[];
 }) {
   const mutation = useMutation({
     mutationFn: updateAiDefaults,
@@ -24,6 +26,7 @@ export function AiDefaultsContainer({
     const fd = new FormData(e.currentTarget);
     mutation.mutate({
       aiCredentialId: (fd.get("aiCredentialId") as string) || null,
+      whatsappCredentialId: (fd.get("whatsappCredentialId") as string) || null,
       chatModel: fd.get("chatModel") as string,
       visionModel: fd.get("visionModel") as string,
       audioModel: fd.get("audioModel") as string,
@@ -34,6 +37,7 @@ export function AiDefaultsContainer({
     <AiDefaultsForm
       defaults={initialDefaults}
       credentials={credentials}
+      whatsappCredentials={whatsappCredentials}
       saving={mutation.isPending}
       onSubmit={onSubmit}
     />

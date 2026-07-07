@@ -17,11 +17,13 @@ const MODEL_HINTS: Record<string, string> = {
 export function AiDefaultsForm({
   defaults,
   credentials,
+  whatsappCredentials,
   saving,
   onSubmit,
 }: {
   defaults: AiDefaults;
   credentials: AiCredentialOption[];
+  whatsappCredentials: AiCredentialOption[];
   saving: boolean;
   onSubmit: (e: React.FormEvent<HTMLFormElement>) => void;
 }) {
@@ -32,11 +34,11 @@ export function AiDefaultsForm({
   return (
     <form onSubmit={onSubmit} className="max-w-2xl space-y-4 rounded-lg border border-border p-6">
       <div>
-        <h2 className="text-lg font-semibold">Valores por defecto de IA</h2>
+        <h2 className="text-lg font-semibold">Valores por defecto</h2>
         <p className="text-sm text-muted-foreground">
-          Se usan para cualquier negocio que no tenga su propia credencial o
-          modelo asignado. Cambiarlos acá aplica a todos los clientes sin
-          override, sin necesidad de deploy.
+          Se usan para cualquier negocio o número que no tenga su propia
+          credencial o modelo asignado. Cambiarlos acá aplica a todos los
+          clientes sin override, sin necesidad de deploy.
         </p>
       </div>
 
@@ -59,6 +61,30 @@ export function AiDefaultsForm({
             </option>
           ))}
         </select>
+      </div>
+
+      <div className="space-y-1.5">
+        <Label htmlFor="defaultWhatsappCredentialId">
+          Credencial de WhatsApp por defecto
+        </Label>
+        <select
+          id="defaultWhatsappCredentialId"
+          name="whatsappCredentialId"
+          defaultValue={defaults.whatsappCredentialId ?? ""}
+          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+        >
+          <option value="">Ninguna (cada número necesita la suya)</option>
+          {whatsappCredentials.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.label} ({c.status})
+            </option>
+          ))}
+        </select>
+        <p className="text-xs text-muted-foreground">
+          Con el modelo de portfolio único, un token de System User a nivel
+          portfolio sirve para todas las WABAs — los números sin credencial
+          propia heredan esta.
+        </p>
       </div>
 
       <div className="flex gap-4">
