@@ -113,6 +113,17 @@ describe("GET /api/conversations", () => {
     expect(body[0].customerName).toBe("Ana García");
   });
 
+  it("filters by businessId, scoping to just that business's conversations", async () => {
+    getSessionUser.mockResolvedValueOnce(admin);
+    const { GET } = await import("../route");
+
+    const res = await GET(buildRequest(`?businessId=${business.id}`));
+    const body = await res.json();
+
+    const names = body.map((c: { customerName: string | null }) => c.customerName);
+    expect(names.sort()).toEqual(["Ana García", "Luis Pérez"]);
+  });
+
   it("returns conversations across every owner for an admin caller", async () => {
     getSessionUser.mockResolvedValueOnce(admin);
     const { GET } = await import("../route");

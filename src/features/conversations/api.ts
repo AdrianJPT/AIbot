@@ -14,11 +14,12 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
 }
 
 export function fetchConversations(
-  q?: string,
-  phoneNumberId?: string
+  options: { q?: string; businessId?: string; phoneNumberId?: string } = {}
 ): Promise<ConversationListItem[]> {
+  const { q, businessId, phoneNumberId } = options;
   const params = new URLSearchParams();
   if (q?.trim()) params.set("q", q.trim());
+  if (businessId) params.set("businessId", businessId);
   if (phoneNumberId) params.set("phoneNumberId", phoneNumberId);
   const qs = params.toString();
   return request(`/api/conversations${qs ? `?${qs}` : ""}`);

@@ -1,5 +1,6 @@
 import type {
   BusinessInput,
+  BusinessOption,
   CredentialOption,
   PhoneNumberInput,
   PhoneNumberItem,
@@ -16,6 +17,12 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
 
 export function fetchCredentials(): Promise<CredentialOption[]> {
   return request<CredentialOption[]>("/api/credentials");
+}
+
+// Caller-scoped business list (admin: all, client: theirs) — used for the
+// conversations list's business filter select.
+export function fetchBusinesses(): Promise<BusinessOption[]> {
+  return request<BusinessOption[]>("/api/businesses");
 }
 
 export function createBusiness(payload: BusinessInput) {
