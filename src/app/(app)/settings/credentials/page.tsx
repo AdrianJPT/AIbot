@@ -9,7 +9,7 @@ export default async function CredentialsPage() {
   if (!user) redirect("/");
 
   const credentials = await prisma.credential.findMany({
-    orderBy: [{ kind: "asc" }, { createdAt: "desc" }],
+    orderBy: [{ kind: "asc" }, { priority: "asc" }, { createdAt: "asc" }],
     select: {
       id: true,
       kind: true,
@@ -17,6 +17,8 @@ export default async function CredentialsPage() {
       label: true,
       keyLast4: true,
       baseUrl: true,
+      isActive: true,
+      priority: true,
       lastUsedAt: true,
       lastError: true,
       createdAt: true,
@@ -28,7 +30,6 @@ export default async function CredentialsPage() {
     update: {},
     create: { id: "default" },
     select: {
-      aiCredentialId: true,
       whatsappCredentialId: true,
       chatModel: true,
       visionModel: true,
@@ -44,9 +45,6 @@ export default async function CredentialsPage() {
       </div>
       <AiDefaultsContainer
         initialDefaults={aiDefaults}
-        credentials={credentials
-          .filter((c) => c.kind === "ai")
-          .map(({ id, label, provider }) => ({ id, label, provider }))}
         whatsappCredentials={credentials
           .filter((c) => c.kind === "whatsapp")
           .map(({ id, label, provider }) => ({ id, label, provider }))}

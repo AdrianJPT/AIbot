@@ -105,28 +105,6 @@ describe("/api/credentials/[id] actions", () => {
       expect(body.error).toContain(business.name);
     });
 
-    it("returns 409 when it's the AppConfig default AI credential", async () => {
-      getSessionUser.mockResolvedValueOnce(admin);
-      const { DELETE } = await import("../route");
-      const cred = await createTestCredential(owner.id, { kind: "ai" });
-      await prisma.appConfig.upsert({
-        where: { id: "default" },
-        update: { aiCredentialId: cred.id },
-        create: { id: "default", aiCredentialId: cred.id },
-      });
-
-      const res = await DELETE(buildRequest("https://example.com"), ctx(cred.id));
-      const body = await res.json();
-
-      expect(res.status).toBe(409);
-      expect(body.error).toMatch(/por defecto/);
-
-      await prisma.appConfig.update({
-        where: { id: "default" },
-        data: { aiCredentialId: null },
-      });
-    });
-
     it("returns 409 when it's the AppConfig default WhatsApp credential", async () => {
       getSessionUser.mockResolvedValueOnce(admin);
       const { DELETE } = await import("../route");
@@ -205,6 +183,48 @@ describe("/api/credentials/[id] actions", () => {
       const row = await prisma.credential.findUniqueOrThrow({ where: { id: cred.id } });
       expect(row.keyLast4).toBe("9999");
       expect(decryptSecret(row.encryptedKey)).toBe("sk-new-9999");
+    });
+
+    it("updates isActive", async () => {
+      getSessionUser.mockResolvedValueOnce(admin);
+      const { PATCH } = await import("../route");
+      const cred = await createTestCredential(owner.id, { kind: "ai", isActive: true });
+
+      const res = await PATCH(
+        buildRequest("https://example.com", { isActive: false }),
+        ctx(cred.id)
+      );
+      const body = await res.json();
+
+      expect(res.status).toBe(200);
+      expect(body.isActive).toBe(false);
+
+      const row = await prisma.credential.findUniqueOrThrow({ where: { id: cred.id } });
+      expect(row.isActive).toBe(false);
+    });
+
+    it("reorders two credentials via two PATCH calls that swap priority", async () => {
+      getSessionUser.mockResolvedValueOnce(admin);
+      getSessionUser.mockResolvedValueOnce(admin);
+      const { PATCH } = await import("../route");
+      const first = await createTestCredential(owner.id, { kind: "ai", priority: 0 });
+      const second = await createTestCredential(owner.id, { kind: "ai", priority: 1 });
+
+      await PATCH(
+        buildRequest("https://example.com", { priority: second.priority }),
+        ctx(first.id)
+      );
+      await PATCH(
+        buildRequest("https://example.com", { priority: first.priority }),
+        ctx(second.id)
+      );
+
+      const rows = await prisma.credential.findMany({
+        where: { id: { in: [first.id, second.id] } },
+      });
+      const byId = Object.fromEntries(rows.map((r) => [r.id, r.priority]));
+      expect(byId[first.id]).toBe(1);
+      expect(byId[second.id]).toBe(0);
     });
 
     it("ignores baseUrl for whatsapp credentials", async () => {

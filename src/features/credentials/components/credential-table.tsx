@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import {
   Table,
   TableBody,
@@ -93,15 +94,40 @@ export function CredentialTable({
   credentials,
   busyId,
   onUpdate,
+  onSwapPriority,
   onDelete,
+  showChainControls = false,
 }: {
   title: string;
   credentials: Credential[];
   busyId: string | null;
   onUpdate: (id: string, payload: UpdateCredentialInput) => void;
+  /** Atomically swaps the priority of the two given credentials — used by
+   * moveUp/moveDown. A single call instead of two independent onUpdate
+   * calls avoids the race where the second PATCH could fail after the
+   * first succeeded, leaving both rows with the same priority. */
+  onSwapPriority: (id: string, withId: string) => void;
   onDelete: (id: string) => void;
+  /** Renders the order badge, active toggle, and reorder buttons — only
+   * meaningful for "ai" credentials, which are tried in an ordered fallback
+   * chain. "whatsapp" credentials don't have chain semantics. */
+  showChainControls?: boolean;
 }) {
   const [editingId, setEditingId] = useState<string | null>(null);
+
+  function moveUp(index: number) {
+    if (index === 0) return;
+    const current = credentials[index];
+    const prev = credentials[index - 1];
+    onSwapPriority(current.id, prev.id);
+  }
+
+  function moveDown(index: number) {
+    if (index === credentials.length - 1) return;
+    const current = credentials[index];
+    const next = credentials[index + 1];
+    onSwapPriority(current.id, next.id);
+  }
 
   return (
     <div>
@@ -115,15 +141,17 @@ export function CredentialTable({
           <Table>
             <TableHeader>
               <TableRow>
+                {showChainControls && <TableHead>Orden</TableHead>}
                 <TableHead>Label</TableHead>
                 <TableHead>Proveedor</TableHead>
                 <TableHead>Clave</TableHead>
                 <TableHead>Último uso</TableHead>
+                {showChainControls && <TableHead>Activa</TableHead>}
                 <TableHead />
               </TableRow>
             </TableHeader>
             <TableBody>
-              {credentials.map((c) => {
+              {credentials.map((c, index) => {
                 const busy = busyId === c.id;
                 if (editingId === c.id) {
                   return (
@@ -141,6 +169,44 @@ export function CredentialTable({
                 }
                 return (
                   <TableRow key={c.id} className="align-top">
+                    {showChainControls && (
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <span
+                            className="flex h-6 w-6 items-center justify-center rounded-full bg-muted text-xs font-medium"
+                            title={
+                              index === 0
+                                ? "Se intenta primero"
+                                : `Alternativa #${index}`
+                            }
+                          >
+                            {index + 1}
+                          </span>
+                          <div className="flex flex-col">
+                            <button
+                              type="button"
+                              disabled={busy || index === 0}
+                              onClick={() => moveUp(index)}
+                              className="leading-none text-muted-foreground hover:text-foreground disabled:cursor-not-allowed disabled:opacity-30"
+                              title="Subir prioridad"
+                              aria-label="Subir prioridad"
+                            >
+                              ▲
+                            </button>
+                            <button
+                              type="button"
+                              disabled={busy || index === credentials.length - 1}
+                              onClick={() => moveDown(index)}
+                              className="leading-none text-muted-foreground hover:text-foreground disabled:cursor-not-allowed disabled:opacity-30"
+                              title="Bajar prioridad"
+                              aria-label="Bajar prioridad"
+                            >
+                              ▼
+                            </button>
+                          </div>
+                        </div>
+                      </TableCell>
+                    )}
                     <TableCell className="font-medium">{c.label}</TableCell>
                     <TableCell className="text-muted-foreground">
                       {c.provider}
@@ -161,6 +227,18 @@ export function CredentialTable({
                         ? new Date(c.lastUsedAt).toLocaleString("es-AR")
                         : "—"}
                     </TableCell>
+                    {showChainControls && (
+                      <TableCell>
+                        <Switch
+                          checked={c.isActive}
+                          disabled={busy}
+                          onCheckedChange={(checked) =>
+                            onUpdate(c.id, { isActive: checked })
+                          }
+                          aria-label={c.isActive ? "Desactivar" : "Activar"}
+                        />
+                      </TableCell>
+                    )}
                     <TableCell>
                       <div className="flex flex-wrap items-center gap-2">
                         <Button

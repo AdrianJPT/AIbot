@@ -11,6 +11,8 @@ const CREDENTIAL_SELECT = {
   label: true,
   keyLast4: true,
   baseUrl: true,
+  isActive: true,
+  priority: true,
   lastUsedAt: true,
   lastError: true,
   createdAt: true,
@@ -41,7 +43,7 @@ export async function DELETE(
   const appConfig = await prisma.appConfig.findFirst({
     where: { id: "default" },
   });
-  if (appConfig?.aiCredentialId === id || appConfig?.whatsappCredentialId === id) {
+  if (appConfig?.whatsappCredentialId === id) {
     return NextResponse.json(
       { error: "No se puede eliminar: es la credencial por defecto en Configuración" },
       { status: 409 }
@@ -64,7 +66,7 @@ export async function PATCH(
   if (!credential) return NextResponse.json({ error: "No encontrado" }, { status: 404 });
 
   const body = await req.json().catch(() => ({}));
-  const { label, baseUrl, key } = body;
+  const { label, baseUrl, key, isActive, priority } = body;
 
   if (label !== undefined && !label) {
     return NextResponse.json({ error: "El label no puede estar vacío" }, { status: 400 });
@@ -75,6 +77,8 @@ export async function PATCH(
     baseUrl?: string | null;
     encryptedKey?: string;
     keyLast4?: string;
+    isActive?: boolean;
+    priority?: number;
   } = {};
 
   if (label) data.label = label;
@@ -85,6 +89,8 @@ export async function PATCH(
     data.encryptedKey = encryptSecret(key);
     data.keyLast4 = key.slice(-4);
   }
+  if (typeof isActive === "boolean") data.isActive = isActive;
+  if (typeof priority === "number") data.priority = priority;
 
   const updated = await prisma.credential.update({
     where: { id },

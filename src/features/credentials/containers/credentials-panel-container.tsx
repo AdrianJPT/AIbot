@@ -10,6 +10,7 @@ import {
   createCredential,
   deleteCredential,
   fetchCredentials,
+  swapCredentialPriority,
   updateCredential,
 } from "@/features/credentials/api";
 import type { Credential, UpdateCredentialInput } from "@/features/credentials/types";
@@ -75,8 +76,18 @@ export function CredentialsPanelContainer({
     onError: (error: Error) => toast.error(error.message || "Error"),
   });
 
+  const swapMutation = useMutation({
+    mutationFn: ({ id, withId }: { id: string; withId: string }) =>
+      swapCredentialPriority(id, withId),
+    onSuccess: () => refresh(),
+    onError: (error: Error) => toast.error(error.message || "Error al reordenar"),
+  });
+
   const busyId =
-    updateMutation.variables?.id ?? deleteMutation.variables ?? null;
+    updateMutation.variables?.id ??
+    deleteMutation.variables ??
+    swapMutation.variables?.id ??
+    null;
 
   function onAdd(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -97,7 +108,9 @@ export function CredentialsPanelContainer({
           title={g.title}
           credentials={credentials.filter((c) => c.kind === g.kind)}
           busyId={busyId}
+          showChainControls={g.kind === "ai"}
           onUpdate={(id, payload) => updateMutation.mutate({ id, payload })}
+          onSwapPriority={(id, withId) => swapMutation.mutate({ id, withId })}
           onDelete={(id) => {
             if (!confirm("¿Eliminar esta credencial? Esta acción no se puede deshacer.")) {
               return;

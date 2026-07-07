@@ -3,7 +3,6 @@ import { prisma } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth";
 
 const SELECT = {
-  aiCredentialId: true,
   whatsappCredentialId: true,
   chatModel: true,
   visionModel: true,
@@ -12,9 +11,12 @@ const SELECT = {
 } as const;
 
 // Singleton platform-wide AI defaults (id is always "default"). Businesses
-// without their own model/aiCredentialId override inherit these — see
-// resolveModels()/getAiClient() in src/lib/ai/resolve.ts. Editing this is a
-// form save, not a deploy.
+// without their own model override inherit these — see resolveModels() in
+// src/lib/ai/resolve.ts. Editing this is a form save, not a deploy. There
+// is no aiCredentialId here (removed): a business without its own pin now
+// resolves against its owner's ordered chain of active Credential rows
+// instead of a single platform-wide default — see
+// callWithAiCredential()/resolveCandidates() in src/lib/ai/resolve.ts.
 export async function GET() {
   const admin = await requireAdmin();
   if (!admin) return NextResponse.json({ error: "No encontrado" }, { status: 404 });
@@ -33,16 +35,7 @@ export async function PATCH(req: NextRequest) {
   if (!admin) return NextResponse.json({ error: "No encontrado" }, { status: 404 });
 
   const body = await req.json();
-  const { aiCredentialId, whatsappCredentialId, chatModel, visionModel, audioModel } = body;
-
-  if (aiCredentialId) {
-    const owned = await prisma.credential.count({
-      where: { id: aiCredentialId, ownerId: admin.id, kind: "ai" },
-    });
-    if (!owned) {
-      return NextResponse.json({ error: "Credencial inválida" }, { status: 400 });
-    }
-  }
+  const { whatsappCredentialId, chatModel, visionModel, audioModel } = body;
 
   if (whatsappCredentialId) {
     const owned = await prisma.credential.count({
@@ -63,7 +56,6 @@ export async function PATCH(req: NextRequest) {
   const config = await prisma.appConfig.upsert({
     where: { id: "default" },
     update: {
-      aiCredentialId: aiCredentialId || null,
       whatsappCredentialId: whatsappCredentialId || null,
       chatModel,
       visionModel,
@@ -71,7 +63,6 @@ export async function PATCH(req: NextRequest) {
     },
     create: {
       id: "default",
-      aiCredentialId: aiCredentialId || null,
       whatsappCredentialId: whatsappCredentialId || null,
       chatModel,
       visionModel,

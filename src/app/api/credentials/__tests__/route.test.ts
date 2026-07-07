@@ -132,4 +132,51 @@ describe("GET/POST /api/credentials", () => {
     expect(row.ownerId).toBe(admin.id);
     expect(decryptSecret(row.encryptedKey)).toBe("sk-abcd1234");
   });
+
+  it("POST appends a new ai credential at the end of the existing priority order", async () => {
+    getSessionUser.mockResolvedValueOnce(admin);
+    const { POST } = await import("../route");
+
+    const existing = await createTestCredential(admin.id, {
+      label: "existing-primary",
+      priority: 5,
+    });
+
+    const res = await POST(
+      buildRequest({
+        kind: "ai",
+        provider: "openai",
+        label: "new-fallback",
+        key: "sk-newfallback0000",
+      })
+    );
+    const created = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(created.priority).toBe(existing.priority + 1);
+    expect(created.isActive).toBe(true);
+  });
+
+  it("POST defaults the first ai credential for an owner to priority 0", async () => {
+    const { POST } = await import("../route");
+    const solo = await createTestUser("cred-solo-owner", "admin");
+
+    try {
+      getSessionUser.mockResolvedValueOnce(solo);
+      const res = await POST(
+        buildRequest({
+          kind: "ai",
+          provider: "openai",
+          label: "first-ever",
+          key: "sk-firstever0000",
+        })
+      );
+      const created = await res.json();
+
+      expect(res.status).toBe(200);
+      expect(created.priority).toBe(0);
+    } finally {
+      await cleanupOwnershipFixtures([solo.id]);
+    }
+  });
 });
