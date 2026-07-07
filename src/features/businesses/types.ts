@@ -54,7 +54,7 @@ export type PhoneNumberInput = {
 
 export type BusinessInput = {
   name: string;
-  phoneNumberId: string;
+  phoneNumberId: string | null;
   displayPhone: string | null;
   whatsappToken: string;
   systemPrompt: string;

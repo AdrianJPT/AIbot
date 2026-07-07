@@ -41,12 +41,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (!phoneNumberId) {
     return NextResponse.json({ error: "Falta el ID técnico del número" }, { status: 400 });
   }
-  if (!whatsappToken && !whatsappCredentialId) {
-    return NextResponse.json(
-      { error: "Asigná una credencial de WhatsApp o cargá un token" },
-      { status: 400 }
-    );
-  }
 
   if (whatsappCredentialId) {
     const owned = await ownsCredentials(admin.id, [whatsappCredentialId]);

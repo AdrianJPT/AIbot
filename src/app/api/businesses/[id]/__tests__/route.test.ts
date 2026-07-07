@@ -85,6 +85,38 @@ describe("PATCH/DELETE /api/businesses/[id]", () => {
     expect(body.error).toMatch(/ya está registrado/);
   });
 
+  it("PATCH reassigns the owner (handover to a client)", async () => {
+    const client = await createTestUser("biz-id-new-owner");
+    getSessionUser.mockResolvedValueOnce(admin);
+    const { PATCH } = await import("../route");
+
+    const res = await PATCH(buildPatch({ ownerId: client.id }), {
+      params: Promise.resolve({ id: business.id }),
+    });
+
+    expect(res.status).toBe(200);
+    const stored = await prisma.business.findUnique({ where: { id: business.id } });
+    expect(stored?.ownerId).toBe(client.id);
+
+    // Hand it back so the shared fixture keeps its original owner.
+    await prisma.business.update({
+      where: { id: business.id },
+      data: { ownerId: owner.id },
+    });
+    await cleanupOwnershipFixtures([client.id]);
+  });
+
+  it("PATCH rejects an unknown ownerId", async () => {
+    getSessionUser.mockResolvedValueOnce(admin);
+    const { PATCH } = await import("../route");
+
+    const res = await PATCH(buildPatch({ ownerId: "no-such-user" }), {
+      params: Promise.resolve({ id: business.id }),
+    });
+
+    expect(res.status).toBe(400);
+  });
+
   it("DELETE returns 404 for a non-admin caller", async () => {
     getSessionUser.mockResolvedValueOnce(owner);
     const { DELETE } = await import("../route");
