@@ -111,23 +111,69 @@ function extractStatus(err: unknown): number | undefined {
   return withStatus?.status ?? withStatus?.response?.status;
 }
 
-function isAuthError(err: unknown): boolean {
+/**
+ * Extracts the provider's error code/type, if any. The openai SDK's
+ * `APIError` (see node_modules/openai/src/error.ts) exposes `code`/`type`
+ * as top-level properties on the error instance itself (populated from the
+ * response body's `error.code`/`error.type`), not nested under `.error` —
+ * so that's checked first. The nested shapes are kept as a defensive
+ * fallback for any non-SDK error that reached this call some other way
+ * (e.g. a raw fetch failure surfaced by a custom baseURL provider).
+ */
+function extractErrorCode(err: unknown): string | undefined {
+  const e = err as {
+    code?: string | null;
+    type?: string | null;
+    error?: { code?: string | null; type?: string | null };
+    response?: { data?: { error?: { code?: string | null; type?: string | null } } };
+  };
+  return (
+    e?.code ??
+    e?.type ??
+    e?.error?.code ??
+    e?.error?.type ??
+    e?.response?.data?.error?.code ??
+    e?.response?.data?.error?.type ??
+    undefined
+  ) ?? undefined;
+}
+
+/**
+ * 401/403 (bad/revoked key) and 429 (rate limit/quota) are all cases where
+ * retrying against the *same* credential unconditionally would be pointless
+ * or wasteful — they share the same "give up on this credential and tell
+ * the admin" bookkeeping path below. 429 additionally gets one short retry
+ * first (see RETRY_DELAY_MS) since those often clear in under a second.
+ */
+function isFailoverEligible(err: unknown): boolean {
   const status = extractStatus(err);
-  return status === 401 || status === 403;
+  return status === 401 || status === 403 || status === 429;
 }
 
 function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+const RATE_LIMIT_RETRY_DELAY_MS = 800;
+
 /**
  * Resolves a client for the business and invokes fn with it. On success,
  * marks the credential as recently used and clears any prior error
  * (best-effort — a failure to persist this bookkeeping shouldn't fail the
- * call). On a 401/403 from the provider, persists lastError on the
- * credential and logs an EventLog with source "credentials", then
- * rethrows — there is no standby credential to fail over to anymore, so
- * the caller (or the admin, via /settings/credentials) has to fix the key.
+ * call).
+ *
+ * On a 429 (rate limit/quota), does ONE short retry against the SAME
+ * client/credential first — transient rate limits often clear in under a
+ * second, and retrying beats failing straight to the generic fallback
+ * reply. If that retry also fails (or the error was 401/403 to begin
+ * with), persists lastError on the credential and logs an EventLog with
+ * source "credentials", then rethrows — there is no standby credential to
+ * fail over to anymore, so the caller (or the admin, via
+ * /settings/credentials) has to fix the key.
  */
 export async function callWithAiCredential<T>(
   business: Business,
@@ -135,8 +181,7 @@ export async function callWithAiCredential<T>(
 ): Promise<T> {
   const { client, credential } = await getAiClient(business);
 
-  try {
-    const result = await fn(client);
+  const markSuccess = async () => {
     if (credential) {
       await prisma.credential
         .update({
@@ -145,27 +190,56 @@ export async function callWithAiCredential<T>(
         })
         .catch(() => undefined);
     }
+  };
+
+  let err: unknown;
+  try {
+    const result = await fn(client);
+    await markSuccess();
     return result;
-  } catch (err) {
-    if (!credential || !isAuthError(err)) {
-      throw err;
+  } catch (firstErr) {
+    err = firstErr;
+  }
+
+  if (extractStatus(err) === 429) {
+    await delay(RATE_LIMIT_RETRY_DELAY_MS);
+    try {
+      const result = await fn(client);
+      await markSuccess();
+      return result;
+    } catch (retryErr) {
+      err = retryErr;
     }
+  }
 
-    await logEvent(
-      "error",
-      "credentials",
-      "AI credential auth failure",
-      { error: errorMessage(err), credentialId: credential.id },
-      business.id
-    );
-
-    await prisma.credential
-      .update({
-        where: { id: credential.id },
-        data: { lastError: errorMessage(err) },
-      })
-      .catch(() => undefined);
-
+  if (!credential || !isFailoverEligible(err)) {
     throw err;
   }
+
+  const code = extractErrorCode(err);
+  // 401/403 (bad/revoked key) and 429 (rate limit/quota) share the same
+  // failover bookkeeping path, but they mean very different things to an
+  // admin glancing at /settings/credentials: one means "this key is broken,
+  // replace it", the other means "this key is fine, it's just being
+  // throttled right now". Prefix the 429 case so lastError distinguishes
+  // them instead of showing an identical-looking destructive-red message
+  // for both.
+  const persistedMessage =
+    extractStatus(err) === 429 ? `Rate limited: ${errorMessage(err)}` : errorMessage(err);
+  await logEvent(
+    "error",
+    "credentials",
+    "AI credential auth failure",
+    { error: persistedMessage, credentialId: credential.id, code },
+    business.id
+  );
+
+  await prisma.credential
+    .update({
+      where: { id: credential.id },
+      data: { lastError: persistedMessage },
+    })
+    .catch(() => undefined);
+
+  throw err;
 }
