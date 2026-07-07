@@ -12,7 +12,6 @@ const CREDENTIAL_LIST_SELECT = {
   label: true,
   keyLast4: true,
   baseUrl: true,
-  status: true,
   lastUsedAt: true,
   lastError: true,
   createdAt: true,

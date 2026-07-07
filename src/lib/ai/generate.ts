@@ -3,9 +3,9 @@ import type { ChatCompletionMessageParam } from "openai/resources/chat/completio
 
 /**
  * Generates a chat completion using an already-resolved client. Callers
- * (e.g. message-handler.ts) resolve the client via callWithFailover from
- * ./resolve so that a bad key automatically fails over to a standby
- * credential without any redeploy.
+ * (e.g. message-handler.ts) resolve the client via callWithAiCredential
+ * from ./resolve, which persists lastUsedAt/lastError on the credential
+ * around the call.
  */
 export async function generateResponse(
   client: OpenAI,

@@ -130,7 +130,6 @@ describe("GET/POST /api/credentials", () => {
       where: { id: created.id },
     });
     expect(row.ownerId).toBe(admin.id);
-    expect(row.status).toBe("standby");
     expect(decryptSecret(row.encryptedKey)).toBe("sk-abcd1234");
   });
 });

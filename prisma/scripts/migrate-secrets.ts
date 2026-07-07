@@ -55,12 +55,12 @@ async function migrateOpenAiKey(ownerIdOrEmail: {
     return;
   }
 
-  const existingActive = await prisma.credential.findFirst({
-    where: { ownerId: user.id, kind: "ai", status: "active" },
+  const existingCredential = await prisma.credential.findFirst({
+    where: { ownerId: user.id, kind: "ai" },
   });
-  if (existingActive) {
+  if (existingCredential) {
     console.log(
-      `${user.email} already has an active AI credential (${existingActive.label}) — skipping.`
+      `${user.email} already has an AI credential (${existingCredential.label}) — skipping.`
     );
     return;
   }
@@ -73,7 +73,6 @@ async function migrateOpenAiKey(ownerIdOrEmail: {
       label: "OpenAI (migrado de OPENAI_API_KEY)",
       encryptedKey: encryptSecret(apiKey),
       keyLast4: apiKey.slice(-4),
-      status: "active",
     },
   });
 

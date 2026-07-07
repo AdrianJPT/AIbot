@@ -2,7 +2,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Business, Credential } from "@prisma/client";
 
 const credentialFindUnique = vi.fn();
-const credentialFindFirst = vi.fn();
 const credentialUpdate = vi.fn();
 const appConfigFindUnique = vi.fn();
 
@@ -10,7 +9,6 @@ vi.mock("../../db", () => ({
   prisma: {
     credential: {
       findUnique: (...args: unknown[]) => credentialFindUnique(...args),
-      findFirst: (...args: unknown[]) => credentialFindFirst(...args),
       update: (...args: unknown[]) => credentialUpdate(...args),
     },
     appConfig: {
@@ -45,7 +43,7 @@ vi.mock("openai", () => ({
   },
 }));
 
-const { getAiClient, callWithFailover, resolveModels } = await import("../resolve");
+const { getAiClient, callWithAiCredential, resolveModels } = await import("../resolve");
 
 function makeBusiness(overrides: Partial<Business> = {}): Business {
   return {
@@ -78,7 +76,6 @@ function makeCredential(overrides: Partial<Credential> = {}): Credential {
     encryptedKey: "enc:cred_1",
     keyLast4: "1234",
     baseUrl: null,
-    status: "active",
     lastUsedAt: null,
     lastError: null,
     createdAt: new Date(),
@@ -103,35 +100,12 @@ describe("getAiClient resolution order", () => {
     const { client, credential: resolved } = await getAiClient(business);
 
     expect(credentialFindUnique).toHaveBeenCalledWith({ where: { id: "cred_business" } });
-    expect(credentialFindFirst).not.toHaveBeenCalled();
+    expect(appConfigFindUnique).not.toHaveBeenCalled();
     expect(resolved?.id).toBe("cred_business");
     expect((client as unknown as FakeOpenAIInstance).apiKey).toBe("decrypted:enc:cred_1");
   });
 
-  it("falls back to the owner's active AI credential when business has none set", async () => {
-    const credential = makeCredential({ id: "cred_owner_active" });
-    credentialFindFirst.mockResolvedValue(credential);
-    const business = makeBusiness({ aiCredentialId: null });
-
-    const { credential: resolved } = await getAiClient(business);
-
-    expect(credentialFindFirst).toHaveBeenCalledWith({
-      where: { ownerId: "owner_1", kind: "ai", status: "active" },
-    });
-    expect(resolved?.id).toBe("cred_owner_active");
-  });
-
-  it("throws a clear error when neither business nor owner has a credential", async () => {
-    credentialFindFirst.mockResolvedValue(null);
-    appConfigFindUnique.mockResolvedValue(null);
-    const business = makeBusiness({ aiCredentialId: null });
-
-    await expect(getAiClient(business)).rejects.toThrow(
-      /No AI credential is configured/
-    );
-  });
-
-  it("falls back to AppConfig.aiCredentialId before the owner's active credential", async () => {
+  it("falls back to AppConfig.aiCredentialId when business has none set", async () => {
     const credential = makeCredential({ id: "cred_appconfig" });
     appConfigFindUnique.mockResolvedValue({ aiCredentialId: "cred_appconfig" });
     credentialFindUnique.mockResolvedValue(credential);
@@ -140,8 +114,16 @@ describe("getAiClient resolution order", () => {
     const { credential: resolved } = await getAiClient(business);
 
     expect(credentialFindUnique).toHaveBeenCalledWith({ where: { id: "cred_appconfig" } });
-    expect(credentialFindFirst).not.toHaveBeenCalled();
     expect(resolved?.id).toBe("cred_appconfig");
+  });
+
+  it("throws a clear error when neither business nor AppConfig has a credential", async () => {
+    appConfigFindUnique.mockResolvedValue(null);
+    const business = makeBusiness({ aiCredentialId: null });
+
+    await expect(getAiClient(business)).rejects.toThrow(
+      /No AI credential is configured/
+    );
   });
 });
 
@@ -217,36 +199,40 @@ describe("client caching", () => {
   });
 });
 
-describe("callWithFailover", () => {
-  it("retries once on the owner's standby credential after a 401 from the primary", async () => {
-    const active = makeCredential({ id: "cred_active", status: "active" });
-    const standby = makeCredential({ id: "cred_standby", status: "standby" });
-    credentialFindFirst
-      .mockResolvedValueOnce(active) // resolve active credential
-      .mockResolvedValueOnce(standby); // resolve standby on failover
+describe("callWithAiCredential", () => {
+  it("persists lastUsedAt and clears lastError on success", async () => {
+    const credential = makeCredential({ id: "cred_active" });
+    credentialFindUnique.mockResolvedValue(credential);
+    const business = makeBusiness({ aiCredentialId: "cred_active" });
 
-    const business = makeBusiness({ aiCredentialId: null });
+    const fn = vi.fn().mockResolvedValue("ok");
 
-    const fn = vi
-      .fn()
-      .mockImplementationOnce(() => {
-        const err = new Error("Unauthorized") as Error & { status: number };
-        err.status = 401;
-        throw err;
-      })
-      .mockImplementationOnce(async (client: FakeOpenAIInstance) => {
-        expect(client.apiKey).toBe("decrypted:enc:cred_1");
-        return "ok-from-standby";
-      });
+    const result = await callWithAiCredential(business, fn);
 
-    const result = await callWithFailover(business, fn);
+    expect(result).toBe("ok");
+    expect(fn).toHaveBeenCalledTimes(1);
+    expect(credentialUpdate).toHaveBeenCalledWith({
+      where: { id: "cred_active" },
+      data: { lastUsedAt: expect.any(Date), lastError: null },
+    });
+  });
 
-    expect(result).toBe("ok-from-standby");
-    expect(fn).toHaveBeenCalledTimes(2);
+  it("persists lastError and logs an EventLog, then rethrows on a 401", async () => {
+    const credential = makeCredential({ id: "cred_active" });
+    credentialFindUnique.mockResolvedValue(credential);
+    const business = makeBusiness({ aiCredentialId: "cred_active" });
+
+    const err = new Error("Unauthorized") as Error & { status: number };
+    err.status = 401;
+    const fn = vi.fn().mockRejectedValue(err);
+
+    await expect(callWithAiCredential(business, fn)).rejects.toThrow("Unauthorized");
+
+    expect(fn).toHaveBeenCalledTimes(1);
     expect(logEvent).toHaveBeenCalledWith(
       "error",
       "credentials",
-      expect.any(String),
+      "AI credential auth failure",
       expect.objectContaining({ credentialId: "cred_active" }),
       business.id
     );
@@ -256,30 +242,16 @@ describe("callWithFailover", () => {
     });
   });
 
-  it("rethrows when there is no standby credential to fail over to", async () => {
-    const active = makeCredential({ id: "cred_active", status: "active" });
-    credentialFindFirst
-      .mockResolvedValueOnce(active)
-      .mockResolvedValueOnce(null); // no standby found
+  it("rethrows on non-auth errors without logging or persisting lastError", async () => {
+    const credential = makeCredential({ id: "cred_active" });
+    credentialFindUnique.mockResolvedValue(credential);
+    const business = makeBusiness({ aiCredentialId: "cred_active" });
 
-    const business = makeBusiness({ aiCredentialId: null });
-    const err = new Error("Forbidden") as Error & { status: number };
-    err.status = 403;
-    const fn = vi.fn().mockRejectedValue(err);
-
-    await expect(callWithFailover(business, fn)).rejects.toThrow("Forbidden");
-    expect(fn).toHaveBeenCalledTimes(1);
-  });
-
-  it("does not fail over on non-auth errors", async () => {
-    const active = makeCredential({ id: "cred_active", status: "active" });
-    credentialFindFirst.mockResolvedValueOnce(active);
-
-    const business = makeBusiness({ aiCredentialId: null });
     const fn = vi.fn().mockRejectedValue(new Error("network blip"));
 
-    await expect(callWithFailover(business, fn)).rejects.toThrow("network blip");
+    await expect(callWithAiCredential(business, fn)).rejects.toThrow("network blip");
     expect(fn).toHaveBeenCalledTimes(1);
     expect(logEvent).not.toHaveBeenCalled();
+    expect(credentialUpdate).not.toHaveBeenCalled();
   });
 });

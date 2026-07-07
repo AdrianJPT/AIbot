@@ -15,7 +15,7 @@ export function AddPhoneNumberFormContainer({ businessId }: { businessId: string
     queryKey: ["credentials"],
     queryFn: fetchCredentials,
   });
-  const waCredentials = credentials.filter((c) => c.kind === "whatsapp" && c.status !== "revoked");
+  const waCredentials = credentials.filter((c) => c.kind === "whatsapp");
 
   const mutation = useMutation({
     mutationFn: (payload: {
@@ -80,7 +80,7 @@ export function AddPhoneNumberFormContainer({ businessId }: { businessId: string
           <option value="">Usar el token ingresado arriba</option>
           {waCredentials.map((c) => (
             <option key={c.id} value={c.id}>
-              {c.label} ({c.status})
+              {c.label}
             </option>
           ))}
         </select>

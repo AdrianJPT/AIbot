@@ -39,7 +39,32 @@ describe("resolveWhatsappToken", () => {
     );
   });
 
-  it("falls back to the AppConfig platform default when the number and owner have none", async () => {
+  it("uses phoneNumber.whatsappCredentialId when set", async () => {
+    const credential = await prisma.credential.create({
+      data: {
+        ownerId: owner.id,
+        kind: "whatsapp",
+        provider: "meta",
+        label: "Number-specific",
+        encryptedKey: encryptSecret("number-token"),
+        keyLast4: "oken",
+      },
+    });
+    const numberWithCredential = await prisma.phoneNumber.update({
+      where: { id: phoneNumber.id },
+      data: { whatsappCredentialId: credential.id },
+    });
+
+    const token = await resolveWhatsappToken(numberWithCredential, owner.id);
+    expect(token).toBe("number-token");
+
+    await prisma.phoneNumber.update({
+      where: { id: phoneNumber.id },
+      data: { whatsappCredentialId: null },
+    });
+  });
+
+  it("falls back to the AppConfig platform default when the number has none", async () => {
     const credential = await prisma.credential.create({
       data: {
         ownerId: owner.id,
@@ -48,10 +73,6 @@ describe("resolveWhatsappToken", () => {
         label: "Platform default",
         encryptedKey: encryptSecret("platform-token"),
         keyLast4: "oken",
-        // Standby on purpose: it must NOT resolve via the owner-active
-        // fallback, only via the AppConfig pointer — which requires active,
-        // so flip it after wiring AppConfig below.
-        status: "standby",
       },
     });
     await prisma.appConfig.upsert({
@@ -60,22 +81,7 @@ describe("resolveWhatsappToken", () => {
       create: { id: "default", whatsappCredentialId: credential.id },
     });
 
-    // Still standby -> AppConfig pointer refuses non-active credentials.
-    await expect(resolveWhatsappToken(phoneNumber, owner.id)).rejects.toThrow(
-      /No WhatsApp credential/
-    );
-
-    await prisma.credential.update({
-      where: { id: credential.id },
-      data: { status: "active" },
-    });
-
-    // Owner-active fallback would now also match this credential, so point
-    // the lookup at a different owner to prove resolution goes through
-    // AppConfig alone.
-    const stranger = await createTestUser("wa-resolve-stranger");
-    const token = await resolveWhatsappToken(phoneNumber, stranger.id);
+    const token = await resolveWhatsappToken(phoneNumber, owner.id);
     expect(token).toBe("platform-token");
-    await cleanupOwnershipFixtures([stranger.id]);
   });
 });

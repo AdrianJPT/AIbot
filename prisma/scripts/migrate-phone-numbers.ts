@@ -35,12 +35,12 @@ async function migrateBusiness(business: LegacyBusinessRow): Promise<void> {
   let whatsappCredentialId = business.whatsappCredentialId;
 
   if (!whatsappCredentialId && business.whatsappToken && business.ownerId) {
-    const existingActive = await prisma.credential.findFirst({
-      where: { ownerId: business.ownerId, kind: "whatsapp", status: "active" },
+    const existingCredential = await prisma.credential.findFirst({
+      where: { ownerId: business.ownerId, kind: "whatsapp" },
     });
 
     const credential =
-      existingActive ??
+      existingCredential ??
       (await prisma.credential.create({
         data: {
           ownerId: business.ownerId,
@@ -49,7 +49,6 @@ async function migrateBusiness(business: LegacyBusinessRow): Promise<void> {
           label: `WhatsApp (migrado de ${business.name})`,
           encryptedKey: encryptSecret(business.whatsappToken),
           keyLast4: business.whatsappToken.slice(-4),
-          status: "active",
         },
       }));
 

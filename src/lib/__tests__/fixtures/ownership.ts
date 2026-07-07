@@ -40,7 +40,6 @@ export async function createTestCredential(
     label: string;
     key: string;
     baseUrl: string | null;
-    status: string;
   }> = {}
 ): Promise<Credential> {
   const key = overrides.key ?? `sk-test-${randomUUID()}`;
@@ -53,7 +52,6 @@ export async function createTestCredential(
       encryptedKey: encryptSecret(key),
       keyLast4: key.slice(-4),
       baseUrl: overrides.baseUrl ?? null,
-      status: overrides.status ?? "standby",
     },
   });
 }

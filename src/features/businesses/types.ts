@@ -14,7 +14,6 @@ export type CredentialOption = {
   kind: string;
   label: string;
   provider: string;
-  status: string;
 };
 
 export type BusinessDetail = {

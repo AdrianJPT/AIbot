@@ -141,7 +141,7 @@ export function BusinessFormFields({
           <option value="">Usar clave global por defecto</option>
           {aiCredentials.map((c) => (
             <option key={c.id} value={c.id}>
-              {c.label} ({c.provider}, {c.status})
+              {c.label} ({c.provider})
             </option>
           ))}
         </select>
@@ -160,7 +160,7 @@ export function BusinessFormFields({
           <option value="">Heredar de Configuración (o usar el token de arriba)</option>
           {waCredentials.map((c) => (
             <option key={c.id} value={c.id}>
-              {c.label} ({c.status})
+              {c.label}
             </option>
           ))}
         </select>

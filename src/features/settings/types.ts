@@ -10,5 +10,4 @@ export type AiCredentialOption = {
   id: string;
   label: string;
   provider: string;
-  status: string;
 };

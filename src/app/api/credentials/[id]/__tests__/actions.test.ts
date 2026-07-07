@@ -2,6 +2,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest
 import { NextRequest } from "next/server";
 import type { User } from "@prisma/client";
 import { prisma } from "@/lib/db";
+import { decryptSecret } from "@/lib/crypto";
 import { isAdmin } from "@/lib/scope";
 import {
   cleanupOwnershipFixtures,
@@ -19,16 +20,9 @@ vi.mock("@/lib/auth", () => ({
   },
 }));
 
-const testAiCredential = vi.fn();
-const testWhatsappCredential = vi.fn();
-vi.mock("@/lib/credentials/provider-test", () => ({
-  testAiCredential: (...args: unknown[]) => testAiCredential(...args),
-  testWhatsappCredential: (...args: unknown[]) => testWhatsappCredential(...args),
-}));
-
 function buildRequest(url: string, body?: unknown): NextRequest {
   return new NextRequest(url, {
-    method: "POST",
+    method: "PATCH",
     body: body === undefined ? undefined : JSON.stringify(body),
     headers: { "content-type": "application/json" },
   });
@@ -59,152 +53,30 @@ describe("/api/credentials/[id] actions", () => {
     vi.clearAllMocks();
   });
 
-  describe("POST /test", () => {
-    it("returns 404 when unauthenticated", async () => {
-      getSessionUser.mockResolvedValueOnce(null);
-      const { POST } = await import("../test/route");
+  describe("DELETE /", () => {
+    it("deletes an unreferenced credential", async () => {
+      getSessionUser.mockResolvedValueOnce(admin);
+      const { DELETE } = await import("../route");
       const cred = await createTestCredential(owner.id);
 
-      const res = await POST(buildRequest("https://example.com", {}), ctx(cred.id));
+      const res = await DELETE(buildRequest("https://example.com"), ctx(cred.id));
+      expect(res.status).toBe(200);
 
-      expect(res.status).toBe(404);
+      const row = await prisma.credential.findUnique({ where: { id: cred.id } });
+      expect(row).toBeNull();
     });
 
-    it("returns 404 for a non-admin caller", async () => {
-      getSessionUser.mockResolvedValueOnce(owner);
-      const { POST } = await import("../test/route");
-      const cred = await createTestCredential(owner.id);
-
-      const res = await POST(buildRequest("https://example.com", {}), ctx(cred.id));
-
-      expect(res.status).toBe(404);
-    });
-
-    it("calls testAiCredential and persists success", async () => {
+    it("returns 409 when referenced by Business.aiCredentialId", async () => {
       getSessionUser.mockResolvedValueOnce(admin);
-      testAiCredential.mockResolvedValueOnce({ ok: true });
-      const { POST } = await import("../test/route");
+      const { DELETE } = await import("../route");
       const cred = await createTestCredential(owner.id, { kind: "ai" });
-
-      const res = await POST(buildRequest("https://example.com", {}), ctx(cred.id));
-      const body = await res.json();
-
-      expect(res.status).toBe(200);
-      expect(body.ok).toBe(true);
-      expect(testAiCredential).toHaveBeenCalledTimes(1);
-
-      const row = await prisma.credential.findUniqueOrThrow({ where: { id: cred.id } });
-      expect(row.lastError).toBeNull();
-      expect(row.lastUsedAt).not.toBeNull();
-    });
-
-    it("persists lastError on failure", async () => {
-      getSessionUser.mockResolvedValueOnce(admin);
-      testAiCredential.mockResolvedValueOnce({ ok: false, error: "invalid key" });
-      const { POST } = await import("../test/route");
-      const cred = await createTestCredential(owner.id, { kind: "ai" });
-
-      const res = await POST(buildRequest("https://example.com", {}), ctx(cred.id));
-      const body = await res.json();
-
-      expect(res.status).toBe(200);
-      expect(body.ok).toBe(false);
-
-      const row = await prisma.credential.findUniqueOrThrow({ where: { id: cred.id } });
-      expect(row.lastError).toBe("invalid key");
-    });
-
-    it("passes phoneNumberId through for whatsapp credentials", async () => {
-      getSessionUser.mockResolvedValueOnce(admin);
-      testWhatsappCredential.mockResolvedValueOnce({ ok: true });
-      const { POST } = await import("../test/route");
-      const cred = await createTestCredential(owner.id, { kind: "whatsapp" });
-
-      await POST(
-        buildRequest("https://example.com", { phoneNumberId: "123" }),
-        ctx(cred.id)
-      );
-
-      expect(testWhatsappCredential).toHaveBeenCalledWith(
-        expect.objectContaining({ id: cred.id }),
-        "123"
-      );
-    });
-  });
-
-  describe("POST /activate", () => {
-    it("sets exactly one active credential per owner+kind", async () => {
-      getSessionUser.mockResolvedValueOnce(admin);
-      const { POST } = await import("../activate/route");
-
-      const active = await createTestCredential(owner.id, {
-        kind: "ai",
-        status: "active",
-      });
-      const standby = await createTestCredential(owner.id, {
-        kind: "ai",
-        status: "standby",
-      });
-
-      const res = await POST(buildRequest("https://example.com"), ctx(standby.id));
-      expect(res.status).toBe(200);
-
-      const rows = await prisma.credential.findMany({
-        where: { ownerId: owner.id, kind: "ai" },
-      });
-      const activeOnes = rows.filter((r) => r.status === "active");
-      expect(activeOnes).toHaveLength(1);
-      expect(activeOnes[0].id).toBe(standby.id);
-
-      const demoted = rows.find((r) => r.id === active.id);
-      expect(demoted?.status).toBe("standby");
-    });
-
-    it("rejects activating a revoked credential", async () => {
-      getSessionUser.mockResolvedValueOnce(admin);
-      const { POST } = await import("../activate/route");
-      const revoked = await createTestCredential(owner.id, { status: "revoked" });
-
-      const res = await POST(buildRequest("https://example.com"), ctx(revoked.id));
-
-      expect(res.status).toBe(400);
-    });
-
-    it("returns 404 for a non-admin caller", async () => {
-      getSessionUser.mockResolvedValueOnce(owner);
-      const { POST } = await import("../activate/route");
-      const cred = await createTestCredential(owner.id, { status: "standby" });
-
-      const res = await POST(buildRequest("https://example.com"), ctx(cred.id));
-
-      expect(res.status).toBe(404);
-    });
-  });
-
-  describe("POST /revoke", () => {
-    it("revokes an unreferenced credential", async () => {
-      getSessionUser.mockResolvedValueOnce(admin);
-      const { POST } = await import("../revoke/route");
-      const cred = await createTestCredential(owner.id);
-
-      const res = await POST(buildRequest("https://example.com"), ctx(cred.id));
-      const body = await res.json();
-
-      expect(res.status).toBe(200);
-      expect(body.status).toBe("revoked");
-    });
-
-    it("returns 409 when referenced by a business", async () => {
-      getSessionUser.mockResolvedValueOnce(admin);
-      const { POST } = await import("../revoke/route");
-      const cred = await createTestCredential(owner.id, { kind: "ai" });
-      const business = await createTestBusiness(owner.id, "revoke-ref");
+      const business = await createTestBusiness(owner.id, "delete-ref-ai");
       await prisma.business.update({
         where: { id: business.id },
         data: { aiCredentialId: cred.id },
       });
 
-      const res = await POST(buildRequest("https://example.com"), ctx(cred.id));
+      const res = await DELETE(buildRequest("https://example.com"), ctx(cred.id));
       const body = await res.json();
 
       expect(res.status).toBe(409);
@@ -216,9 +88,26 @@ describe("/api/credentials/[id] actions", () => {
       });
     });
 
+    it("returns 409 when referenced by PhoneNumber.whatsappCredentialId", async () => {
+      getSessionUser.mockResolvedValueOnce(admin);
+      const { DELETE } = await import("../route");
+      const cred = await createTestCredential(owner.id, { kind: "whatsapp" });
+      const business = await createTestBusiness(owner.id, "delete-ref-wa");
+      await prisma.phoneNumber.update({
+        where: { id: business.phoneNumbers[0].id },
+        data: { whatsappCredentialId: cred.id },
+      });
+
+      const res = await DELETE(buildRequest("https://example.com"), ctx(cred.id));
+      const body = await res.json();
+
+      expect(res.status).toBe(409);
+      expect(body.error).toContain(business.name);
+    });
+
     it("returns 409 when it's the AppConfig default AI credential", async () => {
       getSessionUser.mockResolvedValueOnce(admin);
-      const { POST } = await import("../revoke/route");
+      const { DELETE } = await import("../route");
       const cred = await createTestCredential(owner.id, { kind: "ai" });
       await prisma.appConfig.upsert({
         where: { id: "default" },
@@ -226,7 +115,7 @@ describe("/api/credentials/[id] actions", () => {
         create: { id: "default", aiCredentialId: cred.id },
       });
 
-      const res = await POST(buildRequest("https://example.com"), ctx(cred.id));
+      const res = await DELETE(buildRequest("https://example.com"), ctx(cred.id));
       const body = await res.json();
 
       expect(res.status).toBe(409);
@@ -237,39 +126,15 @@ describe("/api/credentials/[id] actions", () => {
         data: { aiCredentialId: null },
       });
     });
-  });
 
-  describe("DELETE /", () => {
-    it("refuses to delete a non-revoked credential", async () => {
+    it("returns 409 when it's the AppConfig default WhatsApp credential", async () => {
       getSessionUser.mockResolvedValueOnce(admin);
       const { DELETE } = await import("../route");
-      const cred = await createTestCredential(owner.id, { status: "standby" });
-
-      const res = await DELETE(buildRequest("https://example.com"), ctx(cred.id));
-
-      expect(res.status).toBe(400);
-    });
-
-    it("deletes a revoked, unreferenced credential", async () => {
-      getSessionUser.mockResolvedValueOnce(admin);
-      const { DELETE } = await import("../route");
-      const cred = await createTestCredential(owner.id, { status: "revoked" });
-
-      const res = await DELETE(buildRequest("https://example.com"), ctx(cred.id));
-      expect(res.status).toBe(200);
-
-      const row = await prisma.credential.findUnique({ where: { id: cred.id } });
-      expect(row).toBeNull();
-    });
-
-    it("returns 409 when it's the AppConfig default AI credential, even if revoked", async () => {
-      getSessionUser.mockResolvedValueOnce(admin);
-      const { DELETE } = await import("../route");
-      const cred = await createTestCredential(owner.id, { kind: "ai", status: "revoked" });
+      const cred = await createTestCredential(owner.id, { kind: "whatsapp" });
       await prisma.appConfig.upsert({
         where: { id: "default" },
-        update: { aiCredentialId: cred.id },
-        create: { id: "default", aiCredentialId: cred.id },
+        update: { whatsappCredentialId: cred.id },
+        create: { id: "default", whatsappCredentialId: cred.id },
       });
 
       const res = await DELETE(buildRequest("https://example.com"), ctx(cred.id));
@@ -280,16 +145,103 @@ describe("/api/credentials/[id] actions", () => {
 
       await prisma.appConfig.update({
         where: { id: "default" },
-        data: { aiCredentialId: null },
+        data: { whatsappCredentialId: null },
       });
     });
 
     it("returns 404 for a non-admin caller", async () => {
       getSessionUser.mockResolvedValueOnce(owner);
       const { DELETE } = await import("../route");
-      const cred = await createTestCredential(owner.id, { status: "revoked" });
+      const cred = await createTestCredential(owner.id);
 
       const res = await DELETE(buildRequest("https://example.com"), ctx(cred.id));
+
+      expect(res.status).toBe(404);
+    });
+
+    it("returns 404 when the credential doesn't exist", async () => {
+      getSessionUser.mockResolvedValueOnce(admin);
+      const { DELETE } = await import("../route");
+
+      const res = await DELETE(buildRequest("https://example.com"), ctx("nonexistent"));
+
+      expect(res.status).toBe(404);
+    });
+  });
+
+  describe("PATCH /", () => {
+    it("updates the label", async () => {
+      getSessionUser.mockResolvedValueOnce(admin);
+      const { PATCH } = await import("../route");
+      const cred = await createTestCredential(owner.id, { label: "Old label" });
+
+      const res = await PATCH(
+        buildRequest("https://example.com", { label: "New label" }),
+        ctx(cred.id)
+      );
+      const body = await res.json();
+
+      expect(res.status).toBe(200);
+      expect(body.label).toBe("New label");
+
+      const row = await prisma.credential.findUniqueOrThrow({ where: { id: cred.id } });
+      expect(row.label).toBe("New label");
+    });
+
+    it("re-encrypts the key and updates keyLast4", async () => {
+      getSessionUser.mockResolvedValueOnce(admin);
+      const { PATCH } = await import("../route");
+      const cred = await createTestCredential(owner.id, { key: "sk-old-0000" });
+
+      const res = await PATCH(
+        buildRequest("https://example.com", { key: "sk-new-9999" }),
+        ctx(cred.id)
+      );
+      const body = await res.json();
+
+      expect(res.status).toBe(200);
+      expect(body.keyLast4).toBe("9999");
+
+      const row = await prisma.credential.findUniqueOrThrow({ where: { id: cred.id } });
+      expect(row.keyLast4).toBe("9999");
+      expect(decryptSecret(row.encryptedKey)).toBe("sk-new-9999");
+    });
+
+    it("ignores baseUrl for whatsapp credentials", async () => {
+      getSessionUser.mockResolvedValueOnce(admin);
+      const { PATCH } = await import("../route");
+      const cred = await createTestCredential(owner.id, { kind: "whatsapp" });
+
+      await PATCH(
+        buildRequest("https://example.com", { baseUrl: "https://example.com" }),
+        ctx(cred.id)
+      );
+
+      const row = await prisma.credential.findUniqueOrThrow({ where: { id: cred.id } });
+      expect(row.baseUrl).toBeNull();
+    });
+
+    it("returns 404 for a non-admin caller", async () => {
+      getSessionUser.mockResolvedValueOnce(owner);
+      const { PATCH } = await import("../route");
+      const cred = await createTestCredential(owner.id);
+
+      const res = await PATCH(
+        buildRequest("https://example.com", { label: "x" }),
+        ctx(cred.id)
+      );
+
+      expect(res.status).toBe(404);
+    });
+
+    it("returns 404 when the credential doesn't exist", async () => {
+      getSessionUser.mockResolvedValueOnce(admin);
+      const { PATCH } = await import("../route");
+
+      const res = await PATCH(
+        buildRequest("https://example.com", { label: "x" }),
+        ctx("nonexistent")
+      );
 
       expect(res.status).toBe(404);
     });
