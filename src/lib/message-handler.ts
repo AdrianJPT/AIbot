@@ -176,8 +176,6 @@ async function handleOneMessage(
     return;
   }
 
-  const history = await loadHistory(conversation.id, business.maxHistoryMessages);
-
   await persistCustomerMessage(conversation.id, parsed, wamid, customerName);
 
   let reply: string | null = null;
@@ -187,16 +185,50 @@ async function handleOneMessage(
       "Por ahora no puedo leer archivos o documentos. ¿Puedes escribir tu consulta en un mensaje de texto?";
   } else if (await isRateLimited(conversation.id, business.id)) {
     // Persisted above already — just skip AI generation and the reply.
+  } else if (business.replyWindowMs > 0) {
+    // Debounce: don't call the AI for every single message — wait for the
+    // customer to stop sending consecutive messages first. Persisted on the
+    // Conversation row (not an in-memory timer) so a Railway redeploy
+    // mid-window can't silently drop the pending batch — see the
+    // rate-limiter comment above and reply-window-scheduler.ts, which polls
+    // for elapsed windows and sends the one batched reply.
+    await prisma.conversation.update({
+      where: { id: conversation.id },
+      data: { pendingFlushAt: new Date(Date.now() + business.replyWindowMs) },
+    });
+    return;
   } else {
+    // Only the immediate-reply path needs history — loaded here (not
+    // unconditionally above) so businesses using the reply-window batching
+    // above don't pay for a wasted history query on every single message.
+    const history = await loadHistory(conversation.id, business.maxHistoryMessages);
     reply = await resolveAiReply(business, conversation.id, history, parsed.content);
   }
 
   if (reply === null) return;
 
+  await sendAndPersistReply(business, phoneNumber, conversation.id, from, reply);
+}
+
+/**
+ * Persists the bot's reply as a Message row (bumping the conversation's
+ * lastMessageAt in the same transaction), sends it over WhatsApp, and
+ * records the resulting wamid — or marks the message "failed" if the send
+ * throws. Shared by the immediate reply path above and the reply-window
+ * scheduler's batched-flush path (see reply-window-scheduler.ts), so both
+ * get identical persistence/error-handling behavior.
+ */
+export async function sendAndPersistReply(
+  business: Business,
+  phoneNumber: PhoneNumber,
+  conversationId: string,
+  from: string,
+  reply: string
+): Promise<void> {
   const [outboundMessage] = await prisma.$transaction([
     prisma.message.create({
       data: {
-        conversationId: conversation.id,
+        conversationId,
         role: "assistant",
         content: reply,
         mediaType: "text",
@@ -204,7 +236,7 @@ async function handleOneMessage(
       },
     }),
     prisma.conversation.update({
-      where: { id: conversation.id },
+      where: { id: conversationId },
       data: { lastMessageAt: new Date() },
     }),
   ]);
@@ -222,7 +254,7 @@ async function handleOneMessage(
       "error",
       "whatsapp-send",
       "sendMessage failed",
-      { error: describeError(err), conversationId: conversation.id },
+      { error: describeError(err), conversationId },
       business.id,
       phoneNumber.id
     );
@@ -239,7 +271,7 @@ async function handleOneMessage(
  * `RATE_LIMIT_MAX_MESSAGES`, the caller should skip AI generation for this
  * message. The message itself is always persisted regardless of this check.
  */
-async function isRateLimited(
+export async function isRateLimited(
   conversationId: string,
   businessId: string
 ): Promise<boolean> {
@@ -274,7 +306,7 @@ async function isRateLimited(
  * content today) — subsequent messages that day get no reply at all, to
  * avoid spamming the customer.
  */
-async function resolveAiReply(
+export async function resolveAiReply(
   business: Business,
   conversationId: string,
   history: ChatCompletionMessageParam[],
@@ -373,9 +405,17 @@ async function persistCustomerMessage(
   ]);
 }
 
-function describeError(err: unknown): { message: string; stack?: string } {
-  if (err instanceof Error) return { message: err.message, stack: err.stack };
-  return { message: String(err) };
+function describeError(err: unknown): { message: string; stack?: string; code?: string } {
+  // AI provider errors (e.g. openai's APIError) expose `code`/`type` as
+  // top-level properties — surfacing it here means a 429/401/403 shows up
+  // in the EventLog even though the caller (resolveAiReply) only sees the
+  // generic Error thrown after resolve.ts's retry/failover bookkeeping.
+  const code =
+    (err as { code?: string | null; type?: string | null })?.code ??
+    (err as { code?: string | null; type?: string | null })?.type ??
+    undefined;
+  const base = err instanceof Error ? { message: err.message, stack: err.stack } : { message: String(err) };
+  return code ? { ...base, code } : base;
 }
 
 async function loadHistory(

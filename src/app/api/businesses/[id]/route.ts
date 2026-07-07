@@ -6,6 +6,7 @@ import { businessScope } from "@/lib/scope";
 import { ensureWhatsappCredential } from "@/lib/whatsapp";
 import { flattenBusinessPhoneNumber } from "@/lib/business-phone-compat";
 import { ownsCredentials } from "@/lib/credentials/usage";
+import { clampReplyWindowMs } from "@/lib/businesses/create";
 
 // GET stays open to any authenticated caller (scoped by businessScope).
 export async function GET(
@@ -110,6 +111,9 @@ export async function PATCH(
         ...("audioModel" in body && { audioModel: body.audioModel || null }),
         ...(body.maxHistoryMessages != null && {
           maxHistoryMessages: body.maxHistoryMessages,
+        }),
+        ...(body.replyWindowMs != null && {
+          replyWindowMs: clampReplyWindowMs(body.replyWindowMs),
         }),
         ...(body.isActive != null && { isActive: body.isActive }),
         ...(body.ownerId != null && { ownerId: body.ownerId }),

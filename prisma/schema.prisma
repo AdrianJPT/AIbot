@@ -32,6 +32,7 @@ model Business {
   audioModel         String? // null = inherit AppConfig.audioModel
   maxHistoryMessages Int            @default(20)
   dailyAiLimit       Int            @default(1000)
+  replyWindowMs      Int            @default(0) // 0 = disabled = immediate reply (today's behavior). >0 = debounce window in ms before batching pending customer messages into one AI call — see reply-window-scheduler.ts
   isActive           Boolean        @default(true)
   ownerId            String
   owner              User           @relation(fields: [ownerId], references: [id])
@@ -96,25 +97,27 @@ model Credential {
 }
 
 model Conversation {
-  id            String        @id @default(cuid())
-  businessId    String // denormalized copy of phoneNumber.businessId — kept so RLS policies and scope.ts stay a single-hop join; PhoneNumber.businessId is immutable so this can't drift
-  business      Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  phoneNumberId String
-  phoneNumber   PhoneNumber   @relation(fields: [phoneNumberId], references: [id], onDelete: Cascade)
-  customerPhone String
-  customerName  String? // WhatsApp profile name from webhook `contacts[0].profile.name` — overwritten on every inbound message, never edited by hand
-  nickname      String? // admin-set alias, takes display priority over customerName; webhook never touches this
-  status        String        @default("active")
-  lastMessageAt DateTime      @default(now()) // denormalized for list ordering — bumped on every message insert
-  unreadCount   Int           @default(0) // customer messages since admin last opened the thread
-  messages      Message[]
-  appointments  Appointment[]
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+  id             String        @id @default(cuid())
+  businessId     String // denormalized copy of phoneNumber.businessId — kept so RLS policies and scope.ts stay a single-hop join; PhoneNumber.businessId is immutable so this can't drift
+  business       Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  phoneNumberId  String
+  phoneNumber    PhoneNumber   @relation(fields: [phoneNumberId], references: [id], onDelete: Cascade)
+  customerPhone  String
+  customerName   String? // WhatsApp profile name from webhook `contacts[0].profile.name` — overwritten on every inbound message, never edited by hand
+  nickname       String? // admin-set alias, takes display priority over customerName; webhook never touches this
+  status         String        @default("active")
+  lastMessageAt  DateTime      @default(now()) // denormalized for list ordering — bumped on every message insert
+  unreadCount    Int           @default(0) // customer messages since admin last opened the thread
+  pendingFlushAt DateTime? // set when Business.replyWindowMs > 0 and a customer message is awaiting the batched AI reply; cleared (claimed) by reply-window-scheduler.ts when the window elapses
+  messages       Message[]
+  appointments   Appointment[]
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
 
   @@unique([phoneNumberId, customerPhone])
   @@index([businessId, lastMessageAt])
   @@index([phoneNumberId, lastMessageAt])
+  @@index([pendingFlushAt])
 }
 
 model Message {
@@ -128,6 +131,7 @@ model Message {
   wamid          String?      @unique
   sentBy         String       @default("bot") // "bot" | "human" | "customer"
   status         String       @default("sent") // "sent" | "delivered" | "read" | "failed" (wired in Phase 6)
+  batchedAt      DateTime? // set by reply-window-scheduler.ts when this customer message is consumed into a batched flush — makes "pending" an explicit per-message marker instead of a createdAt-vs-lastBotMessage comparison, which can drop a message when an unrelated overlapping flush's bot reply lands with a later timestamp
   createdAt      DateTime     @default(now())
 
   @@index([conversationId, createdAt])

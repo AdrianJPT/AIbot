@@ -90,6 +90,7 @@ const business: Business = {
   visionModel: "gpt-4o-mini",
   audioModel: "whisper-1",
   maxHistoryMessages: 20,
+  replyWindowMs: 0,
   dailyAiLimit: 1000,
   isActive: true,
   ownerId: "owner_1",

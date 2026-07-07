@@ -91,6 +91,7 @@ export function InviteClientFormContainer({
         visionModel: fd.get("visionModel") as string,
         audioModel: fd.get("audioModel") as string,
         maxHistoryMessages: Number(fd.get("maxHistoryMessages")) || 20,
+        replyWindowMs: (Number(fd.get("replyWindowSeconds")) || 0) * 1000,
         isActive: fd.get("isActive") === "on",
         aiCredentialId: (fd.get("aiCredentialId") as string) || null,
         whatsappCredentialId: (fd.get("whatsappCredentialId") as string) || null,
