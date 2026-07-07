@@ -53,6 +53,14 @@ const SAFETY_POLL_INTERVAL_MS = 30_000;
 export function useRealtimeMessages(conversationId?: string): void {
   const queryClient = useQueryClient();
   const hadDropRef = useRef(false);
+  // The list pane and the open thread mount this hook simultaneously (list
+  // stays mounted in the layout while a conversation is open) — each needs
+  // its own Supabase channel. Reusing a fixed name makes the second
+  // `.channel()` call return the already-`subscribe()`d instance, and
+  // calling `.on()` on it throws synchronously ("cannot add
+  // `postgres_changes` callbacks... after `subscribe()`"), crashing the
+  // whole route. A per-instance suffix keeps the channels independent.
+  const instanceId = useRef(crypto.randomUUID()).current;
 
   useEffect(() => {
     const supabase = createClient();
@@ -100,7 +108,7 @@ export function useRealtimeMessages(conversationId?: string): void {
     const channels: RealtimeChannel[] = [];
 
     const conversationChannel = supabase
-      .channel("conversations-list-changes")
+      .channel(`conversations-list-changes-${instanceId}`)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "Conversation" },

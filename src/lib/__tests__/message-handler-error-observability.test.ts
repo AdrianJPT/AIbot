@@ -114,25 +114,19 @@ beforeEach(() => {
 });
 
 describe("error observability", () => {
-  it("logs an EventLog row and sends a Spanish fallback when the AI call fails", async () => {
+  it("logs an EventLog row and stays silent toward the customer when the AI call fails", async () => {
     generateResponse.mockRejectedValue(new Error("OpenAI is down"));
 
     await processWebhookPayload(textMessagePayload);
 
     // User message is still persisted.
+    expect(messageCreate).toHaveBeenCalledTimes(1);
     expect(messageCreate.mock.calls[0][0].data).toMatchObject({ role: "user" });
 
-    // Assistant message is the Spanish fallback, not silence.
-    expect(messageCreate.mock.calls[1][0].data).toMatchObject({
-      role: "assistant",
-      content: "Lo siento, tuve un problema técnico. Intenta de nuevo en un momento.",
-    });
-    expect(sendFromNumber).toHaveBeenCalledWith(
-      expect.objectContaining({ id: phoneNumber.id }),
-      business.ownerId,
-      "5215512345678",
-      "Lo siento, tuve un problema técnico. Intenta de nuevo en un momento."
-    );
+    // No assistant fallback message is created or sent — the failure is
+    // surfaced only via the Eventos tab, not as a customer-facing WhatsApp
+    // message.
+    expect(sendFromNumber).not.toHaveBeenCalled();
 
     expect(eventLogCreate).toHaveBeenCalledTimes(1);
     expect(eventLogCreate.mock.calls[0][0].data).toMatchObject({

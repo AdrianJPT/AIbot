@@ -12,9 +12,6 @@ import {
 import { resolveWhatsappToken, sendFromNumber } from "./whatsapp";
 import { logEvent } from "./log";
 
-const FALLBACK_REPLY =
-  "Lo siento, tuve un problema técnico. Intenta de nuevo en un momento.";
-
 /**
  * Per-conversation abuse throttle: no Redis, single-replica Railway makes an
  * in-memory limiter viable, but a DB count survives restarts/redeploys.
@@ -339,7 +336,7 @@ async function resolveAiReply(
       { error: describeError(err), conversationId },
       business.id
     );
-    return FALLBACK_REPLY;
+    return null;
   }
 }
 
