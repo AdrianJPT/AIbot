@@ -117,6 +117,45 @@ describe("PATCH/DELETE /api/businesses/[id]", () => {
     expect(res.status).toBe(400);
   });
 
+  it("PATCH clamps a negative replyWindowMs to 0", async () => {
+    getSessionUser.mockResolvedValueOnce(admin);
+    const { PATCH } = await import("../route");
+
+    const res = await PATCH(buildPatch({ replyWindowMs: -5000 }), {
+      params: Promise.resolve({ id: business.id }),
+    });
+    const updated = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(updated.replyWindowMs).toBe(0);
+  });
+
+  it("PATCH clamps a replyWindowMs above 300_000ms down to 300_000", async () => {
+    getSessionUser.mockResolvedValueOnce(admin);
+    const { PATCH } = await import("../route");
+
+    const res = await PATCH(buildPatch({ replyWindowMs: 999_999 }), {
+      params: Promise.resolve({ id: business.id }),
+    });
+    const updated = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(updated.replyWindowMs).toBe(300_000);
+  });
+
+  it("PATCH coerces a non-numeric replyWindowMs to 0 instead of storing NaN", async () => {
+    getSessionUser.mockResolvedValueOnce(admin);
+    const { PATCH } = await import("../route");
+
+    const res = await PATCH(buildPatch({ replyWindowMs: "not-a-number" }), {
+      params: Promise.resolve({ id: business.id }),
+    });
+    const updated = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(updated.replyWindowMs).toBe(0);
+  });
+
   it("DELETE returns 404 for a non-admin caller", async () => {
     getSessionUser.mockResolvedValueOnce(owner);
     const { DELETE } = await import("../route");

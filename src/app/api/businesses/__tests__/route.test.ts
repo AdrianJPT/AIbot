@@ -150,6 +150,26 @@ describe("GET/POST /api/businesses", () => {
     await prisma.business.delete({ where: { id: created.id } });
   });
 
+  it("POST clamps an out-of-range replyWindowMs (negative and over 300s) instead of storing it verbatim", async () => {
+    getSessionUser.mockResolvedValueOnce(admin);
+    const { POST } = await import("../route");
+
+    const res = await POST(
+      buildRequest({
+        name: "Clamped Biz",
+        systemPrompt: "prompt",
+        welcomeMessage: "hola",
+        replyWindowMs: -1,
+      })
+    );
+    const created = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(created.replyWindowMs).toBe(0);
+
+    await prisma.business.delete({ where: { id: created.id } });
+  });
+
   it("POST rejects a WhatsApp token without a phoneNumberId to attach it to", async () => {
     getSessionUser.mockResolvedValueOnce(admin);
     const { POST } = await import("../route");

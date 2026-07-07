@@ -254,6 +254,29 @@ export function BusinessFormFields({
         />
       </div>
 
+      <div className="space-y-1.5 max-w-[280px]">
+        <Label htmlFor="replyWindowSeconds">
+          Ventana de espera antes de responder (segundos)
+        </Label>
+        <Input
+          id="replyWindowSeconds"
+          name="replyWindowSeconds"
+          type="number"
+          min={0}
+          max={300}
+          placeholder="vacío o 0 = responder al instante"
+          defaultValue={
+            business?.replyWindowMs ? business.replyWindowMs / 1000 : ""
+          }
+        />
+        <p className="text-xs text-muted-foreground">
+          Si el cliente manda varios mensajes seguidos, esperamos este tiempo
+          desde el último antes de responder, para juntarlos en una sola
+          respuesta en vez de contestar mensaje por mensaje. Vacío o 0
+          desactiva la espera (responde al instante, como hoy).
+        </p>
+      </div>
+
       <div className="flex items-center gap-2">
         <Switch
           id="isActive"

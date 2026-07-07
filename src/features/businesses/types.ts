@@ -31,6 +31,7 @@ export type BusinessDetail = {
   visionModel: string | null;
   audioModel: string | null;
   maxHistoryMessages: number;
+  replyWindowMs: number;
   isActive: boolean;
   aiCredentialId?: string | null;
   whatsappCredentialId?: string | null;
@@ -70,6 +71,7 @@ export type BusinessInput = {
   visionModel: string;
   audioModel: string;
   maxHistoryMessages: number;
+  replyWindowMs: number;
   isActive: boolean;
   aiCredentialId: string | null;
   whatsappCredentialId: string | null;

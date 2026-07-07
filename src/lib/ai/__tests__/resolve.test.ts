@@ -254,4 +254,88 @@ describe("callWithAiCredential", () => {
     expect(logEvent).not.toHaveBeenCalled();
     expect(credentialUpdate).not.toHaveBeenCalled();
   });
+
+  it("retries once on a 429 and returns the retry's result without logging", async () => {
+    const credential = makeCredential({ id: "cred_active" });
+    credentialFindUnique.mockResolvedValue(credential);
+    const business = makeBusiness({ aiCredentialId: "cred_active" });
+
+    const err = new Error("Rate limited") as Error & { status: number };
+    err.status = 429;
+    const fn = vi.fn().mockRejectedValueOnce(err).mockResolvedValueOnce("ok after retry");
+
+    const result = await callWithAiCredential(business, fn);
+
+    expect(result).toBe("ok after retry");
+    expect(fn).toHaveBeenCalledTimes(2);
+    expect(logEvent).not.toHaveBeenCalled();
+    expect(credentialUpdate).toHaveBeenCalledWith({
+      where: { id: "cred_active" },
+      data: { lastUsedAt: expect.any(Date), lastError: null },
+    });
+  }, 3000);
+
+  it("logs and rethrows with the provider error code when the retry after a 429 also fails", async () => {
+    const credential = makeCredential({ id: "cred_active" });
+    credentialFindUnique.mockResolvedValue(credential);
+    const business = makeBusiness({ aiCredentialId: "cred_active" });
+
+    const err = new Error("Rate limited") as Error & { status: number; code: string };
+    err.status = 429;
+    err.code = "rate_limit_exceeded";
+    const fn = vi.fn().mockRejectedValue(err);
+
+    await expect(callWithAiCredential(business, fn)).rejects.toThrow("Rate limited");
+
+    expect(fn).toHaveBeenCalledTimes(2);
+    expect(logEvent).toHaveBeenCalledWith(
+      "error",
+      "credentials",
+      "AI credential auth failure",
+      expect.objectContaining({
+        credentialId: "cred_active",
+        code: "rate_limit_exceeded",
+        error: "Rate limited: Rate limited",
+      }),
+      business.id
+    );
+    expect(credentialUpdate).toHaveBeenCalledWith({
+      where: { id: "cred_active" },
+      data: { lastError: "Rate limited: Rate limited" },
+    });
+  }, 3000);
+
+  it("prefixes lastError with 'Rate limited:' on a 429, distinguishing it from a plain 401/403 message", async () => {
+    const credential = makeCredential({ id: "cred_429" });
+    credentialFindUnique.mockResolvedValue(credential);
+    const business = makeBusiness({ aiCredentialId: "cred_429" });
+
+    const err = new Error("Too many requests") as Error & { status: number };
+    err.status = 429;
+    const fn = vi.fn().mockRejectedValue(err);
+
+    await expect(callWithAiCredential(business, fn)).rejects.toThrow("Too many requests");
+
+    expect(credentialUpdate).toHaveBeenCalledWith({
+      where: { id: "cred_429" },
+      data: { lastError: "Rate limited: Too many requests" },
+    });
+  });
+
+  it("does NOT prefix lastError on a 401 — stays a plain message distinguishable from the 429 case", async () => {
+    const credential = makeCredential({ id: "cred_401" });
+    credentialFindUnique.mockResolvedValue(credential);
+    const business = makeBusiness({ aiCredentialId: "cred_401" });
+
+    const err = new Error("Invalid API key") as Error & { status: number };
+    err.status = 401;
+    const fn = vi.fn().mockRejectedValue(err);
+
+    await expect(callWithAiCredential(business, fn)).rejects.toThrow("Invalid API key");
+
+    expect(credentialUpdate).toHaveBeenCalledWith({
+      where: { id: "cred_401" },
+      data: { lastError: "Invalid API key" },
+    });
+  });
 });

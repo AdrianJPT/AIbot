@@ -1,6 +1,22 @@
 import { prisma } from "@/lib/db";
 import { ensureWhatsappCredential } from "@/lib/whatsapp";
 
+const MAX_REPLY_WINDOW_MS = 300_000;
+
+/**
+ * Clamps replyWindowMs to a finite integer in [0, 300_000] (0-300s). The
+ * business-form UI enforces this same range client-side (min=0 max=300
+ * seconds), but that's not enough on its own — a negative/huge/non-numeric
+ * value submitted directly to the API would break the "0 = disabled"
+ * contract, so both server-side write paths (this create path and the
+ * PATCH route) clamp through this one helper.
+ */
+export function clampReplyWindowMs(value: unknown): number {
+  const n = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(n)) return 0;
+  return Math.max(0, Math.min(MAX_REPLY_WINDOW_MS, Math.trunc(n)));
+}
+
 export type CreateBusinessInput = {
   name: string;
   phoneNumberId?: string | null;
@@ -13,6 +29,7 @@ export type CreateBusinessInput = {
   visionModel?: string | null;
   audioModel?: string | null;
   maxHistoryMessages?: number;
+  replyWindowMs?: number;
   isActive?: boolean;
   aiCredentialId?: string | null;
   whatsappCredentialId?: string | null;
@@ -66,6 +83,7 @@ export async function createBusinessForOwner(
       visionModel: input.visionModel || null,
       audioModel: input.audioModel || null,
       maxHistoryMessages: input.maxHistoryMessages ?? 20,
+      replyWindowMs: clampReplyWindowMs(input.replyWindowMs ?? 0),
       isActive: input.isActive !== false,
       ownerId,
       aiCredentialId: input.aiCredentialId || null,
