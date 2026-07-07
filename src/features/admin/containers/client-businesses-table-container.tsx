@@ -9,8 +9,11 @@ import type { ClientBusinessItem } from "@/features/admin/types";
 
 export function ClientBusinessesTableContainer({
   businesses,
+  adminId,
 }: {
   businesses: ClientBusinessItem[];
+  // The session admin's own id — "Quitar" reassigns the business back here.
+  adminId: string;
 }) {
   const router = useRouter();
 
@@ -22,6 +25,15 @@ export function ClientBusinessesTableContainer({
       router.refresh();
     },
     onError: (error: Error) => toast.error(error.message || "Error al actualizar"),
+  });
+
+  const unassignMutation = useMutation({
+    mutationFn: (id: string) => updateBusiness(id, { ownerId: adminId }),
+    onSuccess: () => {
+      toast.success("Negocio quitado del cliente");
+      router.refresh();
+    },
+    onError: (error: Error) => toast.error(error.message || "Error al quitar el negocio"),
   });
 
   return (
@@ -37,6 +49,14 @@ export function ClientBusinessesTableContainer({
         }
         toggleMutation.mutate({ id, isActive: nextIsActive });
       }}
+      onUnassign={(id) => {
+        if (!confirm("¿Quitar este negocio del cliente? Vuelve a tu cuenta de administrador.")) {
+          return;
+        }
+        unassignMutation.mutate(id);
+      }}
+      unassigningId={unassignMutation.isPending ? unassignMutation.variables : null}
+      onPhoneNumberAdded={() => router.refresh()}
     />
   );
 }

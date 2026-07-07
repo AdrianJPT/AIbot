@@ -2,6 +2,8 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { ClientBusinessesTableContainer } from "@/features/admin/containers/client-businesses-table-container";
+import { AssociateBusinessDialogContainer } from "@/features/admin/containers/associate-business-dialog-container";
+import { ResendInviteButtonContainer } from "@/features/admin/containers/resend-invite-button-container";
 import { prisma } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth";
 import { aggregateBusinessActivity } from "@/lib/business-activity";
@@ -35,6 +37,15 @@ export default async function AdminClientDetailPage({
     ...aggregateBusinessActivity(conversations),
   }));
 
+  // Businesses still owned by the admin are the ones available to hand
+  // over — same pool as the invite flow's "existing business" mode (see
+  // admin/clients/new/page.tsx).
+  const assignableBusinesses = await prisma.business.findMany({
+    where: { ownerId: user.id },
+    orderBy: { name: "asc" },
+    select: { id: true, name: true },
+  });
+
   return (
     <div>
       <Link
@@ -48,11 +59,18 @@ export default async function AdminClientDetailPage({
           <h1 className="text-2xl font-bold">{client.name || client.email}</h1>
           <p className="text-muted-foreground">{client.email}</p>
         </div>
-        <Button asChild>
-          <Link href={`/admin/clients/${id}/businesses/new`}>Nuevo número</Link>
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <ResendInviteButtonContainer clientId={id} />
+          <AssociateBusinessDialogContainer
+            clientId={id}
+            assignableBusinesses={assignableBusinesses}
+          />
+          <Button asChild variant="outline">
+            <Link href={`/admin/clients/${id}/businesses/new`}>Crear negocio</Link>
+          </Button>
+        </div>
       </div>
-      <ClientBusinessesTableContainer businesses={businesses} />
+      <ClientBusinessesTableContainer businesses={businesses} adminId={user.id} />
     </div>
   );
 }
