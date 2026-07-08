@@ -44,6 +44,12 @@ export async function POST(req: NextRequest) {
   if (!provider || !label || !key) {
     return NextResponse.json({ error: "Faltan campos requeridos" }, { status: 400 });
   }
+  if (kind === "ai" && provider === "custom" && !baseUrl) {
+    return NextResponse.json(
+      { error: "Base URL requerida para un proveedor custom" },
+      { status: 400 }
+    );
+  }
 
   const encryptedKey = encryptSecret(key);
   const keyLast4 = key.slice(-4);

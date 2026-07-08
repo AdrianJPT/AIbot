@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-const AI_PROVIDERS = ["openai", "openrouter", "google"];
+const AI_PROVIDERS = ["openai", "openrouter", "google", "custom"];
 
 export function AddCredentialForm({
   kind,
@@ -84,14 +84,15 @@ export function AddCredentialForm({
             onChange={(e) => onKeyChange(e.target.value)}
           />
         </div>
-        {kind === "ai" && (
+        {kind === "ai" && provider === "custom" && (
           <div className="space-y-1.5">
-            <Label htmlFor="cred-baseurl">Base URL (opcional)</Label>
+            <Label htmlFor="cred-baseurl">Base URL</Label>
             <Input
               id="cred-baseurl"
+              required
               value={baseUrl}
               onChange={(e) => onBaseUrlChange(e.target.value)}
-              placeholder="usa el default del proveedor si se deja vacío"
+              placeholder="https://api.tu-proveedor.com/v1"
             />
           </div>
         )}

@@ -157,6 +157,36 @@ describe("GET/POST /api/credentials", () => {
     expect(created.isActive).toBe(true);
   });
 
+  it("POST returns 400 for a custom provider with no baseUrl", async () => {
+    getSessionUser.mockResolvedValueOnce(admin);
+    const { POST } = await import("../route");
+
+    const res = await POST(
+      buildRequest({ kind: "ai", provider: "custom", label: "x", key: "sk-x" })
+    );
+
+    expect(res.status).toBe(400);
+  });
+
+  it("POST creates a custom provider credential when baseUrl is given", async () => {
+    getSessionUser.mockResolvedValueOnce(admin);
+    const { POST } = await import("../route");
+
+    const res = await POST(
+      buildRequest({
+        kind: "ai",
+        provider: "custom",
+        label: "my-custom",
+        key: "sk-customkey0000",
+        baseUrl: "https://api.example.com/v1",
+      })
+    );
+    const created = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(created.baseUrl).toBe("https://api.example.com/v1");
+  });
+
   it("POST defaults the first ai credential for an owner to priority 0", async () => {
     const { POST } = await import("../route");
     const solo = await createTestUser("cred-solo-owner", "admin");
