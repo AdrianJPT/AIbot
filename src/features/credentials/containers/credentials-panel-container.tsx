@@ -40,6 +40,11 @@ export function CredentialsPanelContainer({
   const [key, setKey] = useState("");
   const [baseUrl, setBaseUrl] = useState("");
 
+  function onProviderChange(next: string) {
+    setProvider(next);
+    if (next !== "custom") setBaseUrl("");
+  }
+
   function refresh() {
     queryClient.invalidateQueries({ queryKey: ["credentials"] });
     router.refresh();
@@ -128,7 +133,7 @@ export function CredentialsPanelContainer({
         baseUrl={baseUrl}
         saving={createMutation.isPending}
         onKindChange={setKind}
-        onProviderChange={setProvider}
+        onProviderChange={onProviderChange}
         onLabelChange={setLabel}
         onKeyChange={setKey}
         onBaseUrlChange={setBaseUrl}

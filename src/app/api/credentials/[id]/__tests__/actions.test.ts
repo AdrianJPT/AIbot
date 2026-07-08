@@ -203,6 +203,23 @@ describe("/api/credentials/[id] actions", () => {
       expect(row.isActive).toBe(false);
     });
 
+    it("rejects clearing baseUrl to empty on a custom-provider credential", async () => {
+      getSessionUser.mockResolvedValueOnce(admin);
+      const { PATCH } = await import("../route");
+      const cred = await createTestCredential(owner.id, {
+        kind: "ai",
+        provider: "custom",
+        baseUrl: "https://api.example.com/v1",
+      });
+
+      const res = await PATCH(
+        buildRequest("https://example.com", { baseUrl: "" }),
+        ctx(cred.id)
+      );
+
+      expect(res.status).toBe(400);
+    });
+
     it("reorders two credentials via two PATCH calls that swap priority", async () => {
       getSessionUser.mockResolvedValueOnce(admin);
       getSessionUser.mockResolvedValueOnce(admin);

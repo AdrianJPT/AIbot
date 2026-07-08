@@ -32,7 +32,7 @@ function EditRow({
   function handleSave() {
     onSave({
       label,
-      ...(credential.kind === "ai" && { baseUrl: baseUrl || undefined }),
+      ...(credential.provider === "custom" && { baseUrl: baseUrl || undefined }),
       ...(key && { key }),
     });
   }
@@ -49,13 +49,14 @@ function EditRow({
               className="h-8 w-40 text-sm"
             />
           </div>
-          {credential.kind === "ai" && (
+          {credential.provider === "custom" && (
             <div className="space-y-1.5">
               <label className="text-xs text-muted-foreground">Base URL</label>
               <Input
+                required
                 value={baseUrl}
                 onChange={(e) => setBaseUrl(e.target.value)}
-                placeholder="default del proveedor"
+                placeholder="https://api.tu-proveedor.com/v1"
                 className="h-8 w-56 text-sm"
               />
             </div>

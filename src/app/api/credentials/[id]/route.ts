@@ -71,6 +71,12 @@ export async function PATCH(
   if (label !== undefined && !label) {
     return NextResponse.json({ error: "El label no puede estar vacío" }, { status: 400 });
   }
+  if (credential.provider === "custom" && baseUrl !== undefined && !baseUrl) {
+    return NextResponse.json(
+      { error: "Base URL requerida para un proveedor custom" },
+      { status: 400 }
+    );
+  }
 
   const data: {
     label?: string;
