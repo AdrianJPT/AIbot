@@ -62,7 +62,10 @@ export function AddPhoneNumberFormContainer({
   }
 
   return (
-    <form onSubmit={onSubmit} className="max-w-md space-y-3 rounded-lg border border-border p-4">
+    <form
+      onSubmit={onSubmit}
+      className="max-w-md space-y-3 rounded-lg border border-border p-4"
+    >
       <div className="space-y-1.5">
         <Label htmlFor="displayPhone">Número de WhatsApp</Label>
         <Input
@@ -77,11 +80,20 @@ export function AddPhoneNumberFormContainer({
         <Input id="phoneNumberId" name="phoneNumberId" required />
       </div>
       <div className="space-y-1.5">
-        <Label htmlFor="whatsappToken">WhatsApp token (opcional si elegís una credencial)</Label>
-        <Input id="whatsappToken" name="whatsappToken" type="password" autoComplete="off" />
+        <Label htmlFor="whatsappToken">
+          WhatsApp token (opcional si elegís una credencial)
+        </Label>
+        <Input
+          id="whatsappToken"
+          name="whatsappToken"
+          type="password"
+          autoComplete="off"
+        />
       </div>
       <div className="space-y-1.5">
-        <Label htmlFor="whatsappCredentialId">Credencial de WhatsApp (opcional)</Label>
+        <Label htmlFor="whatsappCredentialId">
+          Credencial de WhatsApp (opcional)
+        </Label>
         <select
           id="whatsappCredentialId"
           name="whatsappCredentialId"

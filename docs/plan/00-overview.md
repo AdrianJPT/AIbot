@@ -16,19 +16,20 @@ AIbot is a multi-business WhatsApp AI assistant (Next.js 16 App Router + Prisma 
 
 ## 2. Current state (evidence)
 
-| Area | State | Evidence |
-|------|-------|----------|
-| Auth | **None.** Every API route and page is public | `src/app/api/conversations/[id]/send/route.ts` (no session check), all of `src/app/api/**` |
-| AI key | Single global `OPENAI_API_KEY` env var; changing it requires redeploy | `src/lib/openai.ts:8` |
-| WhatsApp token | Plaintext per business in DB | `prisma/schema.prisma:16` (`Business.whatsappToken`) |
-| Webhook | No signature verification; fire-and-forget error swallowing | `src/app/api/webhook/route.ts` |
-| Takeover | Partially exists: `handed_off` status skips bot reply; manual send route works | `src/lib/message-handler.ts:81-91`, `src/app/api/conversations/[id]/handoff/route.ts`, `src/app/api/conversations/[id]/send/route.ts` |
-| Realtime | None — UI uses `router.refresh()` after actions only | `src/components/conversation-view.tsx:43,61` |
-| UI structure | Flat pages + ad-hoc components, dark-only, desktop-oriented | `src/app/*/page.tsx`, `src/components/*` |
-| Frontend deps | next 16, react 18, tailwind 3, no UI library, no state/query library | `package.json:17-25` |
-| Data model | `Business`, `Conversation`, `Message`, `Appointment` — no `User`, no ownership, no provider/credential models | `prisma/schema.prisma` |
+| Area           | State                                                                                                         | Evidence                                                                                                                              |
+| -------------- | ------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| Auth           | **None.** Every API route and page is public                                                                  | `src/app/api/conversations/[id]/send/route.ts` (no session check), all of `src/app/api/**`                                            |
+| AI key         | Single global `OPENAI_API_KEY` env var; changing it requires redeploy                                         | `src/lib/openai.ts:8`                                                                                                                 |
+| WhatsApp token | Plaintext per business in DB                                                                                  | `prisma/schema.prisma:16` (`Business.whatsappToken`)                                                                                  |
+| Webhook        | No signature verification; fire-and-forget error swallowing                                                   | `src/app/api/webhook/route.ts`                                                                                                        |
+| Takeover       | Partially exists: `handed_off` status skips bot reply; manual send route works                                | `src/lib/message-handler.ts:81-91`, `src/app/api/conversations/[id]/handoff/route.ts`, `src/app/api/conversations/[id]/send/route.ts` |
+| Realtime       | None — UI uses `router.refresh()` after actions only                                                          | `src/components/conversation-view.tsx:43,61`                                                                                          |
+| UI structure   | Flat pages + ad-hoc components, dark-only, desktop-oriented                                                   | `src/app/*/page.tsx`, `src/components/*`                                                                                              |
+| Frontend deps  | next 16, react 18, tailwind 3, no UI library, no state/query library                                          | `package.json:17-25`                                                                                                                  |
+| Data model     | `Business`, `Conversation`, `Message`, `Appointment` — no `User`, no ownership, no provider/credential models | `prisma/schema.prisma`                                                                                                                |
 
 Related prior work:
+
 - **PR #1** (`docs/IMPROVEMENT_PLAN.md`): general scalability/fix audit. Still valid as a bug-fix reference; this plan supersedes its feature roadmap.
 - **PR #2** (`worktree-multi-provider`): added `Business.provider` column + multi-provider via OpenAI SDK `baseURL`. **Do not merge as-is** — Phase 3 absorbs and supersedes it with credential-based provider resolution.
 
@@ -36,18 +37,18 @@ Related prior work:
 
 These were decided with the product owner on 2026-07-05. Do not re-litigate them during implementation.
 
-| Decision | Choice | Rationale |
-|----------|--------|-----------|
-| Auth provider | **Supabase Auth** (`@supabase/ssr`) with Google OAuth + email magic link + email/password, all shown together | Already on Supabase; no extra service; covers users who don't want Google or don't want to wait for an email |
-| Tenancy model | **Multi-tenant**: `User` owns `Business`es via `ownerId`; every query scoped by owner | Prepares SaaS; single-team mode is just one user |
-| Chat mode | **Human takeover**: admin can pause bot per conversation and send manual replies | Already half-built (`handed_off` status) |
-| Realtime transport | **Supabase Realtime** (`postgres_changes` on `Message`/`Conversation`) | Messages are inserted server-side by the webhook; DB-level change feed reaches all clients with zero extra infra |
-| Key storage | **Encrypted in DB** (AES-256-GCM, master key `APP_ENCRYPTION_KEY` in env), resolved per-request | Enables zero-downtime rotation from the UI; env vars require redeploy |
-| Key rotation model | **Versioned credentials** with `active`/`standby`/`revoked` status; activate-before-revoke | No window where no valid key exists |
-| UI library | **shadcn/ui** (Radix + Tailwind) + lucide-react icons | Unstyled-by-default, copy-in components, no runtime lock-in |
-| Frontend architecture | **Feature folders** (`src/features/*`) + container/presentational split | Screaming architecture; features are discoverable by name |
-| Data fetching (client) | **TanStack Query** for client mutations/queries + Supabase Realtime for live updates | Cache invalidation on realtime events; optimistic sends |
-| UI language | **Spanish (es)** for user-facing copy (existing convention); **English** for code, identifiers, comments | Matches current codebase (`conversation-view.tsx` copy is Spanish) |
+| Decision               | Choice                                                                                                        | Rationale                                                                                                        |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| Auth provider          | **Supabase Auth** (`@supabase/ssr`) with Google OAuth + email magic link + email/password, all shown together | Already on Supabase; no extra service; covers users who don't want Google or don't want to wait for an email     |
+| Tenancy model          | **Multi-tenant**: `User` owns `Business`es via `ownerId`; every query scoped by owner                         | Prepares SaaS; single-team mode is just one user                                                                 |
+| Chat mode              | **Human takeover**: admin can pause bot per conversation and send manual replies                              | Already half-built (`handed_off` status)                                                                         |
+| Realtime transport     | **Supabase Realtime** (`postgres_changes` on `Message`/`Conversation`)                                        | Messages are inserted server-side by the webhook; DB-level change feed reaches all clients with zero extra infra |
+| Key storage            | **Encrypted in DB** (AES-256-GCM, master key `APP_ENCRYPTION_KEY` in env), resolved per-request               | Enables zero-downtime rotation from the UI; env vars require redeploy                                            |
+| Key rotation model     | **Versioned credentials** with `active`/`standby`/`revoked` status; activate-before-revoke                    | No window where no valid key exists                                                                              |
+| UI library             | **shadcn/ui** (Radix + Tailwind) + lucide-react icons                                                         | Unstyled-by-default, copy-in components, no runtime lock-in                                                      |
+| Frontend architecture  | **Feature folders** (`src/features/*`) + container/presentational split                                       | Screaming architecture; features are discoverable by name                                                        |
+| Data fetching (client) | **TanStack Query** for client mutations/queries + Supabase Realtime for live updates                          | Cache invalidation on realtime events; optimistic sends                                                          |
+| UI language            | **Spanish (es)** for user-facing copy (existing convention); **English** for code, identifiers, comments      | Matches current codebase (`conversation-view.tsx` copy is Spanish)                                               |
 
 ## 4. Phase map
 
@@ -61,15 +62,15 @@ Phase 1: Foundations & security   (blocks everything)
                                └─> Phase 7: WABA / PhoneNumber hierarchy
 ```
 
-| Phase | File | Depends on | Rough size |
-|-------|------|-----------|------------|
-| 1. Foundations & security | `01-foundations.md` | — | 2–3 PRs |
-| 2. Auth & multi-tenancy | `02-auth-multitenancy.md` | 1 | 2–3 PRs |
-| 3. Provider & key management | `03-provider-key-management.md` | 2 | 2–3 PRs |
-| 4. Frontend restructure | `04-frontend-restructure.md` | 2 | 2–3 PRs |
-| 5. Realtime chat & takeover | `05-realtime-chat.md` | 4 (and 2) | 3–4 PRs |
-| 6. Hardening & extras | `06-hardening-extras.md` | 5 | independent PRs |
-| 7. WABA / PhoneNumber hierarchy | `07-waba-phone-numbers.md` | 2, 3, 5 | 3 chained PRs |
+| Phase                           | File                            | Depends on | Rough size      |
+| ------------------------------- | ------------------------------- | ---------- | --------------- |
+| 1. Foundations & security       | `01-foundations.md`             | —          | 2–3 PRs         |
+| 2. Auth & multi-tenancy         | `02-auth-multitenancy.md`       | 1          | 2–3 PRs         |
+| 3. Provider & key management    | `03-provider-key-management.md` | 2          | 2–3 PRs         |
+| 4. Frontend restructure         | `04-frontend-restructure.md`    | 2          | 2–3 PRs         |
+| 5. Realtime chat & takeover     | `05-realtime-chat.md`           | 4 (and 2)  | 3–4 PRs         |
+| 6. Hardening & extras           | `06-hardening-extras.md`        | 5          | independent PRs |
+| 7. WABA / PhoneNumber hierarchy | `07-waba-phone-numbers.md`      | 2, 3, 5    | 3 chained PRs   |
 
 Phases 3 and 4 are parallelizable after Phase 2 lands.
 
@@ -87,12 +88,12 @@ Phases 3 and 4 are parallelizable after Phase 2 lands.
 
 ## 6. Environment variables (final state)
 
-| Var | Introduced in | Purpose |
-|-----|--------------|---------|
-| `DATABASE_URL` / `DIRECT_URL` | existing | Pooled / direct Postgres |
-| `WEBHOOK_VERIFY_TOKEN` | existing | Webhook GET verification |
-| `WHATSAPP_APP_SECRET` | Phase 1 | Webhook signature verification |
-| `OPENAI_API_KEY` | existing → **removed** | AI keys are managed exclusively from `/settings/credentials` (no env fallback) |
-| `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Phase 2 | Supabase Auth + Realtime (client) |
-| `SUPABASE_SERVICE_ROLE_KEY` | Phase 2 | Server-side auth admin ops |
-| `APP_ENCRYPTION_KEY` | Phase 3 | 32-byte base64 master key for credential encryption |
+| Var                                                         | Introduced in          | Purpose                                                                        |
+| ----------------------------------------------------------- | ---------------------- | ------------------------------------------------------------------------------ |
+| `DATABASE_URL` / `DIRECT_URL`                               | existing               | Pooled / direct Postgres                                                       |
+| `WEBHOOK_VERIFY_TOKEN`                                      | existing               | Webhook GET verification                                                       |
+| `WHATSAPP_APP_SECRET`                                       | Phase 1                | Webhook signature verification                                                 |
+| `OPENAI_API_KEY`                                            | existing → **removed** | AI keys are managed exclusively from `/settings/credentials` (no env fallback) |
+| `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Phase 2                | Supabase Auth + Realtime (client)                                              |
+| `SUPABASE_SERVICE_ROLE_KEY`                                 | Phase 2                | Server-side auth admin ops                                                     |
+| `APP_ENCRYPTION_KEY`                                        | Phase 3                | 32-byte base64 master key for credential encryption                            |

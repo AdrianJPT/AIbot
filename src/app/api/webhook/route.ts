@@ -2,7 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { processWebhookPayload } from "@/lib/message-handler";
 
-function isValidSignature(rawBody: string, signatureHeader: string | null): boolean {
+function isValidSignature(
+  rawBody: string,
+  signatureHeader: string | null,
+): boolean {
   if (!signatureHeader) return false;
 
   const [scheme, providedHex] = signatureHeader.split("=");
@@ -48,7 +51,7 @@ export async function POST(req: NextRequest) {
   try {
     const body = JSON.parse(rawBody);
     void processWebhookPayload(body).catch((e) =>
-      console.error("Webhook process error:", e)
+      console.error("Webhook process error:", e),
     );
   } catch (e) {
     console.error("Webhook parse error:", e);

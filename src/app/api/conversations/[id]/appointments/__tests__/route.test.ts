@@ -15,7 +15,9 @@ vi.mock("@/lib/auth", () => ({
 }));
 
 function buildRequest(): NextRequest {
-  return new NextRequest("https://example.com/api/conversations/x/appointments");
+  return new NextRequest(
+    "https://example.com/api/conversations/x/appointments",
+  );
 }
 
 describe("GET /api/conversations/[id]/appointments", () => {
@@ -43,7 +45,9 @@ describe("GET /api/conversations/[id]/appointments", () => {
   });
 
   afterAll(async () => {
-    await prisma.appointment.deleteMany({ where: { conversationId: conversation.id } });
+    await prisma.appointment.deleteMany({
+      where: { conversationId: conversation.id },
+    });
     await cleanupOwnershipFixtures([owner.id, other.id]);
   });
 

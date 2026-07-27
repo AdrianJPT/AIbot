@@ -13,7 +13,10 @@ import {
   swapCredentialPriority,
   updateCredential,
 } from "@/features/credentials/api";
-import type { Credential, UpdateCredentialInput } from "@/features/credentials/types";
+import type {
+  Credential,
+  UpdateCredentialInput,
+} from "@/features/credentials/types";
 
 const GROUPS: Array<{ kind: string; title: string }> = [
   { kind: "ai", title: "IA" },
@@ -63,8 +66,13 @@ export function CredentialsPanelContainer({
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, payload }: { id: string; payload: UpdateCredentialInput }) =>
-      updateCredential(id, payload),
+    mutationFn: ({
+      id,
+      payload,
+    }: {
+      id: string;
+      payload: UpdateCredentialInput;
+    }) => updateCredential(id, payload),
     onSuccess: () => {
       toast.success("Credencial actualizada");
       refresh();
@@ -85,7 +93,8 @@ export function CredentialsPanelContainer({
     mutationFn: ({ id, withId }: { id: string; withId: string }) =>
       swapCredentialPriority(id, withId),
     onSuccess: () => refresh(),
-    onError: (error: Error) => toast.error(error.message || "Error al reordenar"),
+    onError: (error: Error) =>
+      toast.error(error.message || "Error al reordenar"),
   });
 
   const busyId =
@@ -117,7 +126,11 @@ export function CredentialsPanelContainer({
           onUpdate={(id, payload) => updateMutation.mutate({ id, payload })}
           onSwapPriority={(id, withId) => swapMutation.mutate({ id, withId })}
           onDelete={(id) => {
-            if (!confirm("¿Eliminar esta credencial? Esta acción no se puede deshacer.")) {
+            if (
+              !confirm(
+                "¿Eliminar esta credencial? Esta acción no se puede deshacer.",
+              )
+            ) {
               return;
             }
             deleteMutation.mutate(id);

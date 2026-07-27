@@ -32,10 +32,12 @@ export default async function AdminClientDetailPage({
   });
   if (!client) notFound();
 
-  const businesses = client.businesses.map(({ conversations, ...business }) => ({
-    ...flattenBusinessPhoneNumber(business),
-    ...aggregateBusinessActivity(conversations),
-  }));
+  const businesses = client.businesses.map(
+    ({ conversations, ...business }) => ({
+      ...flattenBusinessPhoneNumber(business),
+      ...aggregateBusinessActivity(conversations),
+    }),
+  );
 
   // Businesses still owned by the admin are the ones available to hand
   // over — same pool as the invite flow's "existing business" mode (see
@@ -66,11 +68,16 @@ export default async function AdminClientDetailPage({
             assignableBusinesses={assignableBusinesses}
           />
           <Button asChild variant="outline">
-            <Link href={`/admin/clients/${id}/businesses/new`}>Crear negocio</Link>
+            <Link href={`/admin/clients/${id}/businesses/new`}>
+              Crear negocio
+            </Link>
           </Button>
         </div>
       </div>
-      <ClientBusinessesTableContainer businesses={businesses} adminId={user.id} />
+      <ClientBusinessesTableContainer
+        businesses={businesses}
+        adminId={user.id}
+      />
     </div>
   );
 }

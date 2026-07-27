@@ -23,7 +23,9 @@ export function EventFiltersBar({
     <div className="flex flex-wrap gap-3">
       <Select
         value={filters.level ?? ALL}
-        onValueChange={(v) => onChange({ ...filters, level: v === ALL ? undefined : v })}
+        onValueChange={(v) =>
+          onChange({ ...filters, level: v === ALL ? undefined : v })
+        }
       >
         <SelectTrigger className="w-40">
           <SelectValue placeholder="Nivel" />
@@ -40,7 +42,9 @@ export function EventFiltersBar({
 
       <Select
         value={filters.source ?? ALL}
-        onValueChange={(v) => onChange({ ...filters, source: v === ALL ? undefined : v })}
+        onValueChange={(v) =>
+          onChange({ ...filters, source: v === ALL ? undefined : v })
+        }
       >
         <SelectTrigger className="w-48">
           <SelectValue placeholder="Origen" />

@@ -11,12 +11,16 @@ vi.mock("@/lib/message-handler", () => ({
 const APP_SECRET = "test-app-secret";
 
 function signBody(rawBody: string): string {
-  const hex = createHmac("sha256", APP_SECRET).update(rawBody, "utf8").digest("hex");
+  const hex = createHmac("sha256", APP_SECRET)
+    .update(rawBody, "utf8")
+    .digest("hex");
   return `sha256=${hex}`;
 }
 
 function buildRequest(rawBody: string, signature?: string | null): NextRequest {
-  const headers: Record<string, string> = { "content-type": "application/json" };
+  const headers: Record<string, string> = {
+    "content-type": "application/json",
+  };
   if (signature) headers["x-hub-signature-256"] = signature;
   return new NextRequest("https://example.com/api/webhook", {
     method: "POST",

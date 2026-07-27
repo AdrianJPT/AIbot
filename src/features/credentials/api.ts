@@ -17,7 +17,9 @@ export function fetchCredentials(): Promise<Credential[]> {
   return request<Credential[]>("/api/credentials");
 }
 
-export function createCredential(payload: NewCredentialInput): Promise<Credential> {
+export function createCredential(
+  payload: NewCredentialInput,
+): Promise<Credential> {
   return request<Credential>("/api/credentials", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -31,7 +33,7 @@ export function deleteCredential(id: string) {
 
 export function updateCredential(
   id: string,
-  payload: UpdateCredentialInput
+  payload: UpdateCredentialInput,
 ): Promise<Credential> {
   return request<Credential>(`/api/credentials/${id}`, {
     method: "PATCH",
@@ -40,7 +42,10 @@ export function updateCredential(
   });
 }
 
-export function swapCredentialPriority(id: string, withId: string): Promise<unknown> {
+export function swapCredentialPriority(
+  id: string,
+  withId: string,
+): Promise<unknown> {
   return request(`/api/credentials/${id}/swap-priority`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },

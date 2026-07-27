@@ -8,7 +8,10 @@ import type {
   ConversationFilter,
   ConversationListItem,
 } from "@/features/conversations/types";
-import type { BusinessOption, PhoneNumberItem } from "@/features/businesses/types";
+import type {
+  BusinessOption,
+  PhoneNumberItem,
+} from "@/features/businesses/types";
 
 const SELECT_CLASSNAME =
   "flex h-9 flex-1 rounded-md border border-input bg-background px-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50";
@@ -69,9 +72,15 @@ export function ConversationList({
         <h1 className="px-1 text-lg font-bold">Conversaciones</h1>
         {numberFilterLabel && (
           <p className="px-1 text-sm text-muted-foreground">
-            Viendo <span className="font-medium text-foreground">{numberFilterLabel}</span>{" "}
+            Viendo{" "}
+            <span className="font-medium text-foreground">
+              {numberFilterLabel}
+            </span>{" "}
             ·{" "}
-            <Link href="/conversations" className="text-primary hover:underline">
+            <Link
+              href="/conversations"
+              className="text-primary hover:underline"
+            >
               Ver todas
             </Link>
           </p>
@@ -83,7 +92,9 @@ export function ConversationList({
                 aria-label="Filtrar por negocio"
                 className={SELECT_CLASSNAME}
                 value={businessId ?? ""}
-                onChange={(e) => onBusinessIdChange(e.target.value || undefined)}
+                onChange={(e) =>
+                  onBusinessIdChange(e.target.value || undefined)
+                }
               >
                 <option value="">Todos los negocios</option>
                 {businesses.map((b) => (
@@ -98,7 +109,9 @@ export function ConversationList({
                 aria-label="Filtrar por número"
                 className={SELECT_CLASSNAME}
                 value={phoneNumberId ?? ""}
-                onChange={(e) => onPhoneNumberIdChange(e.target.value || undefined)}
+                onChange={(e) =>
+                  onPhoneNumberIdChange(e.target.value || undefined)
+                }
               >
                 <option value="">Todos los números</option>
                 {phoneNumbers.map((p) => (
@@ -115,7 +128,10 @@ export function ConversationList({
           onChange={(e) => onSearchChange(e.target.value)}
           placeholder="Buscar por nombre o teléfono…"
         />
-        <Tabs value={filter} onValueChange={(v) => onFilterChange(v as ConversationFilter)}>
+        <Tabs
+          value={filter}
+          onValueChange={(v) => onFilterChange(v as ConversationFilter)}
+        >
           <TabsList className="grid w-full grid-cols-4">
             {TABS.map((tab) => (
               <TabsTrigger key={tab.value} value={tab.value}>

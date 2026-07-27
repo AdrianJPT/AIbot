@@ -13,10 +13,11 @@ import { requireAdmin } from "@/lib/auth";
  */
 export async function POST(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   const user = await requireAdmin();
-  if (!user) return NextResponse.json({ error: "No encontrado" }, { status: 404 });
+  if (!user)
+    return NextResponse.json({ error: "No encontrado" }, { status: 404 });
 
   const { id } = await params;
   const body = await req.json().catch(() => ({}));
@@ -26,7 +27,10 @@ export async function POST(
     return NextResponse.json({ error: "Falta withId" }, { status: 400 });
   }
   if (withId === id) {
-    return NextResponse.json({ error: "No se puede intercambiar con sí misma" }, { status: 400 });
+    return NextResponse.json(
+      { error: "No se puede intercambiar con sí misma" },
+      { status: 400 },
+    );
   }
 
   const [current, other] = await Promise.all([
@@ -49,5 +53,8 @@ export async function POST(
     }),
   ]);
 
-  return NextResponse.json({ ok: true, credentials: [updatedCurrent, updatedOther] });
+  return NextResponse.json({
+    ok: true,
+    credentials: [updatedCurrent, updatedOther],
+  });
 }

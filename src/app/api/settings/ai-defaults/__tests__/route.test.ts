@@ -75,14 +75,16 @@ describe("GET/PATCH /api/settings/ai-defaults", () => {
         chatModel: "gpt-4o-mini",
         visionModel: "gpt-4o-mini",
         audioModel: "whisper-1",
-      })
+      }),
     );
 
     expect(res.status).toBe(400);
   });
 
   it("PATCH updates the defaults for a valid admin-owned whatsapp credential", async () => {
-    const credential = await createTestCredential(admin.id, { kind: "whatsapp" });
+    const credential = await createTestCredential(admin.id, {
+      kind: "whatsapp",
+    });
     getSessionUser.mockResolvedValueOnce(admin);
     const { PATCH } = await import("../route");
 
@@ -92,7 +94,7 @@ describe("GET/PATCH /api/settings/ai-defaults", () => {
         chatModel: "gemini-2.0-flash",
         visionModel: "gemini-2.0-flash",
         audioModel: "whisper-1",
-      })
+      }),
     );
     const body = await res.json();
 

@@ -37,7 +37,11 @@ export function MessageComposer({
         className="min-h-[44px] flex-1 resize-none"
         rows={1}
       />
-      <Button type="button" onClick={submit} disabled={disabled || !text.trim()}>
+      <Button
+        type="button"
+        onClick={submit}
+        disabled={disabled || !text.trim()}
+      >
         Enviar
       </Button>
     </div>

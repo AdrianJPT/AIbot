@@ -3,7 +3,10 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createBusinessForOwner, validateCreateBusinessInput } from "@/lib/businesses/create";
+import {
+  createBusinessForOwner,
+  validateCreateBusinessInput,
+} from "@/lib/businesses/create";
 import { ownsCredentials } from "@/lib/credentials/usage";
 
 // Invites a new client, optionally with a business: `businessId` hands over
@@ -17,7 +20,8 @@ import { ownsCredentials } from "@/lib/credentials/usage";
 // in the error.
 export async function POST(req: NextRequest) {
   const admin = await requireAdmin();
-  if (!admin) return NextResponse.json({ error: "No encontrado" }, { status: 404 });
+  if (!admin)
+    return NextResponse.json({ error: "No encontrado" }, { status: 404 });
 
   const body = await req.json();
   const { email, name, business, businessId } = body as {
@@ -36,13 +40,15 @@ export async function POST(req: NextRequest) {
   if (businessId && businessInput) {
     return NextResponse.json(
       { error: "Elegí un negocio existente o creá uno nuevo, no ambos" },
-      { status: 400 }
+      { status: 400 },
     );
   }
 
   let existingBusiness = null;
   if (businessId) {
-    existingBusiness = await prisma.business.findUnique({ where: { id: businessId } });
+    existingBusiness = await prisma.business.findUnique({
+      where: { id: businessId },
+    });
     if (!existingBusiness) {
       return NextResponse.json({ error: "Negocio inválido" }, { status: 400 });
     }
@@ -60,7 +66,10 @@ export async function POST(req: NextRequest) {
         businessInput.whatsappCredentialId as string | null | undefined,
       ]);
       if (!owned) {
-        return NextResponse.json({ error: "Credencial inválida" }, { status: 400 });
+        return NextResponse.json(
+          { error: "Credencial inválida" },
+          { status: 400 },
+        );
       }
     }
 
@@ -75,7 +84,7 @@ export async function POST(req: NextRequest) {
       if (duplicatePhoneNumber) {
         return NextResponse.json(
           { error: "Ese número ya está registrado en otro cliente" },
-          { status: 409 }
+          { status: 409 },
         );
       }
     }
@@ -89,7 +98,7 @@ export async function POST(req: NextRequest) {
   if (error || !data.user) {
     return NextResponse.json(
       { error: error?.message || "No se pudo invitar al cliente" },
-      { status: 400 }
+      { status: 400 },
     );
   }
 
@@ -104,10 +113,13 @@ export async function POST(req: NextRequest) {
       },
     });
   } catch (err) {
-    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+    if (
+      err instanceof Prisma.PrismaClientKnownRequestError &&
+      err.code === "P2002"
+    ) {
       return NextResponse.json(
         { error: "Ya existe un cliente con ese email" },
-        { status: 409 }
+        { status: 409 },
       );
     }
     throw err;
@@ -122,7 +134,7 @@ export async function POST(req: NextRequest) {
     } else if (businessInput) {
       await createBusinessForOwner(
         client.id,
-        businessInput as Parameters<typeof createBusinessForOwner>[1]
+        businessInput as Parameters<typeof createBusinessForOwner>[1],
       );
     }
   } catch (err) {
@@ -134,7 +146,7 @@ export async function POST(req: NextRequest) {
       {
         error: `El cliente se invitó, pero no se pudo asignar el negocio (${detail}). Asignáselo desde la edición del negocio.`,
       },
-      { status: 409 }
+      { status: 409 },
     );
   }
 

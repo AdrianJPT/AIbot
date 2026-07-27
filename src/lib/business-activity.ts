@@ -15,13 +15,14 @@ type ConversationActivity = Pick<Conversation, "unreadCount" | "lastMessageAt">;
  * (per-business and rolled up per-user).
  */
 export function aggregateBusinessActivity(
-  conversations: ConversationActivity[]
+  conversations: ConversationActivity[],
 ): BusinessActivity {
   const conversationsCount = conversations.length;
   const unreadCount = conversations.reduce((sum, c) => sum + c.unreadCount, 0);
   const lastActivityAt = conversations.reduce<Date | null>(
-    (latest, c) => (!latest || c.lastMessageAt > latest ? c.lastMessageAt : latest),
-    null
+    (latest, c) =>
+      !latest || c.lastMessageAt > latest ? c.lastMessageAt : latest,
+    null,
   );
   return { conversationsCount, unreadCount, lastActivityAt };
 }

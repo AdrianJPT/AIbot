@@ -1,6 +1,9 @@
 /** Formatting helpers for the chat UI (list items, thread bubbles, banners). */
 
-export function initialsFrom(name: string | null | undefined, phone: string): string {
+export function initialsFrom(
+  name: string | null | undefined,
+  phone: string,
+): string {
   const source = name?.trim();
   if (source) {
     const parts = source.split(/\s+/).filter(Boolean);
@@ -52,7 +55,9 @@ function isSameDay(a: Date, b: Date): boolean {
 const WHATSAPP_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 /** True when the last customer message is older than WhatsApp's 24h window. */
-export function isOutsideWhatsAppWindow(lastCustomerMessageAt: string | Date | null): boolean {
+export function isOutsideWhatsAppWindow(
+  lastCustomerMessageAt: string | Date | null,
+): boolean {
   if (!lastCustomerMessageAt) return false;
   const d =
     typeof lastCustomerMessageAt === "string"

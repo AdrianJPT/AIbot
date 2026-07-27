@@ -27,10 +27,10 @@ export function InviteClientFormContainer({
 }) {
   const router = useRouter();
   const [businessMode, setBusinessMode] = useState<BusinessMode>(
-    assignableBusinesses.length > 0 ? "existing" : "new"
+    assignableBusinesses.length > 0 ? "existing" : "new",
   );
   const [selectedBusinessId, setSelectedBusinessId] = useState<string>(
-    assignableBusinesses[0]?.id ?? ""
+    assignableBusinesses[0]?.id ?? "",
   );
   const { data: credentials = [] } = useQuery({
     queryKey: ["credentials"],
@@ -94,7 +94,8 @@ export function InviteClientFormContainer({
         replyWindowMs: (Number(fd.get("replyWindowSeconds")) || 0) * 1000,
         isActive: fd.get("isActive") === "on",
         aiCredentialId: (fd.get("aiCredentialId") as string) || null,
-        whatsappCredentialId: (fd.get("whatsappCredentialId") as string) || null,
+        whatsappCredentialId:
+          (fd.get("whatsappCredentialId") as string) || null,
       },
     });
   }
@@ -127,7 +128,10 @@ export function InviteClientFormContainer({
             onChange={(e) => setBusinessMode(e.target.value as BusinessMode)}
             className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           >
-            <option value="existing" disabled={assignableBusinesses.length === 0}>
+            <option
+              value="existing"
+              disabled={assignableBusinesses.length === 0}
+            >
               Un negocio existente
             </option>
             <option value="new">Crear uno nuevo</option>
@@ -151,7 +155,9 @@ export function InviteClientFormContainer({
           </div>
         )}
 
-        {businessMode === "new" && <BusinessFormFields credentials={credentials} />}
+        {businessMode === "new" && (
+          <BusinessFormFields credentials={credentials} />
+        )}
       </div>
 
       <Button type="submit" disabled={mutation.isPending}>

@@ -10,17 +10,22 @@ import { resendClientInvite } from "@/features/admin/api";
  * email, or — once the client has already accepted it once — a magic-link
  * OTP instead (see POST /api/admin/clients/[id]/resend-invite).
  */
-export function ResendInviteButtonContainer({ clientId }: { clientId: string }) {
+export function ResendInviteButtonContainer({
+  clientId,
+}: {
+  clientId: string;
+}) {
   const mutation = useMutation({
     mutationFn: () => resendClientInvite(clientId),
     onSuccess: (data) => {
       toast.success(
         data.method === "invite"
           ? "Invitación reenviada"
-          : "Enlace mágico enviado"
+          : "Enlace mágico enviado",
       );
     },
-    onError: (error: Error) => toast.error(error.message || "Error al reenviar el acceso"),
+    onError: (error: Error) =>
+      toast.error(error.message || "Error al reenviar el acceso"),
   });
 
   return (

@@ -28,10 +28,11 @@ function formatLine(sender: string, createdAt: Date, content: string): string {
  */
 export async function GET(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   const user = await getSessionUser();
-  if (!user) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  if (!user)
+    return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
   const { id } = await params;
   const conversation = await prisma.conversation.findFirst({
@@ -47,7 +48,7 @@ export async function GET(
   });
 
   const lines = messages.map((m) =>
-    formatLine(SENDER_LABEL[m.sentBy] ?? m.sentBy, m.createdAt, m.content)
+    formatLine(SENDER_LABEL[m.sentBy] ?? m.sentBy, m.createdAt, m.content),
   );
   const body = lines.join("\n") + (lines.length ? "\n" : "");
 

@@ -25,7 +25,8 @@ export function NewAppointmentFormContainer() {
       router.push("/appointments");
       router.refresh();
     },
-    onError: (error: Error) => toast.error(error.message || "Error al crear la cita"),
+    onError: (error: Error) =>
+      toast.error(error.message || "Error al crear la cita"),
   });
 
   function onSubmit(e: React.FormEvent<HTMLFormElement>) {

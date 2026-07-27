@@ -15,7 +15,7 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
 }
 
 export function fetchConversations(
-  options: { q?: string; businessId?: string; phoneNumberId?: string } = {}
+  options: { q?: string; businessId?: string; phoneNumberId?: string } = {},
 ): Promise<ConversationListItem[]> {
   const { q, businessId, phoneNumberId } = options;
   const params = new URLSearchParams();
@@ -29,7 +29,7 @@ export function fetchConversations(
 export function fetchMessages(
   conversationId: string,
   cursor?: string | null,
-  limit = 50
+  limit = 50,
 ): Promise<MessagesPage> {
   const params = new URLSearchParams({ limit: String(limit) });
   if (cursor) params.set("cursor", cursor);
@@ -61,14 +61,14 @@ export function deleteConversation(id: string) {
 }
 
 export function fetchConversationAppointments(
-  id: string
+  id: string,
 ): Promise<ConversationAppointment[]> {
   return request(`/api/conversations/${id}/appointments`);
 }
 
 export function sendManualMessage(
   id: string,
-  text: string
+  text: string,
 ): Promise<ConversationMessage> {
   return request(`/api/conversations/${id}/send`, {
     method: "POST",

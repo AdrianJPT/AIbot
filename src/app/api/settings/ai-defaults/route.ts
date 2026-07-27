@@ -19,7 +19,8 @@ const SELECT = {
 // callWithAiCredential()/resolveCandidates() in src/lib/ai/resolve.ts.
 export async function GET() {
   const admin = await requireAdmin();
-  if (!admin) return NextResponse.json({ error: "No encontrado" }, { status: 404 });
+  if (!admin)
+    return NextResponse.json({ error: "No encontrado" }, { status: 404 });
 
   const config = await prisma.appConfig.upsert({
     where: { id: "default" },
@@ -32,7 +33,8 @@ export async function GET() {
 
 export async function PATCH(req: NextRequest) {
   const admin = await requireAdmin();
-  if (!admin) return NextResponse.json({ error: "No encontrado" }, { status: 404 });
+  if (!admin)
+    return NextResponse.json({ error: "No encontrado" }, { status: 404 });
 
   const body = await req.json();
   const { whatsappCredentialId, chatModel, visionModel, audioModel } = body;
@@ -42,14 +44,17 @@ export async function PATCH(req: NextRequest) {
       where: { id: whatsappCredentialId, ownerId: admin.id, kind: "whatsapp" },
     });
     if (!owned) {
-      return NextResponse.json({ error: "Credencial inválida" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Credencial inválida" },
+        { status: 400 },
+      );
     }
   }
 
   if (!chatModel || !visionModel || !audioModel) {
     return NextResponse.json(
       { error: "Los 3 modelos por defecto son obligatorios" },
-      { status: 400 }
+      { status: 400 },
     );
   }
 

@@ -9,7 +9,10 @@ import {
   fetchCredentials,
   updateBusiness,
 } from "@/features/businesses/api";
-import type { BusinessDetail, BusinessInput } from "@/features/businesses/types";
+import type {
+  BusinessDetail,
+  BusinessInput,
+} from "@/features/businesses/types";
 
 export function BusinessFormContainer({
   business,
@@ -37,10 +40,10 @@ export function BusinessFormContainer({
       business ? updateBusiness(business.id, payload) : createBusiness(payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["businesses"] });
-      toast.success(
-        business ? "Negocio actualizado" : "Negocio creado"
+      toast.success(business ? "Negocio actualizado" : "Negocio creado");
+      router.push(
+        fixedOwnerId ? `/admin/clients/${fixedOwnerId}` : "/businesses",
       );
-      router.push(fixedOwnerId ? `/admin/clients/${fixedOwnerId}` : "/businesses");
       router.refresh();
     },
     onError: (error: Error) => {
@@ -80,7 +83,8 @@ export function BusinessFormContainer({
       aiCredentialId: (fd.get("aiCredentialId") as string) || null,
       whatsappCredentialId: (fd.get("whatsappCredentialId") as string) || null,
       ...(fixedOwnerId && { ownerId: fixedOwnerId }),
-      ...(owners && fd.get("ownerId") && { ownerId: fd.get("ownerId") as string }),
+      ...(owners &&
+        fd.get("ownerId") && { ownerId: fd.get("ownerId") as string }),
     };
 
     mutation.mutate(payload);

@@ -1,7 +1,11 @@
 import type { ChatCompletionMessageParam } from "openai/resources/chat/completions";
 import type { Business, Conversation, PhoneNumber } from "@prisma/client";
 import { prisma } from "./db";
-import { isRateLimited, resolveAiReply, sendAndPersistReply } from "./message-handler";
+import {
+  isRateLimited,
+  resolveAiReply,
+  sendAndPersistReply,
+} from "./message-handler";
 import { logEvent } from "./log";
 
 /**
@@ -19,7 +23,7 @@ const SWEEP_INTERVAL_MS = 3000;
  * for the AI only, same content-role slot as a normal user message.
  */
 const BATCH_INSTRUCTION =
-  "El cliente envió varios mensajes seguidos, en este orden (ver \"n\"). " +
+  'El cliente envió varios mensajes seguidos, en este orden (ver "n"). ' +
   "Respondelos todos juntos, en una sola respuesta:\n";
 
 let started = false;
@@ -74,7 +78,7 @@ async function sweepDueConversations(): Promise<void> {
           error: err instanceof Error ? err.message : String(err),
           conversationId: conversation.id,
         },
-        conversation.businessId
+        conversation.businessId,
       );
     }
   }
@@ -86,7 +90,9 @@ async function sweepDueConversations(): Promise<void> {
  * can't double-send), batches every not-yet-answered customer message into
  * one AI call, and sends the single reply back.
  */
-async function flushDueConversation(conversation: DueConversation): Promise<void> {
+async function flushDueConversation(
+  conversation: DueConversation,
+): Promise<void> {
   // Atomic claim: only proceed if this sweep is the one that flips
   // pendingFlushAt from the value we just read to null. If another tick (or
   // process) already claimed it, count is 0 and we skip — avoids double
@@ -122,7 +128,11 @@ async function flushDueConversation(conversation: DueConversation): Promise<void
   // after a newer customer message, which would otherwise wrongly exclude
   // that message from its own batch.
   const pendingMessages = await prisma.message.findMany({
-    where: { conversationId: conversation.id, sentBy: "customer", batchedAt: null },
+    where: {
+      conversationId: conversation.id,
+      sentBy: "customer",
+      batchedAt: null,
+    },
     orderBy: { createdAt: "asc" },
   });
 
@@ -149,7 +159,7 @@ async function flushDueConversation(conversation: DueConversation): Promise<void
         message: m.content,
         n: i + 1,
         time: m.createdAt.toISOString(),
-      }))
+      })),
     );
 
   // History excludes the pending batch itself (it's passed separately, as
@@ -158,10 +168,15 @@ async function flushDueConversation(conversation: DueConversation): Promise<void
   const history = await loadHistoryBefore(
     conversation.id,
     business.maxHistoryMessages,
-    pendingMessages[0].createdAt
+    pendingMessages[0].createdAt,
   );
 
-  const reply = await resolveAiReply(business, conversation.id, history, batchedContent);
+  const reply = await resolveAiReply(
+    business,
+    conversation.id,
+    history,
+    batchedContent,
+  );
   if (reply === null) return;
 
   await sendAndPersistReply(
@@ -169,14 +184,14 @@ async function flushDueConversation(conversation: DueConversation): Promise<void
     phoneNumber,
     conversation.id,
     conversation.customerPhone,
-    reply
+    reply,
   );
 }
 
 async function loadHistoryBefore(
   conversationId: string,
   max: number,
-  before: Date
+  before: Date,
 ): Promise<ChatCompletionMessageParam[]> {
   const rows = await prisma.message.findMany({
     where: { conversationId, createdAt: { lt: before } },

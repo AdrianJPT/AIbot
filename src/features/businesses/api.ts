@@ -41,7 +41,9 @@ export function updateBusiness(id: string, payload: Partial<BusinessInput>) {
   });
 }
 
-export function fetchPhoneNumbers(businessId: string): Promise<PhoneNumberItem[]> {
+export function fetchPhoneNumbers(
+  businessId: string,
+): Promise<PhoneNumberItem[]> {
   return request(`/api/businesses/${businessId}/phone-numbers`);
 }
 

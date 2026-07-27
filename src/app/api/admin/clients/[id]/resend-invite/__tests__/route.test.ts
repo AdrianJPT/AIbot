@@ -3,7 +3,10 @@ import { randomUUID } from "node:crypto";
 import { NextRequest } from "next/server";
 import type { User } from "@prisma/client";
 import { isAdmin } from "@/lib/scope";
-import { cleanupOwnershipFixtures, createTestUser } from "@/lib/__tests__/fixtures/ownership";
+import {
+  cleanupOwnershipFixtures,
+  createTestUser,
+} from "@/lib/__tests__/fixtures/ownership";
 
 const getSessionUser = vi.fn();
 vi.mock("@/lib/auth", () => ({
@@ -25,9 +28,12 @@ vi.mock("@supabase/supabase-js", () => ({
 }));
 
 function buildRequest(): NextRequest {
-  return new NextRequest("https://example.com/api/admin/clients/x/resend-invite", {
-    method: "POST",
-  });
+  return new NextRequest(
+    "https://example.com/api/admin/clients/x/resend-invite",
+    {
+      method: "POST",
+    },
+  );
 }
 
 describe("POST /api/admin/clients/[id]/resend-invite", () => {
@@ -48,7 +54,9 @@ describe("POST /api/admin/clients/[id]/resend-invite", () => {
     getSessionUser.mockResolvedValueOnce(other);
     const { POST } = await import("../route");
 
-    const res = await POST(buildRequest(), { params: Promise.resolve({ id: other.id }) });
+    const res = await POST(buildRequest(), {
+      params: Promise.resolve({ id: other.id }),
+    });
 
     expect(res.status).toBe(404);
     expect(inviteUserByEmail).not.toHaveBeenCalled();
@@ -58,7 +66,9 @@ describe("POST /api/admin/clients/[id]/resend-invite", () => {
     getSessionUser.mockResolvedValueOnce(admin);
     const { POST } = await import("../route");
 
-    const res = await POST(buildRequest(), { params: Promise.resolve({ id: randomUUID() }) });
+    const res = await POST(buildRequest(), {
+      params: Promise.resolve({ id: randomUUID() }),
+    });
 
     expect(res.status).toBe(404);
     expect(inviteUserByEmail).not.toHaveBeenCalled();
@@ -70,7 +80,9 @@ describe("POST /api/admin/clients/[id]/resend-invite", () => {
     userIds.push(otherAdmin.id);
     const { POST } = await import("../route");
 
-    const res = await POST(buildRequest(), { params: Promise.resolve({ id: otherAdmin.id }) });
+    const res = await POST(buildRequest(), {
+      params: Promise.resolve({ id: otherAdmin.id }),
+    });
 
     expect(res.status).toBe(404);
     expect(inviteUserByEmail).not.toHaveBeenCalled();
@@ -80,10 +92,15 @@ describe("POST /api/admin/clients/[id]/resend-invite", () => {
     getSessionUser.mockResolvedValueOnce(admin);
     const client = await createTestUser("resend-fresh");
     userIds.push(client.id);
-    inviteUserByEmail.mockResolvedValueOnce({ data: { user: { id: client.id } }, error: null });
+    inviteUserByEmail.mockResolvedValueOnce({
+      data: { user: { id: client.id } },
+      error: null,
+    });
     const { POST } = await import("../route");
 
-    const res = await POST(buildRequest(), { params: Promise.resolve({ id: client.id }) });
+    const res = await POST(buildRequest(), {
+      params: Promise.resolve({ id: client.id }),
+    });
     const body = await res.json();
 
     expect(res.status).toBe(200);
@@ -107,7 +124,9 @@ describe("POST /api/admin/clients/[id]/resend-invite", () => {
     signInWithOtp.mockResolvedValueOnce({ data: {}, error: null });
     const { POST } = await import("../route");
 
-    const res = await POST(buildRequest(), { params: Promise.resolve({ id: client.id }) });
+    const res = await POST(buildRequest(), {
+      params: Promise.resolve({ id: client.id }),
+    });
     const body = await res.json();
 
     expect(res.status).toBe(200);
@@ -129,7 +148,9 @@ describe("POST /api/admin/clients/[id]/resend-invite", () => {
     });
     const { POST } = await import("../route");
 
-    const res = await POST(buildRequest(), { params: Promise.resolve({ id: client.id }) });
+    const res = await POST(buildRequest(), {
+      params: Promise.resolve({ id: client.id }),
+    });
     const body = await res.json();
 
     expect(res.status).toBe(400);
@@ -151,7 +172,9 @@ describe("POST /api/admin/clients/[id]/resend-invite", () => {
     });
     const { POST } = await import("../route");
 
-    const res = await POST(buildRequest(), { params: Promise.resolve({ id: client.id }) });
+    const res = await POST(buildRequest(), {
+      params: Promise.resolve({ id: client.id }),
+    });
     const body = await res.json();
 
     expect(res.status).toBe(400);

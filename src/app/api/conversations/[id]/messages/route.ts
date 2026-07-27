@@ -16,10 +16,11 @@ const MAX_LIMIT = 100;
  */
 export async function GET(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   const user = await getSessionUser();
-  if (!user) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  if (!user)
+    return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
   const { id } = await params;
   const conversation = await prisma.conversation.findFirst({

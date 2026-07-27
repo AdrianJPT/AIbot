@@ -17,15 +17,18 @@ export function AiDefaultsForm({
   onSubmit: (e: React.FormEvent<HTMLFormElement>) => void;
 }) {
   return (
-    <form onSubmit={onSubmit} className="max-w-2xl space-y-4 rounded-lg border border-border p-6">
+    <form
+      onSubmit={onSubmit}
+      className="max-w-2xl space-y-4 rounded-lg border border-border p-6"
+    >
       <div>
         <h2 className="text-lg font-semibold">Valores por defecto</h2>
         <p className="text-sm text-muted-foreground">
           Se usan para cualquier negocio o número que no tenga su propia
           credencial o modelo asignado. Cambiarlos acá aplica a todos los
           clientes sin override, sin necesidad de deploy. La credencial de IA
-          por defecto ya no se elige acá — un negocio sin credencial propia
-          usa la cadena de credenciales de IA activas de toda la plataforma,
+          por defecto ya no se elige acá — un negocio sin credencial propia usa
+          la cadena de credenciales de IA activas de toda la plataforma,
           ordenable en la tabla de arriba.
         </p>
       </div>
@@ -90,8 +93,8 @@ export function AiDefaultsForm({
       <p className="text-xs text-muted-foreground">
         Formato de modelo esperado según el proveedor de la credencial que
         termine sirviendo la respuesta: ej. gpt-4o-mini / whisper-1 (OpenAI),
-        gemini-2.0-flash (Google — sin audio por esta vía), o
-        proveedor/modelo (OpenRouter, ej. openai/gpt-4o-mini).
+        gemini-2.0-flash (Google — sin audio por esta vía), o proveedor/modelo
+        (OpenRouter, ej. openai/gpt-4o-mini).
       </p>
 
       <Button type="submit" disabled={saving}>

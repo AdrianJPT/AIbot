@@ -4,7 +4,10 @@ import { NextRequest } from "next/server";
 import type { User } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { isAdmin } from "@/lib/scope";
-import { cleanupOwnershipFixtures, createTestUser } from "@/lib/__tests__/fixtures/ownership";
+import {
+  cleanupOwnershipFixtures,
+  createTestUser,
+} from "@/lib/__tests__/fixtures/ownership";
 
 const getSessionUser = vi.fn();
 vi.mock("@/lib/auth", () => ({
@@ -58,7 +61,10 @@ describe("POST /api/admin/clients", () => {
     const { POST } = await import("../route");
 
     const res = await POST(
-      buildRequest({ email: "new@test.local", business: validBusiness("nonadmin") })
+      buildRequest({
+        email: "new@test.local",
+        business: validBusiness("nonadmin"),
+      }),
     );
 
     expect(res.status).toBe(404);
@@ -70,7 +76,10 @@ describe("POST /api/admin/clients", () => {
     const { POST } = await import("../route");
 
     const res = await POST(
-      buildRequest({ email: "no-business@test.local", business: { name: "Solo nombre" } })
+      buildRequest({
+        email: "no-business@test.local",
+        business: { name: "Solo nombre" },
+      }),
     );
     const body = await res.json();
 
@@ -93,7 +102,9 @@ describe("POST /api/admin/clients", () => {
     invitedIds.push(newId);
 
     expect(res.status).toBe(200);
-    const businesses = await prisma.business.count({ where: { ownerId: newId } });
+    const businesses = await prisma.business.count({
+      where: { ownerId: newId },
+    });
     expect(businesses).toBe(0);
   });
 
@@ -120,7 +131,9 @@ describe("POST /api/admin/clients", () => {
     invitedIds.push(newId);
 
     expect(res.status).toBe(200);
-    const stored = await prisma.business.findUnique({ where: { id: existing.id } });
+    const stored = await prisma.business.findUnique({
+      where: { id: existing.id },
+    });
     expect(stored?.ownerId).toBe(newId);
   });
 
@@ -134,7 +147,7 @@ describe("POST /api/admin/clients", () => {
         email: "both@test.local",
         businessId: "some-id",
         business: validBusiness("both"),
-      })
+      }),
     );
 
     expect(res.status).toBe(400);
@@ -152,7 +165,11 @@ describe("POST /api/admin/clients", () => {
     const { POST } = await import("../route");
 
     const res = await POST(
-      buildRequest({ email, name: "Cliente Nuevo", business: validBusiness("ok") })
+      buildRequest({
+        email,
+        name: "Cliente Nuevo",
+        business: validBusiness("ok"),
+      }),
     );
     const created = await res.json();
     invitedIds.push(newId);
@@ -162,7 +179,7 @@ describe("POST /api/admin/clients", () => {
     expect(created.role).toBe("client");
     expect(inviteUserByEmail).toHaveBeenCalledWith(
       email,
-      expect.objectContaining({ data: { full_name: "Cliente Nuevo" } })
+      expect.objectContaining({ data: { full_name: "Cliente Nuevo" } }),
     );
 
     const stored = await prisma.user.findUnique({ where: { id: newId } });
@@ -196,8 +213,11 @@ describe("POST /api/admin/clients", () => {
     const res = await POST(
       buildRequest({
         email: "dup-phone@test.local",
-        business: { ...validBusiness("dup-attempt"), phoneNumberId: taken.phoneNumberId },
-      })
+        business: {
+          ...validBusiness("dup-attempt"),
+          phoneNumberId: taken.phoneNumberId,
+        },
+      }),
     );
     const body = await res.json();
 
@@ -215,7 +235,10 @@ describe("POST /api/admin/clients", () => {
     const { POST } = await import("../route");
 
     const res = await POST(
-      buildRequest({ email: "dup@test.local", business: validBusiness("invite-fail") })
+      buildRequest({
+        email: "dup@test.local",
+        business: validBusiness("invite-fail"),
+      }),
     );
     const body = await res.json();
 

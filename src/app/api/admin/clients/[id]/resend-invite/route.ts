@@ -4,7 +4,11 @@ import { prisma } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-type AuthErrorLike = { message?: string; status?: number; code?: string } | null;
+type AuthErrorLike = {
+  message?: string;
+  status?: number;
+  code?: string;
+} | null;
 
 // Once a client has already accepted their invite (signed in at least
 // once), Supabase rejects a second inviteUserByEmail call — 422, message
@@ -25,10 +29,11 @@ function isAlreadyRegisteredError(error: AuthErrorLike): boolean {
 // other admin/clients routes.
 export async function POST(
   _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   const admin = await requireAdmin();
-  if (!admin) return NextResponse.json({ error: "No encontrado" }, { status: 404 });
+  if (!admin)
+    return NextResponse.json({ error: "No encontrado" }, { status: 404 });
 
   const { id } = await params;
   const client = await prisma.user.findUnique({ where: { id } });
@@ -37,9 +42,8 @@ export async function POST(
   }
 
   const supabaseAdmin = createAdminClient();
-  const { error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(
-    client.email
-  );
+  const { error: inviteError } =
+    await supabaseAdmin.auth.admin.inviteUserByEmail(client.email);
 
   if (!inviteError) {
     return NextResponse.json({ ok: true, method: "invite" });
@@ -48,7 +52,7 @@ export async function POST(
   if (!isAlreadyRegisteredError(inviteError)) {
     return NextResponse.json(
       { error: inviteError.message || "No se pudo reenviar la invitación" },
-      { status: 400 }
+      { status: 400 },
     );
   }
 
@@ -57,7 +61,7 @@ export async function POST(
   // the equivalent note on the service-role client).
   const anonClient = createSupabaseClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
   );
   const { error: otpError } = await anonClient.auth.signInWithOtp({
     email: client.email,
@@ -67,7 +71,7 @@ export async function POST(
   if (otpError) {
     return NextResponse.json(
       { error: otpError.message || "No se pudo enviar el enlace mágico" },
-      { status: 400 }
+      { status: 400 },
     );
   }
 

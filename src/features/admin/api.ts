@@ -25,6 +25,6 @@ export function inviteClient(payload: {
 export function resendClientInvite(clientId: string) {
   return request<{ ok: true; method: "invite" | "magiclink" }>(
     `/api/admin/clients/${clientId}/resend-invite`,
-    { method: "POST" }
+    { method: "POST" },
   );
 }

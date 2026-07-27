@@ -26,7 +26,9 @@ export function businessScope(user: ScopedUser): Prisma.BusinessWhereInput {
  * Same as `businessScope`, scoped through the `Conversation -> Business`
  * relation.
  */
-export function conversationScope(user: ScopedUser): Prisma.ConversationWhereInput {
+export function conversationScope(
+  user: ScopedUser,
+): Prisma.ConversationWhereInput {
   return isAdmin(user) ? {} : { business: { ownerId: user.id } };
 }
 
@@ -34,6 +36,8 @@ export function conversationScope(user: ScopedUser): Prisma.ConversationWhereInp
  * Same as `businessScope`, scoped through the `Appointment -> Business`
  * relation.
  */
-export function appointmentScope(user: ScopedUser): Prisma.AppointmentWhereInput {
+export function appointmentScope(
+  user: ScopedUser,
+): Prisma.AppointmentWhereInput {
   return isAdmin(user) ? {} : { business: { ownerId: user.id } };
 }

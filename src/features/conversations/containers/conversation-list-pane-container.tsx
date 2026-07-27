@@ -29,7 +29,7 @@ export function ConversationListPaneContainer() {
   // otherwise a URL with just `?label=...` would show a "viewing X" banner
   // over an unfiltered list.
   const numberFilterLabel = initialPhoneNumberId
-    ? searchParams.get("label") ?? undefined
+    ? (searchParams.get("label") ?? undefined)
     : undefined;
 
   const [search, setSearch] = useState("");
@@ -39,16 +39,21 @@ export function ConversationListPaneContainer() {
   // the client businesses table and per-number links) but don't write back
   // to it — the selects below just take over from there.
   const [businessId, setBusinessId] = useState<string | undefined>(
-    () => searchParams.get("businessId") ?? undefined
+    () => searchParams.get("businessId") ?? undefined,
   );
-  const [phoneNumberId, setPhoneNumberId] = useState<string | undefined>(initialPhoneNumberId);
+  const [phoneNumberId, setPhoneNumberId] = useState<string | undefined>(
+    initialPhoneNumberId,
+  );
 
   // Live-reorders the list and refreshes unread badges as Conversation rows
   // change (new messages bump lastMessageAt/unreadCount server-side).
   useRealtimeMessages();
 
   useEffect(() => {
-    const timer = setTimeout(() => setDebouncedSearch(search.trim()), SEARCH_DEBOUNCE_MS);
+    const timer = setTimeout(
+      () => setDebouncedSearch(search.trim()),
+      SEARCH_DEBOUNCE_MS,
+    );
     return () => clearTimeout(timer);
   }, [search]);
 
@@ -66,13 +71,18 @@ export function ConversationListPaneContainer() {
   });
 
   const { data: conversations = [], isLoading } = useQuery({
-    queryKey: [...conversationKeys.list(debouncedSearch), businessId, phoneNumberId],
-    queryFn: () => fetchConversations({ q: debouncedSearch, businessId, phoneNumberId }),
+    queryKey: [
+      ...conversationKeys.list(debouncedSearch),
+      businessId,
+      phoneNumberId,
+    ],
+    queryFn: () =>
+      fetchConversations({ q: debouncedSearch, businessId, phoneNumberId }),
   });
 
   const businessCount = useMemo(
     () => new Set(conversations.map((c) => c.business.id)).size,
-    [conversations]
+    [conversations],
   );
 
   const filtered = useMemo(() => {

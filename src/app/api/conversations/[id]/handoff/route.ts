@@ -5,10 +5,11 @@ import { conversationScope } from "@/lib/scope";
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   const user = await getSessionUser();
-  if (!user) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  if (!user)
+    return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
   const { id } = await params;
   const body = await req.json();
@@ -20,7 +21,8 @@ export async function POST(
   const existing = await prisma.conversation.findFirst({
     where: { id, ...conversationScope(user) },
   });
-  if (!existing) return NextResponse.json({ error: "No encontrado" }, { status: 404 });
+  if (!existing)
+    return NextResponse.json({ error: "No encontrado" }, { status: 404 });
 
   try {
     const c = await prisma.conversation.update({

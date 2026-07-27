@@ -60,12 +60,12 @@ Si querés login local real, necesitás un proyecto de Supabase para `NEXT_PUBLI
 
 ## Panel admin
 
-| Ruta | Uso |
-|------|-----|
-| `/` | Resumen: negocios activos, conversaciones hoy, citas pendientes |
-| `/businesses` | CRUD negocios, prompts, `businessInfo` JSON |
+| Ruta             | Uso                                                                                   |
+| ---------------- | ------------------------------------------------------------------------------------- |
+| `/`              | Resumen: negocios activos, conversaciones hoy, citas pendientes                       |
+| `/businesses`    | CRUD negocios, prompts, `businessInfo` JSON                                           |
 | `/conversations` | Lista con filtros; detalle con historial, **pasar a humano**, envío manual a WhatsApp |
-| `/appointments` | Citas/reservas: filtros, confirmar/cancelar/borrar, **Nueva cita** |
+| `/appointments`  | Citas/reservas: filtros, confirmar/cancelar/borrar, **Nueva cita**                    |
 
 ## Webhook
 
@@ -105,14 +105,14 @@ configs/                # JSON de ejemplo (referencia; el sistema usa la BD)
 
 ## Scripts
 
-| Comando | Descripción |
-|---------|-------------|
-| `npm run dev` | Next.js en desarrollo |
-| `npm run build` | `prisma generate` + `next build` |
-| `npm start` | Producción (`next start`) |
-| `npm run db:push` | Sincronizar schema con la BD |
-| `npm run db:seed` | Seed de negocios de ejemplo |
-| `npm run db:studio` | Prisma Studio |
+| Comando             | Descripción                      |
+| ------------------- | -------------------------------- |
+| `npm run dev`       | Next.js en desarrollo            |
+| `npm run build`     | `prisma generate` + `next build` |
+| `npm start`         | Producción (`next start`)        |
+| `npm run db:push`   | Sincronizar schema con la BD     |
+| `npm run db:seed`   | Seed de negocios de ejemplo      |
+| `npm run db:studio` | Prisma Studio                    |
 
 ## Seguridad
 

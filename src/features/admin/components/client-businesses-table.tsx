@@ -102,7 +102,9 @@ export function ClientBusinessesTable({
                       type="button"
                       className="text-primary hover:underline"
                       onClick={() =>
-                        setAddingNumberFor(addingNumberFor === b.id ? null : b.id)
+                        setAddingNumberFor(
+                          addingNumberFor === b.id ? null : b.id,
+                        )
                       }
                     >
                       Agregar número

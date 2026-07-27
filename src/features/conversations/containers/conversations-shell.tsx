@@ -15,7 +15,11 @@ import { ConversationListPaneContainer } from "@/features/conversations/containe
  *   the list fills the screen at `/conversations`, and the thread fills the
  *   screen at `/conversations/[id]` (with its own back header).
  */
-export function ConversationsShell({ children }: { children: React.ReactNode }) {
+export function ConversationsShell({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const pathname = usePathname();
   const isListOnly = pathname === "/conversations";
 
@@ -24,7 +28,7 @@ export function ConversationsShell({ children }: { children: React.ReactNode }) 
       <div
         className={cn(
           "w-full flex-col md:flex md:w-[360px] md:shrink-0 md:border-r md:border-border",
-          isListOnly ? "flex" : "hidden md:flex"
+          isListOnly ? "flex" : "hidden md:flex",
         )}
       >
         <ConversationListPaneContainer />
@@ -33,7 +37,7 @@ export function ConversationsShell({ children }: { children: React.ReactNode }) 
       <div
         className={cn(
           "min-w-0 flex-1 flex-col",
-          isListOnly ? "hidden md:flex" : "flex"
+          isListOnly ? "hidden md:flex" : "flex",
         )}
       >
         {isListOnly ? (

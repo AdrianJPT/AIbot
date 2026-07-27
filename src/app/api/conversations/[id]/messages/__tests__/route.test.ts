@@ -16,12 +16,13 @@ vi.mock("@/lib/auth", () => ({
 
 function buildRequest(
   conversationId: string,
-  query: Record<string, string> = {}
+  query: Record<string, string> = {},
 ): NextRequest {
   const url = new URL(
-    `https://example.com/api/conversations/${conversationId}/messages`
+    `https://example.com/api/conversations/${conversationId}/messages`,
   );
-  for (const [key, value] of Object.entries(query)) url.searchParams.set(key, value);
+  for (const [key, value] of Object.entries(query))
+    url.searchParams.set(key, value);
   return new NextRequest(url);
 }
 
@@ -107,7 +108,7 @@ describe("GET /api/conversations/[id]/messages", () => {
     const second = await (
       await GET(
         buildRequest(conversation.id, { limit: "2", cursor: first.nextCursor }),
-        { params: Promise.resolve({ id: conversation.id }) }
+        { params: Promise.resolve({ id: conversation.id }) },
       )
     ).json();
 
@@ -120,8 +121,11 @@ describe("GET /api/conversations/[id]/messages", () => {
     getSessionUser.mockResolvedValueOnce(owner);
     const third = await (
       await GET(
-        buildRequest(conversation.id, { limit: "2", cursor: second.nextCursor }),
-        { params: Promise.resolve({ id: conversation.id }) }
+        buildRequest(conversation.id, {
+          limit: "2",
+          cursor: second.nextCursor,
+        }),
+        { params: Promise.resolve({ id: conversation.id }) },
       )
     ).json();
 

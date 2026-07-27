@@ -14,7 +14,8 @@ const MAX_LIMIT = 100;
  */
 export async function GET(req: NextRequest) {
   const user = await requireAdmin();
-  if (!user) return NextResponse.json({ error: "No encontrado" }, { status: 404 });
+  if (!user)
+    return NextResponse.json({ error: "No encontrado" }, { status: 404 });
 
   const { searchParams } = req.nextUrl;
   const level = searchParams.get("level") || undefined;

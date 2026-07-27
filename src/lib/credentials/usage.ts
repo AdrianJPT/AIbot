@@ -7,7 +7,7 @@ import { prisma } from "@/lib/db";
  * in use.
  */
 export async function findCredentialUsageBusinessName(
-  credentialId: string
+  credentialId: string,
 ): Promise<string | null> {
   const business = await prisma.business.findFirst({
     where: { aiCredentialId: credentialId },
@@ -28,7 +28,7 @@ export async function findCredentialUsageBusinessName(
  */
 export async function ownsCredentials(
   ownerId: string,
-  ids: Array<string | null | undefined>
+  ids: Array<string | null | undefined>,
 ): Promise<boolean> {
   const wanted = ids.filter((id): id is string => Boolean(id));
   if (wanted.length === 0) return true;

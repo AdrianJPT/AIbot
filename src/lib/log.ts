@@ -13,7 +13,7 @@ export async function logEvent(
   message: string,
   detail?: unknown,
   businessId?: string,
-  phoneNumberId?: string
+  phoneNumberId?: string,
 ): Promise<void> {
   try {
     if (level === "error") {

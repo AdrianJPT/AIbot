@@ -12,7 +12,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import type { Credential, UpdateCredentialInput } from "@/features/credentials/types";
+import type {
+  Credential,
+  UpdateCredentialInput,
+} from "@/features/credentials/types";
 
 function EditRow({
   credential,
@@ -32,7 +35,9 @@ function EditRow({
   function handleSave() {
     onSave({
       label,
-      ...(credential.provider === "custom" && { baseUrl: baseUrl || undefined }),
+      ...(credential.provider === "custom" && {
+        baseUrl: baseUrl || undefined,
+      }),
       ...(key && { key }),
     });
   }
@@ -196,7 +201,9 @@ export function CredentialTable({
                             </button>
                             <button
                               type="button"
-                              disabled={busy || index === credentials.length - 1}
+                              disabled={
+                                busy || index === credentials.length - 1
+                              }
                               onClick={() => moveDown(index)}
                               className="leading-none text-muted-foreground hover:text-foreground disabled:cursor-not-allowed disabled:opacity-30"
                               title="Bajar prioridad"

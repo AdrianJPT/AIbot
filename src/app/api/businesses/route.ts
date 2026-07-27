@@ -4,7 +4,10 @@ import { prisma } from "@/lib/db";
 import { getSessionUser, requireAdmin } from "@/lib/auth";
 import { businessScope } from "@/lib/scope";
 import { flattenBusinessPhoneNumber } from "@/lib/business-phone-compat";
-import { createBusinessForOwner, validateCreateBusinessInput } from "@/lib/businesses/create";
+import {
+  createBusinessForOwner,
+  validateCreateBusinessInput,
+} from "@/lib/businesses/create";
 import { ownsCredentials } from "@/lib/credentials/usage";
 
 // GET stays open to any authenticated caller (scoped by businessScope) — it
@@ -12,7 +15,8 @@ import { ownsCredentials } from "@/lib/credentials/usage";
 // just the admin management UI.
 export async function GET() {
   const user = await getSessionUser();
-  if (!user) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  if (!user)
+    return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
   const list = await prisma.business.findMany({
     where: businessScope(user),
@@ -28,7 +32,8 @@ export async function GET() {
 // page or the invite flow).
 export async function POST(req: NextRequest) {
   const admin = await requireAdmin();
-  if (!admin) return NextResponse.json({ error: "No encontrado" }, { status: 404 });
+  if (!admin)
+    return NextResponse.json({ error: "No encontrado" }, { status: 404 });
 
   const body = await req.json();
   const ownerId = body.ownerId || admin.id;
@@ -49,7 +54,10 @@ export async function POST(req: NextRequest) {
       body.whatsappCredentialId,
     ]);
     if (!owned) {
-      return NextResponse.json({ error: "Credencial inválida" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Credencial inválida" },
+        { status: 400 },
+      );
     }
   }
 
@@ -57,10 +65,13 @@ export async function POST(req: NextRequest) {
     const b = await createBusinessForOwner(ownerId, body);
     return NextResponse.json(flattenBusinessPhoneNumber(b));
   } catch (err) {
-    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+    if (
+      err instanceof Prisma.PrismaClientKnownRequestError &&
+      err.code === "P2002"
+    ) {
       return NextResponse.json(
         { error: "Ese número ya está registrado en otro cliente" },
-        { status: 409 }
+        { status: 409 },
       );
     }
     throw err;
