@@ -1,0 +1,10 @@
+# `.claude/worktrees/*` holds throwaway checkouts with their own build
+# output — never reformat them.
+.claude
+.next
+coverage
+node_modules
+playwright-report
+test-results
+package-lock.json
+prisma/migrations

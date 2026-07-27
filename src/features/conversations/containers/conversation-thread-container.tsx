@@ -2,7 +2,11 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ConversationThread } from "@/features/conversations/components/conversation-thread";
 import type { RenderableMessage } from "@/features/conversations/components/message-bubble";
@@ -37,11 +41,19 @@ export function ConversationThreadContainer({
   useRealtimeMessages(initialConversation.id);
 
   useEffect(() => {
-    // Reset local overrides when navigating between conversations.
+    // Reset local overrides when navigating between conversations. The
+    // idiomatic fix is a `key={conversation.id}` on this container so React
+    // remounts it per conversation and drops the effect entirely; that is a
+    // separate change because it touches the parent route.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setStatus(initialConversation.status);
     setNickname(initialConversation.nickname);
     setPending([]);
-  }, [initialConversation.id, initialConversation.status, initialConversation.nickname]);
+  }, [
+    initialConversation.id,
+    initialConversation.status,
+    initialConversation.nickname,
+  ]);
 
   useEffect(() => {
     markConversationRead(initialConversation.id).catch(() => {
@@ -52,19 +64,15 @@ export function ConversationThreadContainer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialConversation.id]);
 
-  const {
-    data,
-    fetchNextPage,
-    hasNextPage,
-    isFetchingNextPage,
-  } = useInfiniteQuery({
-    queryKey: conversationKeys.messages(initialConversation.id),
-    queryFn: ({ pageParam }) =>
-      fetchMessages(initialConversation.id, pageParam as string | null),
-    initialPageParam: null as string | null,
-    getNextPageParam: (lastPage) => lastPage.nextCursor,
-    initialData: { pages: [initialMessages], pageParams: [null] },
-  });
+  const { data, fetchNextPage, hasNextPage, isFetchingNextPage } =
+    useInfiniteQuery({
+      queryKey: conversationKeys.messages(initialConversation.id),
+      queryFn: ({ pageParam }) =>
+        fetchMessages(initialConversation.id, pageParam as string | null),
+      initialPageParam: null as string | null,
+      getNextPageParam: (lastPage) => lastPage.nextCursor,
+      initialData: { pages: [initialMessages], pageParams: [null] },
+    });
 
   const messages = useMemo<RenderableMessage[]>(() => {
     const pages = data?.pages ?? [];
@@ -82,11 +90,14 @@ export function ConversationThreadContainer({
   }, [messages]);
 
   const handoffMutation = useMutation({
-    mutationFn: (next: string) => setConversationStatus(initialConversation.id, next),
+    mutationFn: (next: string) =>
+      setConversationStatus(initialConversation.id, next),
     onSuccess: (_data, next) => {
       setStatus(next);
       toast.success(
-        next === "handed_off" ? "Bot pausado para este cliente" : "Estado actualizado"
+        next === "handed_off"
+          ? "Bot pausado para este cliente"
+          : "Estado actualizado",
       );
       queryClient.invalidateQueries({ queryKey: conversationKeys.list() });
     },
@@ -94,7 +105,8 @@ export function ConversationThreadContainer({
   });
 
   const nicknameMutation = useMutation({
-    mutationFn: (next: string) => setConversationNickname(initialConversation.id, next),
+    mutationFn: (next: string) =>
+      setConversationNickname(initialConversation.id, next),
     onSuccess: (_data, next) => {
       setNickname(next || null);
       toast.success("Apodo actualizado");
@@ -137,22 +149,27 @@ export function ConversationThreadContainer({
       // invalidating — invalidation triggers a refetch (or waits for the
       // Realtime INSERT event) that can lag a few seconds behind the temp
       // bubble being removed, causing a visible disappear/reappear flicker.
-      queryClient.setQueryData<{ pages: MessagesPage[]; pageParams: unknown[] }>(
-        conversationKeys.messages(initialConversation.id),
-        (old) => {
-          if (!old) return old;
-          const [firstPage, ...rest] = old.pages;
-          return {
-            ...old,
-            pages: [{ ...firstPage, messages: [msg, ...firstPage.messages] }, ...rest],
-          };
-        }
-      );
+      queryClient.setQueryData<{
+        pages: MessagesPage[];
+        pageParams: unknown[];
+      }>(conversationKeys.messages(initialConversation.id), (old) => {
+        if (!old) return old;
+        const [firstPage, ...rest] = old.pages;
+        return {
+          ...old,
+          pages: [
+            { ...firstPage, messages: [msg, ...firstPage.messages] },
+            ...rest,
+          ],
+        };
+      });
       queryClient.invalidateQueries({ queryKey: conversationKeys.list() });
     },
     onError: (_error, { tempId }) => {
       setPending((prev) =>
-        prev.map((m) => (m.id === tempId ? { ...m, pending: false, failed: true } : m))
+        prev.map((m) =>
+          m.id === tempId ? { ...m, pending: false, failed: true } : m,
+        ),
       );
       toast.error("No se pudo enviar el mensaje");
     },

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
@@ -60,7 +60,9 @@ export function useRealtimeMessages(conversationId?: string): void {
   // calling `.on()` on it throws synchronously ("cannot add
   // `postgres_changes` callbacks... after `subscribe()`"), crashing the
   // whole route. A per-instance suffix keeps the channels independent.
-  const instanceId = useRef(crypto.randomUUID()).current;
+  // Lazy `useState` rather than `useRef(...).current`: reading a ref during
+  // render is not allowed, and this value is only ever read, never mutated.
+  const [instanceId] = useState(() => crypto.randomUUID());
 
   useEffect(() => {
     const supabase = createClient();
@@ -112,7 +114,7 @@ export function useRealtimeMessages(conversationId?: string): void {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "Conversation" },
-        invalidateList
+        invalidateList,
       )
       .subscribe((status) => {
         handleStatus(status);
@@ -131,7 +133,7 @@ export function useRealtimeMessages(conversationId?: string): void {
             table: "Message",
             filter: `conversationId=eq.${conversationId}`,
           },
-          invalidateMessages
+          invalidateMessages,
         )
         .on(
           "postgres_changes",
@@ -141,7 +143,7 @@ export function useRealtimeMessages(conversationId?: string): void {
             table: "Message",
             filter: `conversationId=eq.${conversationId}`,
           },
-          invalidateMessages
+          invalidateMessages,
         )
         .subscribe((status) => {
           handleStatus(status);
@@ -172,5 +174,5 @@ export function useRealtimeMessages(conversationId?: string): void {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       channels.forEach((channel) => supabase.removeChannel(channel));
     };
-  }, [conversationId, queryClient]);
+  }, [conversationId, queryClient, instanceId]);
 }
