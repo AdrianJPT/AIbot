@@ -15,7 +15,7 @@ export default function LoginPage() {
   const [magicError, setMagicError] = useState("");
 
   const [passwordMode, setPasswordMode] = useState<"signin" | "signup">(
-    "signin"
+    "signin",
   );
   const [pwEmail, setPwEmail] = useState("");
   const [pwPassword, setPwPassword] = useState("");
@@ -93,7 +93,9 @@ export default function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-background p-6">
       <div className="w-full max-w-sm rounded-lg border bg-card p-8 text-card-foreground shadow-sm">
         <h1 className="mb-1 text-2xl font-bold">AIbot</h1>
-        <p className="mb-6 text-muted-foreground">Iniciá sesión para continuar</p>
+        <p className="mb-6 text-muted-foreground">
+          Iniciá sesión para continuar
+        </p>
 
         <Button
           type="button"
@@ -184,7 +186,11 @@ export default function LoginPage() {
                     onChange={(e) => setPwPassword(e.target.value)}
                   />
                 </div>
-                <Button type="submit" disabled={pwStatus === "loading"} className="w-full">
+                <Button
+                  type="submit"
+                  disabled={pwStatus === "loading"}
+                  className="w-full"
+                >
                   {pwStatus === "loading"
                     ? "Procesando…"
                     : passwordMode === "signin"
@@ -224,7 +230,9 @@ export default function LoginPage() {
                   disabled={magicStatus === "sending"}
                   className="w-full"
                 >
-                  {magicStatus === "sending" ? "Enviando…" : "Enviar enlace mágico"}
+                  {magicStatus === "sending"
+                    ? "Enviando…"
+                    : "Enviar enlace mágico"}
                 </Button>
               </form>
             )}

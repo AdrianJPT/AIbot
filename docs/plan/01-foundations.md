@@ -19,6 +19,7 @@
 - First test: `parseUserContent`-level coverage via `processWebhookPayload` with mocked prisma/openai/whatsapp modules (use `vi.mock`).
 
 **Acceptance criteria**
+
 - `npm test` passes locally and in CI (add `.github/workflows/ci.yml`: install, prisma generate, typecheck `tsc --noEmit`, test).
 - Fixtures cover all 6 message types + a delivery-status payload.
 
@@ -32,6 +33,7 @@ WhatsApp signs POSTs with `X-Hub-Signature-256: sha256=<hmac>` using the Meta ap
 - Keep GET verification (`hub.verify_token`) unchanged.
 
 **Acceptance criteria**
+
 - Request with valid signature → 200 and processed.
 - Missing/invalid signature → 401, nothing written to DB.
 - Unit tests for both using the fixtures.
@@ -44,6 +46,7 @@ Meta retries webhooks; today each retry duplicates messages.
 - In `handleOneMessage` (`src/lib/message-handler.ts:56`), persist `wamid` on the user message; skip processing if a message with that `wamid` already exists (`P2002` catch or pre-check).
 
 **Acceptance criteria**
+
 - Replaying the same fixture payload twice creates exactly one user message and one assistant reply.
 
 ### 1.4 Error observability
@@ -66,6 +69,7 @@ Meta retries webhooks; today each retry duplicates messages.
 - Wrap the AI call and WhatsApp send in `handleOneMessage` so failures are logged with businessId + conversationId, and the customer receives a fallback text ("Lo siento, tuve un problema técnico. Intenta de nuevo en un momento.") instead of silence.
 
 **Acceptance criteria**
+
 - Forcing `generateResponse` to throw in a test → `EventLog` row with source `"ai"` + fallback message sent + user message still persisted.
 
 ### 1.5 Env validation at boot
@@ -73,6 +77,7 @@ Meta retries webhooks; today each retry duplicates messages.
 - Create `src/lib/env.ts`: validate required env vars at module load (plain checks, no new deps), throw with a clear list of missing vars. Import from `src/lib/db.ts` so any server entry fails fast.
 
 **Acceptance criteria**
+
 - Booting without `WHATSAPP_APP_SECRET` fails with an explicit message naming the var.
 
 ## PR slicing

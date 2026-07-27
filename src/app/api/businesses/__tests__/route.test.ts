@@ -60,8 +60,12 @@ describe("GET/POST /api/businesses", () => {
     const list = await res.json();
 
     expect(res.status).toBe(200);
-    expect(list.every((b: { ownerId: string }) => b.ownerId === owner.id)).toBe(true);
-    expect(list.some((b: { ownerId: string }) => b.ownerId === other.id)).toBe(false);
+    expect(list.every((b: { ownerId: string }) => b.ownerId === owner.id)).toBe(
+      true,
+    );
+    expect(list.some((b: { ownerId: string }) => b.ownerId === other.id)).toBe(
+      false,
+    );
   });
 
   it("GET returns businesses from every owner for an admin caller", async () => {
@@ -72,8 +76,12 @@ describe("GET/POST /api/businesses", () => {
     const list = await res.json();
 
     expect(res.status).toBe(200);
-    expect(list.some((b: { ownerId: string }) => b.ownerId === owner.id)).toBe(true);
-    expect(list.some((b: { ownerId: string }) => b.ownerId === other.id)).toBe(true);
+    expect(list.some((b: { ownerId: string }) => b.ownerId === owner.id)).toBe(
+      true,
+    );
+    expect(list.some((b: { ownerId: string }) => b.ownerId === other.id)).toBe(
+      true,
+    );
   });
 
   it("POST returns 404 when unauthenticated", async () => {
@@ -97,7 +105,7 @@ describe("GET/POST /api/businesses", () => {
         whatsappToken: "tok",
         systemPrompt: "prompt",
         welcomeMessage: "hola",
-      })
+      }),
     );
 
     expect(res.status).toBe(404);
@@ -115,7 +123,7 @@ describe("GET/POST /api/businesses", () => {
         whatsappToken: "tok",
         systemPrompt: "prompt",
         welcomeMessage: "hola",
-      })
+      }),
     );
     const created = await res.json();
 

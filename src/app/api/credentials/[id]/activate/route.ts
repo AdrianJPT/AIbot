@@ -4,19 +4,21 @@ import { requireAdmin } from "@/lib/auth";
 
 export async function POST(
   _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   const user = await requireAdmin();
-  if (!user) return NextResponse.json({ error: "No encontrado" }, { status: 404 });
+  if (!user)
+    return NextResponse.json({ error: "No encontrado" }, { status: 404 });
 
   const { id } = await params;
   const credential = await prisma.credential.findFirst({ where: { id } });
-  if (!credential) return NextResponse.json({ error: "No encontrado" }, { status: 404 });
+  if (!credential)
+    return NextResponse.json({ error: "No encontrado" }, { status: 404 });
 
   if (credential.status === "revoked") {
     return NextResponse.json(
       { error: "No se puede activar una credencial revocada" },
-      { status: 400 }
+      { status: 400 },
     );
   }
 

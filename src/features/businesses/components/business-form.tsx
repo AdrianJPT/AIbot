@@ -3,7 +3,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
-import type { BusinessDetail, CredentialOption } from "@/features/businesses/types";
+import type {
+  BusinessDetail,
+  CredentialOption,
+} from "@/features/businesses/types";
 
 export function BusinessForm({
   business,
@@ -63,13 +66,15 @@ export function BusinessForm({
           defaultValue={business?.phoneNumberId}
         />
         <p className="text-xs text-muted-foreground">
-          El Phone Number ID que asigna Meta al registrar el número en la
-          WABA — se encuentra en WhatsApp Manager, no es el número en sí.
+          El Phone Number ID que asigna Meta al registrar el número en la WABA —
+          se encuentra en WhatsApp Manager, no es el número en sí.
         </p>
       </div>
 
       <div className="space-y-1.5">
-        <Label htmlFor="whatsappToken">WhatsApp token (fallback, opcional)</Label>
+        <Label htmlFor="whatsappToken">
+          WhatsApp token (fallback, opcional)
+        </Label>
         <Input
           id="whatsappToken"
           name="whatsappToken"
@@ -186,7 +191,7 @@ export function BusinessForm({
         </div>
       </div>
 
-      <div className="space-y-1.5 max-w-[200px]">
+      <div className="max-w-[200px] space-y-1.5">
         <Label htmlFor="maxHistoryMessages">Max historial</Label>
         <Input
           id="maxHistoryMessages"

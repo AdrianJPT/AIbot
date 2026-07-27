@@ -11,7 +11,9 @@ import {
 } from "@/components/ui/table";
 import type { Credential } from "@/features/credentials/types";
 
-function statusVariant(status: string): "default" | "secondary" | "destructive" {
+function statusVariant(
+  status: string,
+): "default" | "secondary" | "destructive" {
   if (status === "active") return "default";
   if (status === "revoked") return "destructive";
   return "secondary";

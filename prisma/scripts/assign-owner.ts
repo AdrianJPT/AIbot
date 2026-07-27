@@ -30,7 +30,7 @@ async function main() {
 
   if (!email && !userId) {
     console.error(
-      "Usage: npx tsx prisma/scripts/assign-owner.ts --email <email> | --user-id <uuid>"
+      "Usage: npx tsx prisma/scripts/assign-owner.ts --email <email> | --user-id <uuid>",
     );
     process.exit(1);
   }
@@ -42,7 +42,7 @@ async function main() {
   if (!user) {
     console.error(
       `No User found for ${userId ? `id=${userId}` : `email=${email}`}. ` +
-        "The user must have logged in at least once (User rows are created on first login)."
+        "The user must have logged in at least once (User rows are created on first login).",
     );
     process.exit(1);
   }
@@ -52,7 +52,9 @@ async function main() {
     data: { ownerId: user.id },
   });
 
-  console.log(`Assigned ${count} ownerless business(es) to ${user.email} (${user.id}).`);
+  console.log(
+    `Assigned ${count} ownerless business(es) to ${user.email} (${user.id}).`,
+  );
 }
 
 main()

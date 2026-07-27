@@ -86,7 +86,7 @@ describe("POST /api/conversations/[id]/send", () => {
       where: { id: conversation.id },
     });
     expect(updated.lastMessageAt.getTime()).toBeGreaterThan(
-      conversation.lastMessageAt.getTime()
+      conversation.lastMessageAt.getTime(),
     );
     expect(updated.unreadCount).toBe(conversation.unreadCount);
 

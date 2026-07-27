@@ -7,18 +7,18 @@ const API_VERSION = "v21.0";
 
 async function getMediaUrl(
   mediaId: string,
-  token: string
+  token: string,
 ): Promise<{ url: string; mime_type?: string }> {
   const { data } = await axios.get(
     `https://graph.facebook.com/${API_VERSION}/${mediaId}`,
-    { headers: { Authorization: `Bearer ${token}` } }
+    { headers: { Authorization: `Bearer ${token}` } },
   );
   return data;
 }
 
 export async function downloadMediaBuffer(
   mediaId: string,
-  token: string
+  token: string,
 ): Promise<{ buffer: Buffer; mimeType: string }> {
   const meta = await getMediaUrl(mediaId, token);
   const res = await axios.get(meta.url, {
@@ -32,7 +32,7 @@ export async function downloadMediaBuffer(
 export async function describeImageFromBuffer(
   business: Business,
   buffer: Buffer,
-  mimeType: string
+  mimeType: string,
 ): Promise<string> {
   const base64 = buffer.toString("base64");
   const dataUrl = `data:${mimeType};base64,${base64}`;
@@ -63,7 +63,7 @@ export async function describeImageFromBuffer(
 
 export async function transcribeAudioBuffer(
   business: Business,
-  buffer: Buffer
+  buffer: Buffer,
 ): Promise<string> {
   return callWithFailover(business, async (client) => {
     const file = await toFile(buffer, "audio.ogg", { type: "audio/ogg" });

@@ -9,7 +9,8 @@ import { businessScope } from "@/lib/scope";
 // just the admin management UI.
 export async function GET() {
   const user = await getSessionUser();
-  if (!user) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  if (!user)
+    return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
   const list = await prisma.business.findMany({
     where: businessScope(user),
@@ -22,7 +23,8 @@ export async function GET() {
 // numbers are managed from Admin > Clients > [client], never self-service.
 export async function POST(req: NextRequest) {
   const admin = await requireAdmin();
-  if (!admin) return NextResponse.json({ error: "No encontrado" }, { status: 404 });
+  if (!admin)
+    return NextResponse.json({ error: "No encontrado" }, { status: 404 });
 
   const body = await req.json();
   const {
@@ -44,13 +46,16 @@ export async function POST(req: NextRequest) {
   } = body;
 
   if (!ownerId || !name || !phoneNumberId || !systemPrompt || !welcomeMessage) {
-    return NextResponse.json({ error: "Faltan campos requeridos" }, { status: 400 });
+    return NextResponse.json(
+      { error: "Faltan campos requeridos" },
+      { status: 400 },
+    );
   }
 
   if (!whatsappToken && !whatsappCredentialId) {
     return NextResponse.json(
       { error: "Asigná una credencial de WhatsApp o cargá un token" },
-      { status: 400 }
+      { status: 400 },
     );
   }
 
@@ -60,9 +65,15 @@ export async function POST(req: NextRequest) {
   }
 
   if (aiCredentialId || whatsappCredentialId) {
-    const owned = await ownsCredentials(admin.id, [aiCredentialId, whatsappCredentialId]);
+    const owned = await ownsCredentials(admin.id, [
+      aiCredentialId,
+      whatsappCredentialId,
+    ]);
     if (!owned) {
-      return NextResponse.json({ error: "Credencial inválida" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Credencial inválida" },
+        { status: 400 },
+      );
     }
   }
 
@@ -88,10 +99,13 @@ export async function POST(req: NextRequest) {
     });
     return NextResponse.json(b);
   } catch (err) {
-    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+    if (
+      err instanceof Prisma.PrismaClientKnownRequestError &&
+      err.code === "P2002"
+    ) {
       return NextResponse.json(
         { error: "Ese número ya está registrado en otro cliente" },
-        { status: 409 }
+        { status: 409 },
       );
     }
     throw err;
@@ -100,7 +114,7 @@ export async function POST(req: NextRequest) {
 
 async function ownsCredentials(
   ownerId: string,
-  ids: Array<string | null | undefined>
+  ids: Array<string | null | undefined>,
 ): Promise<boolean> {
   const wanted = ids.filter((id): id is string => Boolean(id));
   if (wanted.length === 0) return true;

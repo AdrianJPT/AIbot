@@ -34,6 +34,7 @@ model User {
   createdAt  DateTime   @default(now())
 }
 ```
+
 - Add to `Business`: `ownerId String?` + relation + `@@index([ownerId])`. Nullable at first: existing rows have no owner.
 - Backfill strategy: after the first login of the product owner, a one-off script (`prisma/scripts/assign-owner.ts`, run with `tsx`) assigns all ownerless businesses to that user. Then a follow-up migration makes `ownerId` required.
 

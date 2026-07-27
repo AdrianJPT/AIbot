@@ -25,7 +25,9 @@ describe("crypto", () => {
     const [iv, ciphertext, authTag] = stored.split(":");
     const tamperedAuthTag = Buffer.from(authTag, "base64");
     tamperedAuthTag[0] ^= 0xff;
-    const tampered = [iv, ciphertext, tamperedAuthTag.toString("base64")].join(":");
+    const tampered = [iv, ciphertext, tamperedAuthTag.toString("base64")].join(
+      ":",
+    );
 
     expect(() => decryptSecret(tampered)).toThrow();
   });
@@ -35,7 +37,9 @@ describe("crypto", () => {
     const [iv, ciphertext, authTag] = stored.split(":");
     const tamperedCiphertext = Buffer.from(ciphertext, "base64");
     tamperedCiphertext[0] ^= 0xff;
-    const tampered = [iv, tamperedCiphertext.toString("base64"), authTag].join(":");
+    const tampered = [iv, tamperedCiphertext.toString("base64"), authTag].join(
+      ":",
+    );
 
     expect(() => decryptSecret(tampered)).toThrow();
   });

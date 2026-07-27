@@ -13,7 +13,9 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
   return res.json();
 }
 
-export function fetchConversations(q?: string): Promise<ConversationListItem[]> {
+export function fetchConversations(
+  q?: string,
+): Promise<ConversationListItem[]> {
   const params = new URLSearchParams();
   if (q?.trim()) params.set("q", q.trim());
   const qs = params.toString();
@@ -23,7 +25,7 @@ export function fetchConversations(q?: string): Promise<ConversationListItem[]> 
 export function fetchMessages(
   conversationId: string,
   cursor?: string | null,
-  limit = 50
+  limit = 50,
 ): Promise<MessagesPage> {
   const params = new URLSearchParams({ limit: String(limit) });
   if (cursor) params.set("cursor", cursor);
@@ -43,7 +45,7 @@ export function setConversationStatus(id: string, status: string) {
 }
 
 export function fetchConversationAppointments(
-  id: string
+  id: string,
 ): Promise<ConversationAppointment[]> {
   return request(`/api/conversations/${id}/appointments`);
 }

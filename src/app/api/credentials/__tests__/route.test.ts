@@ -74,11 +74,15 @@ describe("GET/POST /api/credentials", () => {
     const list = await res.json();
 
     expect(res.status).toBe(200);
-    expect(list.some((c: { label: string }) => c.label === "owned-by-admin")).toBe(true);
-    expect(list.some((c: { label: string }) => c.label === "owned-by-other")).toBe(true);
-    expect(list.every((c: Record<string, unknown>) => !("encryptedKey" in c))).toBe(
-      true
-    );
+    expect(
+      list.some((c: { label: string }) => c.label === "owned-by-admin"),
+    ).toBe(true);
+    expect(
+      list.some((c: { label: string }) => c.label === "owned-by-other"),
+    ).toBe(true);
+    expect(
+      list.every((c: Record<string, unknown>) => !("encryptedKey" in c)),
+    ).toBe(true);
   });
 
   it("POST returns 404 when unauthenticated", async () => {
@@ -94,7 +98,9 @@ describe("GET/POST /api/credentials", () => {
     getSessionUser.mockResolvedValueOnce(client);
     const { POST } = await import("../route");
 
-    const res = await POST(buildRequest({ kind: "ai", provider: "openai", label: "x", key: "sk-x" }));
+    const res = await POST(
+      buildRequest({ kind: "ai", provider: "openai", label: "x", key: "sk-x" }),
+    );
 
     expect(res.status).toBe(404);
   });
@@ -118,7 +124,7 @@ describe("GET/POST /api/credentials", () => {
         provider: "openai",
         label: "New key",
         key: "sk-abcd1234",
-      })
+      }),
     );
     const created = await res.json();
 

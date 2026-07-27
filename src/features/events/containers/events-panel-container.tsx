@@ -31,7 +31,7 @@ export function EventsPanelContainer({
 
   const events = useMemo(
     () => (data?.pages ?? []).flatMap((page) => page.events),
-    [data]
+    [data],
   );
 
   return (

@@ -27,7 +27,9 @@ vi.mock("../../log", () => ({
 
 type FakeOpenAIInstance = { apiKey?: string; baseURL?: string };
 const openAiCtor = vi.fn(
-  (config: { apiKey?: string; baseURL?: string }): FakeOpenAIInstance => ({ ...config })
+  (config: { apiKey?: string; baseURL?: string }): FakeOpenAIInstance => ({
+    ...config,
+  }),
 );
 vi.mock("openai", () => ({
   default: class {
@@ -96,10 +98,14 @@ describe("getAiClient resolution order", () => {
 
     const { client, credential: resolved } = await getAiClient(business);
 
-    expect(credentialFindUnique).toHaveBeenCalledWith({ where: { id: "cred_business" } });
+    expect(credentialFindUnique).toHaveBeenCalledWith({
+      where: { id: "cred_business" },
+    });
     expect(credentialFindFirst).not.toHaveBeenCalled();
     expect(resolved?.id).toBe("cred_business");
-    expect((client as unknown as FakeOpenAIInstance).apiKey).toBe("decrypted:enc:cred_1");
+    expect((client as unknown as FakeOpenAIInstance).apiKey).toBe(
+      "decrypted:enc:cred_1",
+    );
   });
 
   it("falls back to the owner's active AI credential when business has none set", async () => {
@@ -120,7 +126,7 @@ describe("getAiClient resolution order", () => {
     const business = makeBusiness({ aiCredentialId: null, ownerId: null });
 
     await expect(getAiClient(business)).rejects.toThrow(
-      /No AI credential is configured/
+      /No AI credential is configured/,
     );
   });
 });
@@ -140,12 +146,18 @@ describe("client caching", () => {
   it("builds a new client when updatedAt changes (rotation)", async () => {
     const business = makeBusiness({ aiCredentialId: "cred_rotate" });
     credentialFindUnique.mockResolvedValueOnce(
-      makeCredential({ id: "cred_rotate", updatedAt: new Date("2026-01-01T00:00:00.000Z") })
+      makeCredential({
+        id: "cred_rotate",
+        updatedAt: new Date("2026-01-01T00:00:00.000Z"),
+      }),
     );
     await getAiClient(business);
 
     credentialFindUnique.mockResolvedValueOnce(
-      makeCredential({ id: "cred_rotate", updatedAt: new Date("2026-02-01T00:00:00.000Z") })
+      makeCredential({
+        id: "cred_rotate",
+        updatedAt: new Date("2026-02-01T00:00:00.000Z"),
+      }),
     );
     await getAiClient(business);
 
@@ -184,7 +196,7 @@ describe("callWithFailover", () => {
       "credentials",
       expect.any(String),
       expect.objectContaining({ credentialId: "cred_active" }),
-      business.id
+      business.id,
     );
     expect(credentialUpdate).toHaveBeenCalledWith({
       where: { id: "cred_active" },
@@ -214,7 +226,9 @@ describe("callWithFailover", () => {
     const business = makeBusiness({ aiCredentialId: null });
     const fn = vi.fn().mockRejectedValue(new Error("network blip"));
 
-    await expect(callWithFailover(business, fn)).rejects.toThrow("network blip");
+    await expect(callWithFailover(business, fn)).rejects.toThrow(
+      "network blip",
+    );
     expect(fn).toHaveBeenCalledTimes(1);
     expect(logEvent).not.toHaveBeenCalled();
   });

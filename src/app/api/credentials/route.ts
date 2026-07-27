@@ -21,7 +21,8 @@ const CREDENTIAL_LIST_SELECT = {
 
 export async function GET() {
   const user = await requireAdmin();
-  if (!user) return NextResponse.json({ error: "No encontrado" }, { status: 404 });
+  if (!user)
+    return NextResponse.json({ error: "No encontrado" }, { status: 404 });
 
   const list = await prisma.credential.findMany({
     orderBy: [{ kind: "asc" }, { createdAt: "desc" }],
@@ -32,7 +33,8 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   const user = await requireAdmin();
-  if (!user) return NextResponse.json({ error: "No encontrado" }, { status: 404 });
+  if (!user)
+    return NextResponse.json({ error: "No encontrado" }, { status: 404 });
 
   const body = await req.json();
   const { kind, provider, label, key, baseUrl } = body;
@@ -41,7 +43,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "kind inválido" }, { status: 400 });
   }
   if (!provider || !label || !key) {
-    return NextResponse.json({ error: "Faltan campos requeridos" }, { status: 400 });
+    return NextResponse.json(
+      { error: "Faltan campos requeridos" },
+      { status: 400 },
+    );
   }
 
   const encryptedKey = encryptSecret(key);

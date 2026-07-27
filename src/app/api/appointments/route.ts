@@ -5,7 +5,8 @@ import { appointmentScope, businessScope } from "@/lib/scope";
 
 export async function GET(req: NextRequest) {
   const user = await getSessionUser();
-  if (!user) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  if (!user)
+    return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
   const businessId = req.nextUrl.searchParams.get("businessId");
   const status = req.nextUrl.searchParams.get("status");
@@ -26,7 +27,8 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const user = await getSessionUser();
-  if (!user) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  if (!user)
+    return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
   const body = await req.json();
   const {
@@ -41,8 +43,18 @@ export async function POST(req: NextRequest) {
     status,
   } = body;
 
-  if (!businessId || !customerPhone || !customerName || !service || !date || !time) {
-    return NextResponse.json({ error: "Faltan campos requeridos" }, { status: 400 });
+  if (
+    !businessId ||
+    !customerPhone ||
+    !customerName ||
+    !service ||
+    !date ||
+    !time
+  ) {
+    return NextResponse.json(
+      { error: "Faltan campos requeridos" },
+      { status: 400 },
+    );
   }
 
   const business = await prisma.business.findFirst({

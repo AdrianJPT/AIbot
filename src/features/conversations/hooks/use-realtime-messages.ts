@@ -76,7 +76,7 @@ export function useRealtimeMessages(conversationId?: string): void {
       .on(
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "Conversation" },
-        invalidateList
+        invalidateList,
       )
       .subscribe((status) => {
         handleStatus(status);
@@ -95,7 +95,7 @@ export function useRealtimeMessages(conversationId?: string): void {
             table: "Message",
             filter: `conversationId=eq.${conversationId}`,
           },
-          invalidateMessages
+          invalidateMessages,
         )
         .on(
           "postgres_changes",
@@ -105,7 +105,7 @@ export function useRealtimeMessages(conversationId?: string): void {
             table: "Message",
             filter: `conversationId=eq.${conversationId}`,
           },
-          invalidateMessages
+          invalidateMessages,
         )
         .subscribe((status) => {
           handleStatus(status);

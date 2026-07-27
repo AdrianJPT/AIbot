@@ -9,7 +9,7 @@ export async function sendMessage(
   phoneNumberId: string,
   token: string,
   to: string,
-  text: string
+  text: string,
 ): Promise<string | undefined> {
   const res = await axios.post<{ messages?: Array<{ id?: string }> }>(
     `https://graph.facebook.com/${API_VERSION}/${phoneNumberId}/messages`,
@@ -24,13 +24,13 @@ export async function sendMessage(
         Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
       },
-    }
+    },
   );
   return res.data?.messages?.[0]?.id;
 }
 
 async function findActiveWhatsappCredential(
-  ownerId: string
+  ownerId: string,
 ): Promise<Credential | null> {
   return prisma.credential.findFirst({
     where: { ownerId, kind: "whatsapp", status: "active" },
@@ -42,7 +42,9 @@ async function findActiveWhatsappCredential(
  * order: business.whatsappCredentialId -> owner's active whatsapp
  * credential -> legacy Business.whatsappToken column fallback.
  */
-export async function resolveWhatsappToken(business: Business): Promise<string> {
+export async function resolveWhatsappToken(
+  business: Business,
+): Promise<string> {
   let credential: Credential | null = null;
 
   if (business.whatsappCredentialId) {
@@ -77,7 +79,7 @@ export async function resolveWhatsappToken(business: Business): Promise<string> 
 export async function sendBusinessMessage(
   business: Business,
   to: string,
-  text: string
+  text: string,
 ): Promise<string | undefined> {
   const token = await resolveWhatsappToken(business);
   return sendMessage(business.phoneNumberId, token, to, text);

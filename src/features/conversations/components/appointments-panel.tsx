@@ -12,11 +12,12 @@ import {
 } from "@/components/ui/sheet";
 import { fetchConversationAppointments } from "@/features/conversations/api";
 
-const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive"> = {
-  pending: "secondary",
-  confirmed: "default",
-  cancelled: "destructive",
-};
+const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive"> =
+  {
+    pending: "secondary",
+    confirmed: "default",
+    cancelled: "destructive",
+  };
 
 /**
  * Read-only "Citas" panel for the chat thread header — shows the customer's
@@ -24,7 +25,11 @@ const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive"> = 
  * No mutations here; appointments are created via the existing
  * /appointments/new flow.
  */
-export function AppointmentsPanel({ conversationId }: { conversationId: string }) {
+export function AppointmentsPanel({
+  conversationId,
+}: {
+  conversationId: string;
+}) {
   const { data: appointments = [], isLoading } = useQuery({
     queryKey: ["conversations", conversationId, "appointments"],
     queryFn: () => fetchConversationAppointments(conversationId),
@@ -70,7 +75,9 @@ export function AppointmentsPanel({ conversationId }: { conversationId: string }
                 {a.date} · {a.time}
               </div>
               {a.notes && (
-                <div className="mt-1 text-sm text-muted-foreground">{a.notes}</div>
+                <div className="mt-1 text-sm text-muted-foreground">
+                  {a.notes}
+                </div>
               )}
             </div>
           ))}

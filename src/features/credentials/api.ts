@@ -1,4 +1,7 @@
-import type { Credential, NewCredentialInput } from "@/features/credentials/types";
+import type {
+  Credential,
+  NewCredentialInput,
+} from "@/features/credentials/types";
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, init);
@@ -13,7 +16,9 @@ export function fetchCredentials(): Promise<Credential[]> {
   return request<Credential[]>("/api/credentials");
 }
 
-export function createCredential(payload: NewCredentialInput): Promise<Credential> {
+export function createCredential(
+  payload: NewCredentialInput,
+): Promise<Credential> {
   return request<Credential>("/api/credentials", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -35,7 +40,7 @@ export function deleteCredential(id: string) {
 
 export function testCredential(
   id: string,
-  payload: { phoneNumberId?: string } = {}
+  payload: { phoneNumberId?: string } = {},
 ): Promise<{ ok: boolean; error?: string }> {
   return request(`/api/credentials/${id}/test`, {
     method: "POST",

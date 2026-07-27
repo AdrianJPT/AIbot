@@ -9,7 +9,10 @@ import {
   fetchCredentials,
   updateBusiness,
 } from "@/features/businesses/api";
-import type { BusinessDetail, BusinessInput } from "@/features/businesses/types";
+import type {
+  BusinessDetail,
+  BusinessInput,
+} from "@/features/businesses/types";
 
 export function BusinessFormContainer({
   business,
@@ -33,10 +36,10 @@ export function BusinessFormContainer({
       business ? updateBusiness(business.id, payload) : createBusiness(payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["businesses"] });
-      toast.success(
-        business ? "Negocio actualizado" : "Negocio creado"
+      toast.success(business ? "Negocio actualizado" : "Negocio creado");
+      router.push(
+        fixedOwnerId ? `/admin/clients/${fixedOwnerId}` : "/businesses",
       );
-      router.push(fixedOwnerId ? `/admin/clients/${fixedOwnerId}` : "/businesses");
       router.refresh();
     },
     onError: (error: Error) => {

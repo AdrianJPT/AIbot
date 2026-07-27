@@ -18,10 +18,13 @@ export function ClientBusinessesTableContainer({
     mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) =>
       updateBusiness(id, { isActive }),
     onSuccess: (_data, variables) => {
-      toast.success(variables.isActive ? "Número reactivado" : "Número desactivado");
+      toast.success(
+        variables.isActive ? "Número reactivado" : "Número desactivado",
+      );
       router.refresh();
     },
-    onError: (error: Error) => toast.error(error.message || "Error al actualizar"),
+    onError: (error: Error) =>
+      toast.error(error.message || "Error al actualizar"),
   });
 
   return (

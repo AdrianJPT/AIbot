@@ -4,19 +4,21 @@ import { requireAdmin } from "@/lib/auth";
 
 export async function DELETE(
   _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   const user = await requireAdmin();
-  if (!user) return NextResponse.json({ error: "No encontrado" }, { status: 404 });
+  if (!user)
+    return NextResponse.json({ error: "No encontrado" }, { status: 404 });
 
   const { id } = await params;
   const credential = await prisma.credential.findFirst({ where: { id } });
-  if (!credential) return NextResponse.json({ error: "No encontrado" }, { status: 404 });
+  if (!credential)
+    return NextResponse.json({ error: "No encontrado" }, { status: 404 });
 
   if (credential.status !== "revoked") {
     return NextResponse.json(
       { error: "Solo se pueden eliminar credenciales revocadas" },
-      { status: 400 }
+      { status: 400 },
     );
   }
 
@@ -30,7 +32,7 @@ export async function DELETE(
       {
         error: `No se puede eliminar: está en uso por el negocio "${referencingBusiness.name}"`,
       },
-      { status: 409 }
+      { status: 409 },
     );
   }
 

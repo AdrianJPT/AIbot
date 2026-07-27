@@ -4,7 +4,10 @@ import { NextRequest } from "next/server";
 import type { User } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { isAdmin } from "@/lib/scope";
-import { cleanupOwnershipFixtures, createTestUser } from "@/lib/__tests__/fixtures/ownership";
+import {
+  cleanupOwnershipFixtures,
+  createTestUser,
+} from "@/lib/__tests__/fixtures/ownership";
 
 const getSessionUser = vi.fn();
 vi.mock("@/lib/auth", () => ({
@@ -71,7 +74,7 @@ describe("POST /api/admin/clients", () => {
     expect(created.role).toBe("client");
     expect(inviteUserByEmail).toHaveBeenCalledWith(
       email,
-      expect.objectContaining({ data: { full_name: "Cliente Nuevo" } })
+      expect.objectContaining({ data: { full_name: "Cliente Nuevo" } }),
     );
 
     const stored = await prisma.user.findUnique({ where: { id: newId } });

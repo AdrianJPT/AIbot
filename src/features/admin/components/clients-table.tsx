@@ -44,7 +44,10 @@ export function ClientsTable({ clients }: { clients: ClientListItem[] }) {
           {clients.map((c) => (
             <TableRow key={c.id}>
               <TableCell className="font-medium">
-                <Link href={`/admin/clients/${c.id}`} className="hover:underline">
+                <Link
+                  href={`/admin/clients/${c.id}`}
+                  className="hover:underline"
+                >
                   {c.name || c.email}
                 </Link>
                 {c.name && (

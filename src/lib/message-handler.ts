@@ -61,11 +61,9 @@ const KNOWN_STATUSES = new Set(["sent", "delivered", "read", "failed"]);
 
 export async function processWebhookPayload(body: unknown): Promise<void> {
   const entry = (body as { entry?: unknown[] })?.entry?.[0] as
-    | { changes?: unknown[] }
-    | undefined;
+    { changes?: unknown[] } | undefined;
   const change = entry?.changes?.[0] as
-    | { value?: Record<string, unknown> }
-    | undefined;
+    { value?: Record<string, unknown> } | undefined;
   const value = change?.value;
   if (!value) return;
 
@@ -89,12 +87,11 @@ export async function processWebhookPayload(body: unknown): Promise<void> {
   if (!messages?.length) return;
 
   const contacts = value.contacts as
-    | Array<{ profile?: { name?: string }; wa_id?: string }>
-    | undefined;
+    Array<{ profile?: { name?: string }; wa_id?: string }> | undefined;
 
   for (const message of messages) {
-    const customerName = contacts?.find((c) => c.wa_id === message.from)?.profile
-      ?.name;
+    const customerName = contacts?.find((c) => c.wa_id === message.from)
+      ?.profile?.name;
     await handleOneMessage(business, message, customerName);
   }
 }
@@ -106,7 +103,7 @@ export async function processWebhookPayload(body: unknown): Promise<void> {
  */
 async function handleStatusUpdate(
   businessId: string,
-  status: WaStatus
+  status: WaStatus,
 ): Promise<void> {
   if (!status?.id || !KNOWN_STATUSES.has(status.status)) return;
 
@@ -126,7 +123,7 @@ async function handleStatusUpdate(
       "whatsapp-send",
       "Message delivery failed",
       { wamid: status.id, errors: status.errors, messageId: message.id },
-      businessId
+      businessId,
     );
   }
 }
@@ -134,7 +131,7 @@ async function handleStatusUpdate(
 async function handleOneMessage(
   business: Business,
   message: WaMessage,
-  customerName?: string
+  customerName?: string,
 ): Promise<void> {
   const from = message.from;
   if (!from) return;
@@ -168,7 +165,10 @@ async function handleOneMessage(
     return;
   }
 
-  const history = await loadHistory(conversation.id, business.maxHistoryMessages);
+  const history = await loadHistory(
+    conversation.id,
+    business.maxHistoryMessages,
+  );
 
   await persistCustomerMessage(conversation.id, parsed, wamid, customerName);
 
@@ -180,7 +180,12 @@ async function handleOneMessage(
   } else if (await isRateLimited(conversation.id, business.id)) {
     // Persisted above already — just skip AI generation and the reply.
   } else {
-    reply = await resolveAiReply(business, conversation.id, history, parsed.content);
+    reply = await resolveAiReply(
+      business,
+      conversation.id,
+      history,
+      parsed.content,
+    );
   }
 
   if (reply === null) return;
@@ -215,7 +220,7 @@ async function handleOneMessage(
       "whatsapp-send",
       "sendMessage failed",
       { error: describeError(err), conversationId: conversation.id },
-      business.id
+      business.id,
     );
     await prisma.message.update({
       where: { id: outboundMessage.id },
@@ -232,7 +237,7 @@ async function handleOneMessage(
  */
 async function isRateLimited(
   conversationId: string,
-  businessId: string
+  businessId: string,
 ): Promise<boolean> {
   const recentCustomerCount = await prisma.message.count({
     where: {
@@ -249,7 +254,7 @@ async function isRateLimited(
     "webhook",
     "Per-conversation rate limit exceeded, skipping AI generation",
     { conversationId, recentCustomerCount },
-    businessId
+    businessId,
   );
   return true;
 }
@@ -269,7 +274,7 @@ async function resolveAiReply(
   business: Business,
   conversationId: string,
   history: ChatCompletionMessageParam[],
-  content: string
+  content: string,
 ): Promise<string | null> {
   const startOfDay = new Date();
   startOfDay.setUTCHours(0, 0, 0, 0);
@@ -298,7 +303,7 @@ async function resolveAiReply(
         "ai",
         "Daily AI budget exceeded, staying silent (already notified today)",
         { businessId: business.id, aiCallsToday },
-        business.id
+        business.id,
       );
       return null;
     }
@@ -308,7 +313,7 @@ async function resolveAiReply(
       "ai",
       "Daily AI budget exceeded, sending fallback message",
       { businessId: business.id, aiCallsToday },
-      business.id
+      business.id,
     );
     return DAILY_LIMIT_MESSAGE;
   }
@@ -316,7 +321,7 @@ async function resolveAiReply(
   try {
     const systemPrompt = buildSystemPrompt(business);
     return await callWithFailover(business, (client) =>
-      generateResponse(client, systemPrompt, history, content, business.model)
+      generateResponse(client, systemPrompt, history, content, business.model),
     );
   } catch (err) {
     await logEvent(
@@ -324,7 +329,7 @@ async function resolveAiReply(
       "ai",
       "generateResponse failed",
       { error: describeError(err), conversationId },
-      business.id
+      business.id,
     );
     return FALLBACK_REPLY;
   }
@@ -339,7 +344,7 @@ async function persistCustomerMessage(
   conversationId: string,
   parsed: { content: string; mediaType: string },
   wamid: string | undefined,
-  customerName: string | undefined
+  customerName: string | undefined,
 ): Promise<void> {
   await prisma.$transaction([
     prisma.message.create({
@@ -370,7 +375,7 @@ function describeError(err: unknown): { message: string; stack?: string } {
 
 async function loadHistory(
   conversationId: string,
-  max: number
+  max: number,
 ): Promise<ChatCompletionMessageParam[]> {
   const rows = await prisma.message.findMany({
     where: { conversationId },
@@ -385,7 +390,7 @@ async function loadHistory(
 
 async function parseUserContent(
   business: Business,
-  message: WaMessage
+  message: WaMessage,
 ): Promise<{ content: string; mediaType: string } | null> {
   const token = business.whatsappToken;
 

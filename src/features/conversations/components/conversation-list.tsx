@@ -43,7 +43,10 @@ export function ConversationList({
           onChange={(e) => onSearchChange(e.target.value)}
           placeholder="Buscar por nombre o teléfono…"
         />
-        <Tabs value={filter} onValueChange={(v) => onFilterChange(v as ConversationFilter)}>
+        <Tabs
+          value={filter}
+          onValueChange={(v) => onFilterChange(v as ConversationFilter)}
+        >
           <TabsList className="grid w-full grid-cols-4">
             {TABS.map((tab) => (
               <TabsTrigger key={tab.value} value={tab.value}>

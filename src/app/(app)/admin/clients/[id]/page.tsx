@@ -28,10 +28,12 @@ export default async function AdminClientDetailPage({
   });
   if (!client) notFound();
 
-  const businesses = client.businesses.map(({ conversations, ...business }) => ({
-    ...business,
-    ...aggregateBusinessActivity(conversations),
-  }));
+  const businesses = client.businesses.map(
+    ({ conversations, ...business }) => ({
+      ...business,
+      ...aggregateBusinessActivity(conversations),
+    }),
+  );
 
   return (
     <div>

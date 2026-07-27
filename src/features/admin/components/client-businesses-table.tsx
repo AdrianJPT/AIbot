@@ -72,7 +72,10 @@ export function ClientBusinessesTable({
               </TableCell>
               <TableCell>
                 <div className="flex items-center justify-end gap-3">
-                  <Link href="/conversations" className="text-primary hover:underline">
+                  <Link
+                    href="/conversations"
+                    className="text-primary hover:underline"
+                  >
                     Ver conversaciones
                   </Link>
                   <Link

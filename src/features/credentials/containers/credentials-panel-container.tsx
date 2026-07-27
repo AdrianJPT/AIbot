@@ -36,7 +36,9 @@ export function CredentialsPanelContainer({
   });
 
   const [testResults, setTestResults] = useState<Record<string, string>>({});
-  const [phoneNumberIds, setPhoneNumberIds] = useState<Record<string, string>>({});
+  const [phoneNumberIds, setPhoneNumberIds] = useState<Record<string, string>>(
+    {},
+  );
 
   const [kind, setKind] = useState<"ai" | "whatsapp">("ai");
   const [provider, setProvider] = useState("openai");
@@ -94,7 +96,7 @@ export function CredentialsPanelContainer({
         credential.id,
         credential.kind === "whatsapp"
           ? { phoneNumberId: phoneNumberIds[credential.id] }
-          : {}
+          : {},
       ).then((result) => ({ credential, result })),
     onSuccess: ({ credential, result }) => {
       setTestResults((prev) => ({

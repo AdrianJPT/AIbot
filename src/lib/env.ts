@@ -16,17 +16,17 @@ function validateEnv(): void {
   const missing = REQUIRED_ENV_VARS.filter((key) => !process.env[key]);
   if (missing.length > 0) {
     throw new Error(
-      `Missing required environment variable(s): ${missing.join(", ")}`
+      `Missing required environment variable(s): ${missing.join(", ")}`,
     );
   }
 
   const encryptionKey = Buffer.from(
     process.env.APP_ENCRYPTION_KEY as string,
-    "base64"
+    "base64",
   );
   if (encryptionKey.length !== ENCRYPTION_KEY_LENGTH) {
     throw new Error(
-      `APP_ENCRYPTION_KEY must decode to exactly ${ENCRYPTION_KEY_LENGTH} bytes`
+      `APP_ENCRYPTION_KEY must decode to exactly ${ENCRYPTION_KEY_LENGTH} bytes`,
     );
   }
 }

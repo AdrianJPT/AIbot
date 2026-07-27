@@ -89,7 +89,7 @@ async function migrateWhatsappTokens(): Promise<void> {
   }
 
   console.log(
-    `WhatsApp tokens: linked ${migrated} business(es) to a Credential, skipped ${skipped} (no owner or no token).`
+    `WhatsApp tokens: linked ${migrated} business(es) to a Credential, skipped ${skipped} (no owner or no token).`,
   );
 }
 
@@ -105,7 +105,7 @@ async function migrateOpenAiKey(ownerIdOrEmail: {
 
   if (!ownerIdOrEmail.email && !ownerIdOrEmail.userId) {
     console.log(
-      "OPENAI_API_KEY is set but no --email/--user-id was given — skipping AI credential migration."
+      "OPENAI_API_KEY is set but no --email/--user-id was given — skipping AI credential migration.",
     );
     return;
   }
@@ -116,7 +116,7 @@ async function migrateOpenAiKey(ownerIdOrEmail: {
 
   if (!user) {
     console.error(
-      `No User found for ${ownerIdOrEmail.userId ? `id=${ownerIdOrEmail.userId}` : `email=${ownerIdOrEmail.email}`}. Skipping AI credential migration.`
+      `No User found for ${ownerIdOrEmail.userId ? `id=${ownerIdOrEmail.userId}` : `email=${ownerIdOrEmail.email}`}. Skipping AI credential migration.`,
     );
     return;
   }
@@ -126,7 +126,7 @@ async function migrateOpenAiKey(ownerIdOrEmail: {
   });
   if (existingActive) {
     console.log(
-      `${user.email} already has an active AI credential (${existingActive.label}) — skipping.`
+      `${user.email} already has an active AI credential (${existingActive.label}) — skipping.`,
     );
     return;
   }

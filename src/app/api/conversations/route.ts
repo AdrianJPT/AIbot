@@ -5,7 +5,8 @@ import { conversationScope } from "@/lib/scope";
 
 export async function GET(req: NextRequest) {
   const user = await getSessionUser();
-  if (!user) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  if (!user)
+    return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
   const businessId = req.nextUrl.searchParams.get("businessId");
   const status = req.nextUrl.searchParams.get("status");

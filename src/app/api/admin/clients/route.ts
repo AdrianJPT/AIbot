@@ -10,7 +10,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 // upserts the same row on first login, so this doesn't conflict.
 export async function POST(req: NextRequest) {
   const admin = await requireAdmin();
-  if (!admin) return NextResponse.json({ error: "No encontrado" }, { status: 404 });
+  if (!admin)
+    return NextResponse.json({ error: "No encontrado" }, { status: 404 });
 
   const { email, name } = await req.json();
   if (!email) {
@@ -25,7 +26,7 @@ export async function POST(req: NextRequest) {
   if (error || !data.user) {
     return NextResponse.json(
       { error: error?.message || "No se pudo invitar al cliente" },
-      { status: 400 }
+      { status: 400 },
     );
   }
 
@@ -40,10 +41,13 @@ export async function POST(req: NextRequest) {
     });
     return NextResponse.json(client);
   } catch (err) {
-    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+    if (
+      err instanceof Prisma.PrismaClientKnownRequestError &&
+      err.code === "P2002"
+    ) {
       return NextResponse.json(
         { error: "Ya existe un cliente con ese email" },
-        { status: 409 }
+        { status: 409 },
       );
     }
     throw err;

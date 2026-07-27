@@ -17,12 +17,27 @@ import { isAdmin } from "@/lib/scope";
 
 const links = [
   { href: "/", label: "Panel", icon: LayoutDashboard, adminOnly: false },
-  { href: "/conversations", label: "Conversaciones", icon: MessageSquare, adminOnly: false },
+  {
+    href: "/conversations",
+    label: "Conversaciones",
+    icon: MessageSquare,
+    adminOnly: false,
+  },
   { href: "/businesses", label: "Negocios", icon: Building2, adminOnly: true },
   { href: "/appointments", label: "Citas", icon: Calendar, adminOnly: false },
   { href: "/admin/clients", label: "Clientes", icon: Users, adminOnly: true },
-  { href: "/settings/credentials", label: "Configuración", icon: KeyRound, adminOnly: true },
-  { href: "/settings/events", label: "Eventos", icon: AlertCircle, adminOnly: true },
+  {
+    href: "/settings/credentials",
+    label: "Configuración",
+    icon: KeyRound,
+    adminOnly: true,
+  },
+  {
+    href: "/settings/events",
+    label: "Eventos",
+    icon: AlertCircle,
+    adminOnly: true,
+  },
 ];
 
 function isActive(pathname: string, href: string) {
@@ -50,9 +65,7 @@ export function SidebarNav({
 
   return (
     <div className="flex h-full flex-col">
-      <div className="mb-8 text-lg font-semibold text-primary">
-        WhatsApp AI
-      </div>
+      <div className="mb-8 text-lg font-semibold text-primary">WhatsApp AI</div>
       <nav className="flex flex-1 flex-col gap-1">
         {visibleLinks.map((l) => {
           const active = isActive(pathname, l.href);
@@ -66,7 +79,7 @@ export function SidebarNav({
                 "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
                 active
                   ? "bg-accent text-accent-foreground"
-                  : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                  : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
               )}
             >
               <Icon className="h-4 w-4 shrink-0" />

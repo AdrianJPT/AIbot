@@ -31,7 +31,10 @@ export function ConversationListPaneContainer() {
   useRealtimeMessages();
 
   useEffect(() => {
-    const timer = setTimeout(() => setDebouncedSearch(search.trim()), SEARCH_DEBOUNCE_MS);
+    const timer = setTimeout(
+      () => setDebouncedSearch(search.trim()),
+      SEARCH_DEBOUNCE_MS,
+    );
     return () => clearTimeout(timer);
   }, [search]);
 
@@ -42,7 +45,7 @@ export function ConversationListPaneContainer() {
 
   const businessCount = useMemo(
     () => new Set(conversations.map((c) => c.business.id)).size,
-    [conversations]
+    [conversations],
   );
 
   const filtered = useMemo(() => {

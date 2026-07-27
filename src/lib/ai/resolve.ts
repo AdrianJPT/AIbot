@@ -32,12 +32,15 @@ function getOrBuildClient(key: string, build: () => OpenAI): OpenAI {
 function buildClientForCredential(credential: Credential): OpenAI {
   return getOrBuildClient(cacheKeyFor(credential), () => {
     const apiKey = decryptSecret(credential.encryptedKey);
-    const baseURL = credential.baseUrl || PROVIDER_BASE_URLS[credential.provider];
+    const baseURL =
+      credential.baseUrl || PROVIDER_BASE_URLS[credential.provider];
     return new OpenAI({ apiKey, baseURL });
   });
 }
 
-async function findActiveAiCredential(ownerId: string): Promise<Credential | null> {
+async function findActiveAiCredential(
+  ownerId: string,
+): Promise<Credential | null> {
   return prisma.credential.findFirst({
     where: { ownerId, kind: "ai", status: "active" },
   });
@@ -45,7 +48,7 @@ async function findActiveAiCredential(ownerId: string): Promise<Credential | nul
 
 async function findStandbyAiCredential(
   ownerId: string,
-  excludeCredentialId: string
+  excludeCredentialId: string,
 ): Promise<Credential | null> {
   return prisma.credential.findFirst({
     where: {
@@ -68,7 +71,9 @@ export type ResolvedAiClient = {
  * AI keys are managed exclusively in /settings/credentials — there is no
  * environment-variable fallback.
  */
-export async function getAiClient(business: Business): Promise<ResolvedAiClient> {
+export async function getAiClient(
+  business: Business,
+): Promise<ResolvedAiClient> {
   let credential: Credential | null = null;
 
   if (business.aiCredentialId) {
@@ -83,7 +88,7 @@ export async function getAiClient(business: Business): Promise<ResolvedAiClient>
 
   if (!credential) {
     throw new Error(
-      "No AI credential is configured for this business. Add one in /settings/credentials."
+      "No AI credential is configured for this business. Add one in /settings/credentials.",
     );
   }
 
@@ -112,7 +117,7 @@ function errorMessage(err: unknown): string {
  */
 export async function callWithFailover<T>(
   business: Business,
-  fn: (client: OpenAI) => Promise<T>
+  fn: (client: OpenAI) => Promise<T>,
 ): Promise<T> {
   const { client, credential } = await getAiClient(business);
 
@@ -137,7 +142,7 @@ export async function callWithFailover<T>(
       "credentials",
       "AI credential auth failure",
       { error: errorMessage(err), credentialId: credential.id },
-      business.id
+      business.id,
     );
 
     await prisma.credential
@@ -149,7 +154,10 @@ export async function callWithFailover<T>(
 
     if (!business.ownerId) throw err;
 
-    const standby = await findStandbyAiCredential(business.ownerId, credential.id);
+    const standby = await findStandbyAiCredential(
+      business.ownerId,
+      credential.id,
+    );
     if (!standby) throw err;
 
     const standbyClient = buildClientForCredential(standby);

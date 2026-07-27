@@ -32,6 +32,7 @@ src/
 ```
 
 Rules:
+
 - Pages in `app/` do server-side data loading and render feature containers. No business logic in `app/`.
 - `features/*/components` are presentational (container/presentational split). Containers own state/queries.
 - Imports flow: `app → features → components/ui + lib`. Features never import from other features; shared things graduate to `components/ui` or `hooks/`.
@@ -57,6 +58,7 @@ Rules:
 ### 4.3 Migrate screens feature-by-feature
 
 Order (one PR each, delete the old file in the same PR):
+
 1. **Dashboard** (`src/app/page.tsx`, `stats-card.tsx`) → `features/dashboard`. Stats as shadcn cards.
 2. **Businesses** (list/new/edit + `business-form.tsx`) → `features/businesses`. Form with shadcn inputs + zod-free native validation (no react-hook-form unless form complexity demands it).
 3. **Appointments** (list/new + `appointment-table.tsx`, `appointment-row-actions.tsx`) → `features/appointments`. Mutations via TanStack Query + toast feedback.

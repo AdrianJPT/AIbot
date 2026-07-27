@@ -28,7 +28,10 @@ describe("GET /api/conversations", () => {
     other = await createTestUser("search-other");
     admin = await createTestUser("search-admin", "admin");
     business = await createTestBusiness(owner.id, "conv-search");
-    const otherBusiness = await createTestBusiness(other.id, "conv-search-other");
+    const otherBusiness = await createTestBusiness(
+      other.id,
+      "conv-search-other",
+    );
     await prisma.conversation.create({
       data: {
         businessId: business.id,
@@ -103,7 +106,9 @@ describe("GET /api/conversations", () => {
     const res = await GET(buildRequest());
     const body = await res.json();
 
-    const names = body.map((c: { customerName: string | null }) => c.customerName);
+    const names = body.map(
+      (c: { customerName: string | null }) => c.customerName,
+    );
     expect(names).toContain("Ana García");
     expect(names).toContain("Otro cliente");
   });

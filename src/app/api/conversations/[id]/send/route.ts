@@ -7,10 +7,11 @@ import { conversationScope } from "@/lib/scope";
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   const user = await getSessionUser();
-  if (!user) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  if (!user)
+    return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
   const { id } = await params;
   const body = await req.json();
@@ -30,15 +31,22 @@ export async function POST(
   let wamid: string | undefined;
   let sendFailed = false;
   try {
-    wamid = await sendBusinessMessage(conv.business, conv.customerPhone, text.trim());
+    wamid = await sendBusinessMessage(
+      conv.business,
+      conv.customerPhone,
+      text.trim(),
+    );
   } catch (err) {
     sendFailed = true;
     await logEvent(
       "error",
       "whatsapp-send",
       "sendMessage failed",
-      { error: err instanceof Error ? err.message : String(err), conversationId: conv.id },
-      conv.business.id
+      {
+        error: err instanceof Error ? err.message : String(err),
+        conversationId: conv.id,
+      },
+      conv.business.id,
     );
   }
 
