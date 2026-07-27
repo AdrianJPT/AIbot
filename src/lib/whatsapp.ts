@@ -9,7 +9,7 @@ export async function sendMessage(
   phoneNumberId: string,
   token: string,
   to: string,
-  text: string
+  text: string,
 ): Promise<string | undefined> {
   const res = await axios.post<{ messages?: Array<{ id?: string }> }>(
     `https://graph.facebook.com/${API_VERSION}/${phoneNumberId}/messages`,
@@ -24,7 +24,7 @@ export async function sendMessage(
         Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
       },
-    }
+    },
   );
   return res.data?.messages?.[0]?.id;
 }
@@ -39,7 +39,12 @@ export async function sendMessage(
  */
 export async function resolveWhatsappToken(
   phoneNumber: PhoneNumber,
-  ownerId: string
+  // Currently unread. The credential below is fetched by id alone, without
+  // checking that it belongs to this owner. Kept in the signature because the
+  // missing piece is the ownership check, not the parameter — removing it
+  // would erase the only trace that the check was intended.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  ownerId: string,
 ): Promise<string> {
   let credential: Credential | null = null;
 
@@ -53,7 +58,9 @@ export async function resolveWhatsappToken(
   }
 
   if (!credential) {
-    const config = await prisma.appConfig.findUnique({ where: { id: "default" } });
+    const config = await prisma.appConfig.findUnique({
+      where: { id: "default" },
+    });
     if (config?.whatsappCredentialId) {
       credential = await prisma.credential
         .update({
@@ -66,7 +73,7 @@ export async function resolveWhatsappToken(
 
   if (!credential) {
     throw new Error(
-      `No WhatsApp credential configured for phone number ${phoneNumber.id}`
+      `No WhatsApp credential configured for phone number ${phoneNumber.id}`,
     );
   }
 
@@ -81,7 +88,7 @@ export async function sendFromNumber(
   phoneNumber: PhoneNumber,
   ownerId: string,
   to: string,
-  text: string
+  text: string,
 ): Promise<string | undefined> {
   const token = await resolveWhatsappToken(phoneNumber, ownerId);
   return sendMessage(phoneNumber.phoneNumberId, token, to, text);
@@ -100,7 +107,7 @@ export async function sendFromNumber(
 export async function ensureWhatsappCredential(
   ownerId: string,
   label: string,
-  rawToken: string
+  rawToken: string,
 ): Promise<string> {
   const credential = await prisma.credential.create({
     data: {

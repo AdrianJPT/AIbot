@@ -26,12 +26,18 @@ export type ResolvedModels = {
  * Keeping this data-driven (not a code constant) means rolling a new model
  * out to every client is a Settings save, not a deploy.
  */
-export async function resolveModels(business: Business): Promise<ResolvedModels> {
+export async function resolveModels(
+  business: Business,
+): Promise<ResolvedModels> {
   const config = await getAppConfig();
   return {
     chatModel: business.model || config?.chatModel || FALLBACK_MODELS.chatModel,
-    visionModel: business.visionModel || config?.visionModel || FALLBACK_MODELS.visionModel,
-    audioModel: business.audioModel || config?.audioModel || FALLBACK_MODELS.audioModel,
+    visionModel:
+      business.visionModel ||
+      config?.visionModel ||
+      FALLBACK_MODELS.visionModel,
+    audioModel:
+      business.audioModel || config?.audioModel || FALLBACK_MODELS.audioModel,
   };
 }
 
@@ -63,7 +69,8 @@ function getOrBuildClient(key: string, build: () => OpenAI): OpenAI {
 function buildClientForCredential(credential: Credential): OpenAI {
   return getOrBuildClient(cacheKeyFor(credential), () => {
     const apiKey = decryptSecret(credential.encryptedKey);
-    const baseURL = credential.baseUrl || PROVIDER_BASE_URLS[credential.provider];
+    const baseURL =
+      credential.baseUrl || PROVIDER_BASE_URLS[credential.provider];
     // Explicit timeout/maxRetries: callWithAiCredential already implements
     // its own targeted single 429-retry per candidate and iterates multiple
     // candidates, so we don't want the SDK's own defaults (10 min timeout,
@@ -131,7 +138,9 @@ function extractErrorCode(err: unknown): string | undefined {
     code?: string | null;
     type?: string | null;
     error?: { code?: string | null; type?: string | null };
-    response?: { data?: { error?: { code?: string | null; type?: string | null } } };
+    response?: {
+      data?: { error?: { code?: string | null; type?: string | null } };
+    };
   };
   return (
     e?.code ??
@@ -140,8 +149,9 @@ function extractErrorCode(err: unknown): string | undefined {
     e?.error?.type ??
     e?.response?.data?.error?.code ??
     e?.response?.data?.error?.type ??
+    // Normalises a trailing `null` to `undefined` to match the return type.
     undefined
-  ) ?? undefined;
+  );
 }
 
 function errorMessage(err: unknown): string {
@@ -174,18 +184,20 @@ async function markCredentialSuccess(credential: Credential): Promise<void> {
 async function recordCredentialFailure(
   business: Business,
   credential: Credential,
-  err: unknown
+  err: unknown,
 ): Promise<void> {
   const code = extractErrorCode(err);
   const persistedMessage =
-    extractStatus(err) === 429 ? `Rate limited: ${errorMessage(err)}` : errorMessage(err);
+    extractStatus(err) === 429
+      ? `Rate limited: ${errorMessage(err)}`
+      : errorMessage(err);
 
   await logEvent(
     "error",
     "credentials",
     "AI credential auth failure",
     { error: persistedMessage, credentialId: credential.id, code },
-    business.id
+    business.id,
   );
 
   await prisma.credential
@@ -220,13 +232,13 @@ async function recordCredentialFailure(
  */
 export async function callWithAiCredential<T>(
   business: Business,
-  fn: (client: OpenAI) => Promise<T>
+  fn: (client: OpenAI) => Promise<T>,
 ): Promise<T> {
   const candidates = await resolveCandidates(business);
 
   if (candidates.length === 0) {
     throw new Error(
-      "No AI credential is configured for this business. Add one in /settings/credentials."
+      "No AI credential is configured for this business. Add one in /settings/credentials.",
     );
   }
 

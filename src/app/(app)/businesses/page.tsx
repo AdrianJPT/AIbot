@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { BusinessListTable } from "@/features/businesses/components/business-list-table";
 import { prisma } from "@/lib/db";
@@ -29,21 +30,24 @@ export default async function BusinessesPage() {
       <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
         <h1 className="text-2xl font-bold">Negocios</h1>
         {isAdmin(user) && (
-          <a
+          <Link
             href="/businesses/new"
             className="inline-flex h-10 items-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90"
           >
             Nuevo negocio
-          </a>
+          </Link>
         )}
       </div>
       {isAdmin(user) && (
         <p className="mb-4 text-sm text-muted-foreground">
-          Creá el negocio acá, agregale números desde su edición, y cuando
-          esté listo asignáselo a un cliente (desde la edición o al{" "}
-          <a href="/admin/clients/new" className="text-primary hover:underline">
+          Creá el negocio acá, agregale números desde su edición, y cuando esté
+          listo asignáselo a un cliente (desde la edición o al{" "}
+          <Link
+            href="/admin/clients/new"
+            className="text-primary hover:underline"
+          >
             invitarlo
-          </a>
+          </Link>
           ).
         </p>
       )}
