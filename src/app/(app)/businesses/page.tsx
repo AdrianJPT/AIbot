@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { BusinessListTable } from "@/features/businesses/components/business-list-table";
 import { prisma } from "@/lib/db";
@@ -29,9 +30,9 @@ export default async function BusinessesPage() {
       </div>
       <p className="mb-4 text-sm text-muted-foreground">
         Los números se dan de alta desde{" "}
-        <a href="/admin/clients" className="text-primary hover:underline">
+        <Link href="/admin/clients" className="text-primary hover:underline">
           Clientes
-        </a>
+        </Link>
         , eligiendo el cliente dueño.
       </p>
       <BusinessListTable businesses={businesses} />

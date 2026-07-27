@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { ArrowDown, ArrowLeft, Download } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { AppointmentsPanel } from "@/features/conversations/components/appointments-panel";
 import { HandoffToggle } from "@/features/conversations/components/handoff-toggle";
 import {
@@ -57,6 +56,10 @@ export function ConversationThread({
     if (isNearBottom) {
       scrollToBottom();
     } else {
+      // The pill appears because the thread grew while the user was scrolled
+      // up, and stays until they dismiss it — that outlives the render that
+      // caused it, so it cannot be derived state.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setShowNewPill(true);
     }
   }, [messages.length, isNearBottom]);
@@ -64,7 +67,6 @@ export function ConversationThread({
   useEffect(() => {
     // Jump to bottom once when the thread first mounts / conversation changes.
     scrollToBottom("auto");
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversation.id]);
 
   function scrollToBottom(behavior: ScrollBehavior = "smooth") {
@@ -123,7 +125,8 @@ export function ConversationThread({
 
       {outsideWindow && (
         <div className="border-b border-border bg-amber-500/10 px-3 py-2 text-xs text-amber-800 dark:text-amber-300">
-          Fuera de la ventana de 24h de WhatsApp — el mensaje puede ser rechazado.
+          Fuera de la ventana de 24h de WhatsApp — el mensaje puede ser
+          rechazado.
         </div>
       )}
 
@@ -134,7 +137,9 @@ export function ConversationThread({
           className="h-full space-y-2 overflow-y-auto p-4"
         >
           {loadingOlder && (
-            <p className="text-center text-xs text-muted-foreground">Cargando…</p>
+            <p className="text-center text-xs text-muted-foreground">
+              Cargando…
+            </p>
           )}
           {renderWithSeparators(messages, onRetry)}
         </div>
@@ -157,7 +162,7 @@ export function ConversationThread({
 
 function renderWithSeparators(
   messages: RenderableMessage[],
-  onRetry: (id: string) => void
+  onRetry: (id: string) => void,
 ) {
   const nodes: React.ReactNode[] = [];
   let lastDay: string | null = null;
@@ -170,7 +175,7 @@ function renderWithSeparators(
           <span className="rounded-full bg-muted px-3 py-1 text-[11px] text-muted-foreground">
             {label}
           </span>
-        </div>
+        </div>,
       );
       lastDay = label;
     }
@@ -179,7 +184,7 @@ function renderWithSeparators(
         key={message.id}
         message={message}
         onRetry={message.failed ? () => onRetry(message.id) : undefined}
-      />
+      />,
     );
   }
 

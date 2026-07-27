@@ -12,7 +12,7 @@ type ThemeProviderState = {
 const STORAGE_KEY = "theme";
 
 const ThemeProviderContext = createContext<ThemeProviderState | undefined>(
-  undefined
+  undefined,
 );
 
 function applyThemeClass(theme: Theme) {
@@ -38,8 +38,12 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setThemeState] = useState<Theme>("system");
 
   useEffect(() => {
+    // localStorage does not exist during SSR, so the persisted theme can only
+    // be read after mount. The blocking script in the root layout has already
+    // applied the right class, so this sync is invisible to the user.
     const stored = window.localStorage.getItem(STORAGE_KEY) as Theme | null;
     if (stored === "light" || stored === "dark" || stored === "system") {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setThemeState(stored);
     }
   }, []);
@@ -64,7 +68,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         setThemeState(next);
       },
     }),
-    [theme]
+    [theme],
   );
 
   return (
