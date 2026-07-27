@@ -1,5 +1,6 @@
 import { defineConfig } from "vitest/config";
 import path from "node:path";
+import { TEST_DATABASE_URL } from "./vitest.global-setup";
 
 export default defineConfig({
   resolve: {
@@ -9,7 +10,18 @@ export default defineConfig({
   },
   test: {
     environment: "node",
-    exclude: ["**/node_modules/**", "**/dist/**", "**/.next/**", "**/.claude/**"],
+    // `e2e/**` is Playwright's (`npm run test:e2e`), not Vitest's — both
+    // runners collect `*.spec.ts`, so it has to be excluded explicitly.
+    exclude: [
+      "**/node_modules/**",
+      "**/dist/**",
+      "**/.next/**",
+      "**/.claude/**",
+      "**/e2e/**",
+    ],
+    // Verifies the test database is up and applies migrations before any test
+    // runs. See docker-compose.test.yml / `npm run test:db:up`.
+    globalSetup: "./vitest.global-setup.ts",
     // Route tests hit a shared Postgres. Admin-scoped queries read across
     // every owner, so fixtures created/deleted by a concurrently running
     // test file race with them (Prisma: "Field business is required to
@@ -19,8 +31,8 @@ export default defineConfig({
       provider: "v8",
     },
     env: {
-      DATABASE_URL: "postgresql://bot:testpass@localhost:55432/whatsapp_bot",
-      DIRECT_URL: "postgresql://bot:testpass@localhost:55432/whatsapp_bot",
+      DATABASE_URL: TEST_DATABASE_URL,
+      DIRECT_URL: TEST_DATABASE_URL,
       APP_ENCRYPTION_KEY: "s1IiLGg+kAXY1ILiWKmXgF9tM66SYnnmkqFFUBfcnBM=",
       WEBHOOK_VERIFY_TOKEN: "test-verify-token",
       WHATSAPP_APP_SECRET: "test-app-secret",
