@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { Business } from "@prisma/client";
-import { textMessagePayload, TEST_PHONE_NUMBER_ID } from "./fixtures/webhook-payload";
+import { buildBusiness } from "./fixtures/business";
+import { textMessagePayload } from "./fixtures/webhook-payload";
 
 const findFirstBusiness = vi.fn();
 const findFirstMessage = vi.fn();
@@ -36,8 +36,8 @@ vi.mock("../ai/generate", () => ({
 }));
 
 const fakeAiClient = { marker: "fake-ai-client" };
-const callWithFailover = vi.fn((_business: unknown, fn: (client: unknown) => unknown) =>
-  fn(fakeAiClient)
+const callWithFailover = vi.fn(
+  (_business: unknown, fn: (client: unknown) => unknown) => fn(fakeAiClient),
 );
 vi.mock("../ai/resolve", () => ({
   callWithFailover: (...args: Parameters<typeof callWithFailover>) =>
@@ -51,23 +51,7 @@ vi.mock("../whatsapp", () => ({
 
 const { processWebhookPayload } = await import("../message-handler");
 
-const business: Business = {
-  id: "biz_1",
-  name: "Test Business",
-  phoneNumberId: TEST_PHONE_NUMBER_ID,
-  whatsappToken: "test-token",
-  systemPrompt: "You are a helpful assistant for {businessName}.",
-  welcomeMessage: "Welcome to {businessName}",
-  businessInfo: {},
-  model: "gpt-4o-mini",
-  maxHistoryMessages: 20,
-  dailyAiLimit: 1000,
-  isActive: true,
-  ownerId: null,
-  aiCredentialId: null,
-  whatsappCredentialId: null,
-  createdAt: new Date(),
-};
+const business = buildBusiness();
 
 beforeEach(() => {
   vi.clearAllMocks();

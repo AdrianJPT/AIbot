@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { Business } from "@prisma/client";
-import { textMessagePayload, TEST_PHONE_NUMBER_ID } from "./fixtures/webhook-payload";
+import { buildBusiness } from "./fixtures/business";
+import { textMessagePayload } from "./fixtures/webhook-payload";
 
 const findFirstBusiness = vi.fn();
 const findFirstMessage = vi.fn();
@@ -38,8 +38,8 @@ vi.mock("../ai/generate", () => ({
 }));
 
 const fakeAiClient = { marker: "fake-ai-client" };
-const callWithFailover = vi.fn((_business: unknown, fn: (client: unknown) => unknown) =>
-  fn(fakeAiClient)
+const callWithFailover = vi.fn(
+  (_business: unknown, fn: (client: unknown) => unknown) => fn(fakeAiClient),
 );
 vi.mock("../ai/resolve", () => ({
   callWithFailover: (...args: Parameters<typeof callWithFailover>) =>
@@ -53,23 +53,7 @@ vi.mock("../whatsapp", () => ({
 
 const { processWebhookPayload } = await import("../message-handler");
 
-const business: Business = {
-  id: "biz_1",
-  name: "Test Business",
-  phoneNumberId: TEST_PHONE_NUMBER_ID,
-  whatsappToken: "test-token",
-  systemPrompt: "You are a helpful assistant for {businessName}.",
-  welcomeMessage: "Welcome to {businessName}",
-  businessInfo: {},
-  model: "gpt-4o-mini",
-  maxHistoryMessages: 20,
-  dailyAiLimit: 1000,
-  isActive: true,
-  ownerId: null,
-  aiCredentialId: null,
-  whatsappCredentialId: null,
-  createdAt: new Date(),
-};
+const business = buildBusiness();
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -105,12 +89,13 @@ describe("error observability", () => {
     // Assistant message is the Spanish fallback, not silence.
     expect(messageCreate.mock.calls[1][0].data).toMatchObject({
       role: "assistant",
-      content: "Lo siento, tuve un problema técnico. Intenta de nuevo en un momento.",
+      content:
+        "Lo siento, tuve un problema técnico. Intenta de nuevo en un momento.",
     });
     expect(sendBusinessMessage).toHaveBeenCalledWith(
       business,
       "5215512345678",
-      "Lo siento, tuve un problema técnico. Intenta de nuevo en un momento."
+      "Lo siento, tuve un problema técnico. Intenta de nuevo en un momento.",
     );
 
     expect(eventLogCreate).toHaveBeenCalledTimes(1);
@@ -123,7 +108,9 @@ describe("error observability", () => {
   it("logs an EventLog row when the WhatsApp send fails, without throwing", async () => {
     sendBusinessMessage.mockRejectedValue(new Error("WhatsApp API timeout"));
 
-    await expect(processWebhookPayload(textMessagePayload)).resolves.toBeUndefined();
+    await expect(
+      processWebhookPayload(textMessagePayload),
+    ).resolves.toBeUndefined();
 
     expect(eventLogCreate).toHaveBeenCalledTimes(1);
     expect(eventLogCreate.mock.calls[0][0].data).toMatchObject({
