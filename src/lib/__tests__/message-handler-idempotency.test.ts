@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Business, PhoneNumber } from "@prisma/client";
-import { textMessagePayload, TEST_PHONE_NUMBER_ID } from "./fixtures/webhook-payload";
+import {
+  textMessagePayload,
+  TEST_PHONE_NUMBER_ID,
+} from "./fixtures/webhook-payload";
 
 const findFirstPhoneNumber = vi.fn();
 const findFirstMessage = vi.fn();
@@ -14,7 +17,9 @@ const conversationUpdate = vi.fn();
 
 vi.mock("../db", () => ({
   prisma: {
-    phoneNumber: { findFirst: (...args: unknown[]) => findFirstPhoneNumber(...args) },
+    phoneNumber: {
+      findFirst: (...args: unknown[]) => findFirstPhoneNumber(...args),
+    },
     conversation: {
       upsert: (...args: unknown[]) => conversationUpsert(...args),
       update: (...args: unknown[]) => conversationUpdate(...args),
@@ -36,8 +41,8 @@ vi.mock("../ai/generate", () => ({
 }));
 
 const fakeAiClient = { marker: "fake-ai-client" };
-const callWithAiCredential = vi.fn((_business: unknown, fn: (client: unknown) => unknown) =>
-  fn(fakeAiClient)
+const callWithAiCredential = vi.fn(
+  (_business: unknown, fn: (client: unknown) => unknown) => fn(fakeAiClient),
 );
 vi.mock("../ai/resolve", () => ({
   callWithAiCredential: (...args: Parameters<typeof callWithAiCredential>) =>

@@ -12,7 +12,7 @@ export async function generateResponse(
   systemPrompt: string,
   history: ChatCompletionMessageParam[],
   userMessage: string,
-  model: string
+  model: string,
 ): Promise<string> {
   const messages: ChatCompletionMessageParam[] = [
     { role: "system", content: systemPrompt },

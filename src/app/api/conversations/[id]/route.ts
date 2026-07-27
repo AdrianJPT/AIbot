@@ -5,10 +5,11 @@ import { conversationScope } from "@/lib/scope";
 
 export async function GET(
   _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   const user = await getSessionUser();
-  if (!user) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  if (!user)
+    return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
   const { id } = await params;
   const c = await prisma.conversation.findFirst({
@@ -24,16 +25,18 @@ export async function GET(
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   const user = await getSessionUser();
-  if (!user) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  if (!user)
+    return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
   const { id } = await params;
   const existing = await prisma.conversation.findFirst({
     where: { id, ...conversationScope(user) },
   });
-  if (!existing) return NextResponse.json({ error: "No encontrado" }, { status: 404 });
+  if (!existing)
+    return NextResponse.json({ error: "No encontrado" }, { status: 404 });
 
   const body = await req.json();
   const updated = await prisma.conversation.update({
@@ -45,16 +48,18 @@ export async function PATCH(
 
 export async function DELETE(
   _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   const user = await getSessionUser();
-  if (!user) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  if (!user)
+    return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
   const { id } = await params;
   const existing = await prisma.conversation.findFirst({
     where: { id, ...conversationScope(user) },
   });
-  if (!existing) return NextResponse.json({ error: "No encontrado" }, { status: 404 });
+  if (!existing)
+    return NextResponse.json({ error: "No encontrado" }, { status: 404 });
 
   // Cascades to Message and Appointment.conversationId (SET NULL) per schema.
   await prisma.conversation.delete({ where: { id } });

@@ -60,11 +60,36 @@ describe("ConversationDetailPage (prod-shaped data)", () => {
       sentBy: string;
       status: string;
     }> = [
-      { role: "user", content: "Hola, quería consultar", sentBy: "customer", status: "sent" },
-      { role: "assistant", content: "Hola! Decime en qué te ayudo", sentBy: "bot", status: "failed" },
-      { role: "user", content: "Quiero un turno para mañana", sentBy: "customer", status: "sent" },
-      { role: "assistant", content: "Perfecto, te confirmo enseguida", sentBy: "bot", status: "failed" },
-      { role: "assistant", content: "Ya te anoté para mañana a las 10", sentBy: "human", status: "sent" },
+      {
+        role: "user",
+        content: "Hola, quería consultar",
+        sentBy: "customer",
+        status: "sent",
+      },
+      {
+        role: "assistant",
+        content: "Hola! Decime en qué te ayudo",
+        sentBy: "bot",
+        status: "failed",
+      },
+      {
+        role: "user",
+        content: "Quiero un turno para mañana",
+        sentBy: "customer",
+        status: "sent",
+      },
+      {
+        role: "assistant",
+        content: "Perfecto, te confirmo enseguida",
+        sentBy: "bot",
+        status: "failed",
+      },
+      {
+        role: "assistant",
+        content: "Ya te anoté para mañana a las 10",
+        sentBy: "human",
+        status: "sent",
+      },
       { role: "user", content: "Gracias!", sentBy: "customer", status: "sent" },
     ];
     for (let i = 0; i < rows.length; i++) {
@@ -113,8 +138,8 @@ describe("ConversationDetailPage (prod-shaped data)", () => {
     expect(
       element.props.initialMessages.messages.some(
         (m: { sentBy: string; status: string }) =>
-          m.sentBy === "bot" && m.status === "failed"
-      )
+          m.sentBy === "bot" && m.status === "failed",
+      ),
     ).toBe(true);
     expect(element.props.initialMessages.nextCursor).toBeNull();
   });

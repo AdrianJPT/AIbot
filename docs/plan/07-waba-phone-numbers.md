@@ -8,12 +8,12 @@
 
 ## 1. Target domain model
 
-| Domain concept | Meta concept | DB model | Notes |
-|---|---|---|---|
-| Client | — | `User` (`role: "client"`) | Already exists. The login the platform admin hands to each customer. No schema change. |
-| Business | WhatsApp Business Account (WABA) | `Business` | Keeps AI config, prompts, limits, credentials, `ownerId`. Gains optional `wabaId`. Loses phone fields. |
-| Phone number | Phone number inside a WABA | `PhoneNumber` (new) | Owns `phoneNumberId` (Meta id), `displayPhone`, `whatsappCredentialId`, `isActive`. |
-| Chat | Conversation with a customer | `Conversation` | Hangs off `PhoneNumber`. Keeps a denormalized `businessId` (see §3, decision D2). |
+| Domain concept | Meta concept                     | DB model                  | Notes                                                                                                  |
+| -------------- | -------------------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------ |
+| Client         | —                                | `User` (`role: "client"`) | Already exists. The login the platform admin hands to each customer. No schema change.                 |
+| Business       | WhatsApp Business Account (WABA) | `Business`                | Keeps AI config, prompts, limits, credentials, `ownerId`. Gains optional `wabaId`. Loses phone fields. |
+| Phone number   | Phone number inside a WABA       | `PhoneNumber` (new)       | Owns `phoneNumberId` (Meta id), `displayPhone`, `whatsappCredentialId`, `isActive`.                    |
+| Chat           | Conversation with a customer     | `Conversation`            | Hangs off `PhoneNumber`. Keeps a denormalized `businessId` (see §3, decision D2).                      |
 
 ```
 User (client)
@@ -99,31 +99,34 @@ Alternative rejected: pure normalization (`Conversation → PhoneNumber → Busi
 
 ## 4. Bugs & issues to fix in this phase
 
-| # | Issue | Where | Fix |
-|---|---|---|---|
-| B1 | **Media downloads bypass credential resolution** — inbound image/audio uses raw `business.whatsappToken` while sends use `resolveWhatsappToken`. A business with only a credential (empty legacy token) gets working text but silently broken media. | `src/lib/message-handler.ts:386-390` | `parseUserContent` receives the token already resolved by `resolveWhatsappToken(phoneNumber, ownerId)`; the raw column no longer exists after D3. |
-| B2 | Plaintext WhatsApp token on `Business`, legacy fallback still live. | `prisma/schema.prisma:29`, `src/lib/whatsapp.ts:43-59` | D3. |
-| B3 | Conversation unique key `[businessId, customerPhone]` would merge chats from two numbers of the same WABA into one thread. | `prisma/schema.prisma:82` | Move to `[phoneNumberId, customerPhone]`. |
-| B4 | Owner-wide WhatsApp credential fallback is ambiguous with multiple numbers (`findFirst` last-wins). | `src/lib/whatsapp.ts:32-38` | `PhoneNumber.whatsappCredentialId` becomes the source of truth; fallback demoted to warn-logged transition path (D3). |
-| B5 | Nullable `ownerId` orphan businesses. | `prisma/schema.prisma:38` | D4. |
-| B6 | Webhook hot-path lookup must stay indexed after the move. | `src/lib/message-handler.ts:72-79` | `@unique` on `PhoneNumber.phoneNumberId` + `@@index([businessId])`; lookup becomes `phoneNumber.findFirst({ where: { phoneNumberId, isActive: true, business: { isActive: true } }, include: { business: true } })`. |
-| B7 | Credential "test" flow uses a free-text `phoneNumberId` input. | `src/features/credentials/containers/credentials-panel-container.tsx:39-138` | Replace with a real `PhoneNumber` picker (select from the owner's numbers). |
-| B8 | `EventLog` can only attribute events to a business. | `prisma/schema.prisma:118-129`, `src/lib/log.ts` | Add optional `phoneNumberId` (no FK, same convention); pass it from `message-handler`. |
+| #   | Issue                                                                                                                                                                                                                                                | Where                                                                        | Fix                                                                                                                                                                                                                  |
+| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| B1  | **Media downloads bypass credential resolution** — inbound image/audio uses raw `business.whatsappToken` while sends use `resolveWhatsappToken`. A business with only a credential (empty legacy token) gets working text but silently broken media. | `src/lib/message-handler.ts:386-390`                                         | `parseUserContent` receives the token already resolved by `resolveWhatsappToken(phoneNumber, ownerId)`; the raw column no longer exists after D3.                                                                    |
+| B2  | Plaintext WhatsApp token on `Business`, legacy fallback still live.                                                                                                                                                                                  | `prisma/schema.prisma:29`, `src/lib/whatsapp.ts:43-59`                       | D3.                                                                                                                                                                                                                  |
+| B3  | Conversation unique key `[businessId, customerPhone]` would merge chats from two numbers of the same WABA into one thread.                                                                                                                           | `prisma/schema.prisma:82`                                                    | Move to `[phoneNumberId, customerPhone]`.                                                                                                                                                                            |
+| B4  | Owner-wide WhatsApp credential fallback is ambiguous with multiple numbers (`findFirst` last-wins).                                                                                                                                                  | `src/lib/whatsapp.ts:32-38`                                                  | `PhoneNumber.whatsappCredentialId` becomes the source of truth; fallback demoted to warn-logged transition path (D3).                                                                                                |
+| B5  | Nullable `ownerId` orphan businesses.                                                                                                                                                                                                                | `prisma/schema.prisma:38`                                                    | D4.                                                                                                                                                                                                                  |
+| B6  | Webhook hot-path lookup must stay indexed after the move.                                                                                                                                                                                            | `src/lib/message-handler.ts:72-79`                                           | `@unique` on `PhoneNumber.phoneNumberId` + `@@index([businessId])`; lookup becomes `phoneNumber.findFirst({ where: { phoneNumberId, isActive: true, business: { isActive: true } }, include: { business: true } })`. |
+| B7  | Credential "test" flow uses a free-text `phoneNumberId` input.                                                                                                                                                                                       | `src/features/credentials/containers/credentials-panel-container.tsx:39-138` | Replace with a real `PhoneNumber` picker (select from the owner's numbers).                                                                                                                                          |
+| B8  | `EventLog` can only attribute events to a business.                                                                                                                                                                                                  | `prisma/schema.prisma:118-129`, `src/lib/log.ts`                             | Add optional `phoneNumberId` (no FK, same convention); pass it from `message-handler`.                                                                                                                               |
 
 ## 5. Code changes by area
 
 ### Webhook / messaging core
+
 - `src/lib/message-handler.ts:62-79` — resolve tenant via `PhoneNumber` (B6); thread the `phoneNumber` object through `handleOneMessage`; conversation upsert sets both `phoneNumberId` and denormalized `businessId`; pass resolved token to `parseUserContent` (B1); include `phoneNumberId` in EventLog calls (B8).
 - `src/lib/whatsapp.ts` — `resolveWhatsappToken(phoneNumber, ownerId)` (credential-first, warn-logged owner fallback); `sendBusinessMessage(business, …)` → `sendFromNumber(phoneNumber, ownerId, to, text)`.
 - `src/app/api/conversations/[id]/send/route.ts:22-41` — load `conversation.phoneNumber` (include business for scope) and send through it.
 
 ### API
+
 - `src/app/api/businesses/*` — remove the three phone fields from create/PATCH/list/detail payloads; add `wabaId`.
 - New `src/app/api/businesses/[id]/phone-numbers/route.ts` (GET, POST) and `src/app/api/phone-numbers/[id]/route.ts` (PATCH, DELETE) — admin-only mutations (mirror `requireAdmin` pattern from `src/app/api/businesses/route.ts:7-25`); PATCH rejects `businessId` changes (D2); P2002 on `phoneNumberId` → friendly 409 (same pattern as `businesses/route.ts:91-96`); DELETE cascades conversations — require an explicit `?confirm=` guard like business delete if one exists, otherwise return count in a dry-run response first.
 - `src/app/api/conversations/route.ts` — keep `businessId` filter, add optional `phoneNumberId` filter; include `phoneNumber: { select: { id, displayPhone } }` in list items.
 - `src/lib/scope.ts` — unchanged (thanks to D2). Add `phoneNumberScope(user)` = `{ business: { ownerId } }` for the new routes.
 
 ### UI (feature folders, UI copy in Spanish like the rest of the app)
+
 - `src/features/businesses/*` — business form/table lose phone fields; business detail gains a "Números" section listing its `PhoneNumber`s.
 - `src/app/(app)/admin/clients/[id]/businesses/new/page.tsx` — becomes two steps: create Business (WABA), then add numbers from the business detail; "Nuevo número" form now creates a `PhoneNumber` under a chosen business.
 - `src/features/admin/components/client-businesses-table.tsx:58-60` — show number count / displayPhones per business row.
@@ -131,6 +134,7 @@ Alternative rejected: pure normalization (`Conversation → PhoneNumber → Busi
 - Credential test picker (B7).
 
 ### Tests
+
 - Central fixture `src/lib/__tests__/fixtures/ownership.ts:16-66` — `createTestBusiness` creates Business + one PhoneNumber; `createTestConversation` takes the phone number id and sets both FKs. This transparently re-exercises all 14 dependent suites.
 - `src/lib/__tests__/message-handler*.test.ts` (4 files) — fixtures gain a `PhoneNumber` object; lookup mock moves from `business.findFirst` to `phoneNumber.findFirst`.
 - `src/app/api/businesses/__tests__/*` — drop phone-field assertions; new suites for the phone-numbers routes (create, 409 duplicate, reparent rejection, admin-only, scope).

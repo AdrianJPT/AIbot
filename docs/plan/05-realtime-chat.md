@@ -19,6 +19,7 @@ lastMessageAt   DateTime @default(now())   // denormalized for list ordering —
 unreadCount     Int      @default(0)       // customer messages since admin last opened the thread
 customerName    String?                     // WhatsApp profile name from webhook `contacts[0].profile.name`
 ```
+
 - Backfill migration: `sentBy = "customer"` where `role = "user"`, else `"bot"`; `lastMessageAt` from latest message.
 - Webhook (`handleOneMessage`): set `customerName`, bump `lastMessageAt` + `unreadCount` on the conversation in the same transaction as the message insert. Manual send route sets `sentBy:"human"`.
 - New route `POST /api/conversations/[id]/read` → zeroes `unreadCount`.
@@ -40,14 +41,17 @@ Messages are inserted by the webhook (server), so clients need a DB change feed:
 ## UI — `/conversations` becomes the chat screen
 
 ### Layout
+
 - **Desktop (`md+`)**: two panes. Left: conversation list (~360px). Right: active thread. Empty state on the right when nothing selected ("Elegí una conversación").
 - **Mobile**: list full-screen; tapping opens the thread full-screen with a back header. Use routes (`/conversations` + `/conversations/[id]`) so back button works natively.
 
 ### Conversation list (left pane)
+
 - Each item: avatar circle (initials from `customerName` ?? phone), name/phone, business badge (when the user owns >1 business), last message preview (1 line, truncated), relative time, unread count badge, status chip for `handed_off` ("Atención humana") .
 - Ordered by `lastMessageAt` desc; live-reorders via the Conversation subscription. Search input filters by name/phone client-side. Filter tabs: Todas / Bot / Humano / Cerradas.
 
 ### Thread (right pane)
+
 - Header: customer name + phone, business name, **bot/human toggle** (prominent switch: "Bot activo" ↔ "Atención humana" → calls existing handoff route; confirmation dialog when pausing the bot).
 - Messages: WhatsApp-style bubbles — customer left (neutral surface), bot/human right (emerald tint); `sentBy:"human"` bubbles get a small "👤 Tú" label to distinguish from bot. Date separators ("Hoy", "Ayer", date). Media placeholders per `mediaType` (🖼/🎙/📍 with content text). Auto-scroll to bottom on new message unless user has scrolled up (then show "↓ Nuevos mensajes" pill).
 - Composer: sticky bottom textarea (Enter sends, Shift+Enter newline), send button. **Optimistic send**: append pending bubble immediately (clock icon) → reconcile on mutation success/failure (failed → red retry state). Composer visible in both modes; when bot is active, sending shows a hint that the reply was sent as a manual intervention.
@@ -55,6 +59,7 @@ Messages are inserted by the webhook (server), so clients need a DB change feed:
 - **24h window notice**: if last customer message is older than 24h, show a non-blocking banner ("Fuera de la ventana de 24h de WhatsApp — el mensaje puede ser rechazado") — template-message support is out of scope.
 
 ### Messages API
+
 - `GET /api/conversations/[id]/messages?cursor=&limit=50` — cursor pagination (by `createdAt,id` desc), owner-scoped. Thread loads latest page; "load older" on scroll-top.
 
 ## Tests

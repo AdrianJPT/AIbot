@@ -3,7 +3,10 @@ import type { PhoneNumber, User } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { encryptSecret } from "@/lib/crypto";
 import { resolveWhatsappToken } from "@/lib/whatsapp";
-import { cleanupOwnershipFixtures, createTestUser } from "@/lib/__tests__/fixtures/ownership";
+import {
+  cleanupOwnershipFixtures,
+  createTestUser,
+} from "@/lib/__tests__/fixtures/ownership";
 
 describe("resolveWhatsappToken", () => {
   let owner: User;
@@ -35,7 +38,7 @@ describe("resolveWhatsappToken", () => {
 
   it("throws when no credential resolves anywhere", async () => {
     await expect(resolveWhatsappToken(phoneNumber, owner.id)).rejects.toThrow(
-      /No WhatsApp credential/
+      /No WhatsApp credential/,
     );
   });
 

@@ -17,7 +17,9 @@ const messageCount = vi.fn();
 
 vi.mock("../db", () => ({
   prisma: {
-    phoneNumber: { findFirst: (...args: unknown[]) => findFirstPhoneNumber(...args) },
+    phoneNumber: {
+      findFirst: (...args: unknown[]) => findFirstPhoneNumber(...args),
+    },
     conversation: {
       upsert: (...args: unknown[]) => conversationUpsert(...args),
       update: (...args: unknown[]) => conversationUpdate(...args),
@@ -38,8 +40,9 @@ vi.mock("../ai/generate", () => ({
   generateResponse: (...args: unknown[]) => generateResponse(...args),
 }));
 
-const callWithAiCredential = vi.fn((_business: unknown, fn: (client: unknown) => unknown) =>
-  fn({ marker: "fake-ai-client" })
+const callWithAiCredential = vi.fn(
+  (_business: unknown, fn: (client: unknown) => unknown) =>
+    fn({ marker: "fake-ai-client" }),
 );
 vi.mock("../ai/resolve", () => ({
   callWithAiCredential: (...args: Parameters<typeof callWithAiCredential>) =>
@@ -120,7 +123,10 @@ beforeEach(() => {
 
 describe("reply window (Business.replyWindowMs)", () => {
   it("sets pendingFlushAt and skips the AI call / reply when replyWindowMs > 0", async () => {
-    findFirstPhoneNumber.mockResolvedValue({ ...phoneNumber, business: baseBusiness });
+    findFirstPhoneNumber.mockResolvedValue({
+      ...phoneNumber,
+      business: baseBusiness,
+    });
 
     await processWebhookPayload(textMessagePayload);
 
@@ -130,31 +136,41 @@ describe("reply window (Business.replyWindowMs)", () => {
     expect(messageCreate).toHaveBeenCalledTimes(1);
 
     const pendingUpdateCall = conversationUpdate.mock.calls.find(
-      (call) => call[0]?.data?.pendingFlushAt instanceof Date
+      (call) => call[0]?.data?.pendingFlushAt instanceof Date,
     );
     expect(pendingUpdateCall).toBeTruthy();
     expect(pendingUpdateCall![0]).toMatchObject({ where: { id: "conv_1" } });
-    expect(pendingUpdateCall![0].data.pendingFlushAt.getTime()).toBeGreaterThan(Date.now());
+    expect(pendingUpdateCall![0].data.pendingFlushAt.getTime()).toBeGreaterThan(
+      Date.now(),
+    );
   });
 
   it("does not batch document messages even when replyWindowMs > 0 — keeps the immediate canned reply", async () => {
-    findFirstPhoneNumber.mockResolvedValue({ ...phoneNumber, business: baseBusiness });
+    findFirstPhoneNumber.mockResolvedValue({
+      ...phoneNumber,
+      business: baseBusiness,
+    });
 
     await processWebhookPayload(documentMessagePayload);
 
     expect(generateResponse).not.toHaveBeenCalled();
     expect(sendFromNumber).toHaveBeenCalledTimes(1);
-    expect(messageCreate.mock.calls[1][0].data.content).toContain("no puedo leer archivos");
+    expect(messageCreate.mock.calls[1][0].data.content).toContain(
+      "no puedo leer archivos",
+    );
 
     const pendingUpdateCall = conversationUpdate.mock.calls.find(
-      (call) => call[0]?.data?.pendingFlushAt instanceof Date
+      (call) => call[0]?.data?.pendingFlushAt instanceof Date,
     );
     expect(pendingUpdateCall).toBeFalsy();
   });
 
   it("does not batch when the conversation is rate-limited — rate limiting stays a hard stop", async () => {
     messageCount.mockResolvedValue(11);
-    findFirstPhoneNumber.mockResolvedValue({ ...phoneNumber, business: baseBusiness });
+    findFirstPhoneNumber.mockResolvedValue({
+      ...phoneNumber,
+      business: baseBusiness,
+    });
 
     await processWebhookPayload(textMessagePayload);
 
@@ -162,7 +178,7 @@ describe("reply window (Business.replyWindowMs)", () => {
     expect(sendFromNumber).not.toHaveBeenCalled();
 
     const pendingUpdateCall = conversationUpdate.mock.calls.find(
-      (call) => call[0]?.data?.pendingFlushAt instanceof Date
+      (call) => call[0]?.data?.pendingFlushAt instanceof Date,
     );
     expect(pendingUpdateCall).toBeFalsy();
   });
@@ -179,7 +195,7 @@ describe("reply window (Business.replyWindowMs)", () => {
     expect(sendFromNumber).toHaveBeenCalledTimes(1);
 
     const pendingUpdateCall = conversationUpdate.mock.calls.find(
-      (call) => call[0]?.data?.pendingFlushAt instanceof Date
+      (call) => call[0]?.data?.pendingFlushAt instanceof Date,
     );
     expect(pendingUpdateCall).toBeFalsy();
   });

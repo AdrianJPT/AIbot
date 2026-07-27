@@ -53,9 +53,13 @@ async function migrateBusiness(business: LegacyBusinessRow): Promise<void> {
       }));
 
     whatsappCredentialId = credential.id;
-  } else if (!whatsappCredentialId && business.whatsappToken && !business.ownerId) {
+  } else if (
+    !whatsappCredentialId &&
+    business.whatsappToken &&
+    !business.ownerId
+  ) {
     console.error(
-      `  WARNING: ${business.name} (${business.id}) has no owner — its WhatsApp token cannot be wrapped into a Credential (Credential.ownerId is required) and will be LOST once the contract migration drops the legacy column. Assign an owner and re-run before contracting, or accept this business loses WhatsApp sending.`
+      `  WARNING: ${business.name} (${business.id}) has no owner — its WhatsApp token cannot be wrapped into a Credential (Credential.ownerId is required) and will be LOST once the contract migration drops the legacy column. Assign an owner and re-run before contracting, or accept this business loses WhatsApp sending.`,
     );
   }
 
@@ -70,12 +74,14 @@ async function migrateBusiness(business: LegacyBusinessRow): Promise<void> {
   });
 
   console.log(
-    `  ${business.name}: created PhoneNumber ${phoneNumber.id} (${phoneNumber.phoneNumberId})`
+    `  ${business.name}: created PhoneNumber ${phoneNumber.id} (${phoneNumber.phoneNumberId})`,
   );
 }
 
 async function main(): Promise<void> {
-  const migrated = await prisma.phoneNumber.findMany({ select: { businessId: true } });
+  const migrated = await prisma.phoneNumber.findMany({
+    select: { businessId: true },
+  });
   const migratedIds = new Set(migrated.map((p) => p.businessId));
 
   const businesses = await prisma.$queryRaw<LegacyBusinessRow[]>`
@@ -84,7 +90,9 @@ async function main(): Promise<void> {
   `;
   const pending = businesses.filter((b) => !migratedIds.has(b.id));
 
-  console.log(`Found ${pending.length} business(es) without a PhoneNumber yet.`);
+  console.log(
+    `Found ${pending.length} business(es) without a PhoneNumber yet.`,
+  );
 
   for (const business of pending) {
     await migrateBusiness(business);

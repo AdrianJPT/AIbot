@@ -6,7 +6,8 @@ const prisma = new PrismaClient();
 const businesses = [
   {
     name: "Restaurante El Buen Sabor",
-    phoneNumberId: process.env.SEED_PHONE_NUMBER_ID || "REPLACE_PHONE_NUMBER_ID",
+    phoneNumberId:
+      process.env.SEED_PHONE_NUMBER_ID || "REPLACE_PHONE_NUMBER_ID",
     welcomeMessage:
       "¡Hola! Bienvenido a {businessName} ¿En qué puedo ayudarte?",
     systemPrompt: `Eres el asistente virtual de {businessName}. Ayudas con reservaciones, menú, horarios y ubicación. Responde en español, amable y conciso.
@@ -43,8 +44,7 @@ Reglas:
       Horario: "Martes a Domingo 10:00 - 20:00",
       Dirección: "Calle 5 de Mayo #456",
       Teléfono: "+52 555 987 6543",
-      Servicios:
-        "Corte $150 | Barba $100 | Corte + Barba $220",
+      Servicios: "Corte $150 | Barba $100 | Corte + Barba $220",
     },
   },
   {

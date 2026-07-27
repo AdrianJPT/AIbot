@@ -11,10 +11,11 @@ import { clampReplyWindowMs } from "@/lib/businesses/create";
 // GET stays open to any authenticated caller (scoped by businessScope).
 export async function GET(
   _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   const user = await getSessionUser();
-  if (!user) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  if (!user)
+    return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
   const { id } = await params;
   const b = await prisma.business.findFirst({
@@ -28,17 +29,19 @@ export async function GET(
 // Editing/removing a business is admin-only (see POST /api/businesses).
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   const admin = await requireAdmin();
-  if (!admin) return NextResponse.json({ error: "No encontrado" }, { status: 404 });
+  if (!admin)
+    return NextResponse.json({ error: "No encontrado" }, { status: 404 });
 
   const { id } = await params;
   const existing = await prisma.business.findFirst({
     where: { id },
     include: { phoneNumbers: true },
   });
-  if (!existing) return NextResponse.json({ error: "No encontrado" }, { status: 404 });
+  if (!existing)
+    return NextResponse.json({ error: "No encontrado" }, { status: 404 });
 
   const body = await req.json();
   const currentPhoneNumber = existing.phoneNumbers[0];
@@ -52,7 +55,7 @@ export async function PATCH(
   if (changesPhoneNumberFields && !currentPhoneNumber) {
     return NextResponse.json(
       { error: "Este negocio no tiene un número asociado" },
-      { status: 409 }
+      { status: 409 },
     );
   }
 
@@ -62,7 +65,10 @@ export async function PATCH(
       body.whatsappCredentialId,
     ]);
     if (!owned) {
-      return NextResponse.json({ error: "Credencial inválida" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Credencial inválida" },
+        { status: 400 },
+      );
     }
   }
 
@@ -84,7 +90,7 @@ export async function PATCH(
     resolvedWhatsappCredentialId = await ensureWhatsappCredential(
       existing.ownerId,
       `WhatsApp (${existing.name})`,
-      body.whatsappToken
+      body.whatsappToken,
     );
   } else if ("whatsappCredentialId" in body) {
     resolvedWhatsappCredentialId = body.whatsappCredentialId || null;
@@ -104,7 +110,9 @@ export async function PATCH(
       data: {
         ...(body.name != null && { name: body.name }),
         ...(body.systemPrompt != null && { systemPrompt: body.systemPrompt }),
-        ...(body.welcomeMessage != null && { welcomeMessage: body.welcomeMessage }),
+        ...(body.welcomeMessage != null && {
+          welcomeMessage: body.welcomeMessage,
+        }),
         ...(body.businessInfo != null && { businessInfo: body.businessInfo }),
         ...("model" in body && { model: body.model || null }),
         ...("visionModel" in body && { visionModel: body.visionModel || null }),
@@ -117,7 +125,9 @@ export async function PATCH(
         }),
         ...(body.isActive != null && { isActive: body.isActive }),
         ...(body.ownerId != null && { ownerId: body.ownerId }),
-        ...("aiCredentialId" in body && { aiCredentialId: body.aiCredentialId || null }),
+        ...("aiCredentialId" in body && {
+          aiCredentialId: body.aiCredentialId || null,
+        }),
         ...(currentPhoneNumber &&
           Object.keys(phoneNumberChanges).length > 0 && {
             phoneNumbers: {
@@ -132,10 +142,13 @@ export async function PATCH(
     });
     return NextResponse.json(flattenBusinessPhoneNumber(b));
   } catch (err) {
-    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+    if (
+      err instanceof Prisma.PrismaClientKnownRequestError &&
+      err.code === "P2002"
+    ) {
       return NextResponse.json(
         { error: "Ese número ya está registrado en otro cliente" },
-        { status: 409 }
+        { status: 409 },
       );
     }
     return NextResponse.json({ error: "No encontrado" }, { status: 404 });
@@ -144,14 +157,16 @@ export async function PATCH(
 
 export async function DELETE(
   _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   const admin = await requireAdmin();
-  if (!admin) return NextResponse.json({ error: "No encontrado" }, { status: 404 });
+  if (!admin)
+    return NextResponse.json({ error: "No encontrado" }, { status: 404 });
 
   const { id } = await params;
   const existing = await prisma.business.findFirst({ where: { id } });
-  if (!existing) return NextResponse.json({ error: "No encontrado" }, { status: 404 });
+  if (!existing)
+    return NextResponse.json({ error: "No encontrado" }, { status: 404 });
 
   try {
     await prisma.business.delete({ where: { id } });

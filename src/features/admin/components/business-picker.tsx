@@ -37,7 +37,7 @@ export function BusinessPicker({
   useEffect(() => {
     const timer = setTimeout(
       () => setDebouncedSearch(search.trim().toLowerCase()),
-      SEARCH_DEBOUNCE_MS
+      SEARCH_DEBOUNCE_MS,
     );
     return () => clearTimeout(timer);
   }, [search]);
@@ -57,7 +57,9 @@ export function BusinessPicker({
       {businesses.length === 0 ? (
         <p className="text-sm text-muted-foreground">{emptyLabel}</p>
       ) : filtered.length === 0 ? (
-        <p className="text-sm text-muted-foreground">Ningún negocio coincide con la búsqueda.</p>
+        <p className="text-sm text-muted-foreground">
+          Ningún negocio coincide con la búsqueda.
+        </p>
       ) : (
         <ul className="max-h-64 divide-y divide-border overflow-y-auto rounded-md border border-border">
           {filtered.map((b) => (
@@ -68,7 +70,7 @@ export function BusinessPicker({
                 onClick={() => onSelect(b.id)}
                 className={cn(
                   "w-full px-3 py-2 text-left text-sm hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50",
-                  selectedId === b.id && "bg-accent font-medium"
+                  selectedId === b.id && "bg-accent font-medium",
                 )}
               >
                 {b.name}

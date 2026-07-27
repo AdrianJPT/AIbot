@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Business, PhoneNumber } from "@prisma/client";
-import { textMessagePayload, TEST_PHONE_NUMBER_ID } from "./fixtures/webhook-payload";
+import {
+  textMessagePayload,
+  TEST_PHONE_NUMBER_ID,
+} from "./fixtures/webhook-payload";
 
 const findFirstPhoneNumber = vi.fn();
 const findFirstMessage = vi.fn();
@@ -14,7 +17,9 @@ const eventLogCreate = vi.fn();
 
 vi.mock("../db", () => ({
   prisma: {
-    phoneNumber: { findFirst: (...args: unknown[]) => findFirstPhoneNumber(...args) },
+    phoneNumber: {
+      findFirst: (...args: unknown[]) => findFirstPhoneNumber(...args),
+    },
     conversation: {
       upsert: (...args: unknown[]) => conversationUpsert(...args),
       update: (...args: unknown[]) => conversationUpdate(...args),
@@ -37,8 +42,8 @@ vi.mock("../ai/generate", () => ({
 }));
 
 const fakeAiClient = { marker: "fake-ai-client" };
-const callWithAiCredential = vi.fn((_business: unknown, fn: (client: unknown) => unknown) =>
-  fn(fakeAiClient)
+const callWithAiCredential = vi.fn(
+  (_business: unknown, fn: (client: unknown) => unknown) => fn(fakeAiClient),
 );
 vi.mock("../ai/resolve", () => ({
   callWithAiCredential: (...args: Parameters<typeof callWithAiCredential>) =>
@@ -122,14 +127,16 @@ beforeEach(() => {
 describe("per-conversation rate limiting", () => {
   it("persists the message but skips AI generation once the 60s threshold is exceeded", async () => {
     messageCount.mockImplementation((...args: unknown[]) =>
-      Promise.resolve(isCustomerRateLimitQuery(args) ? 11 : 0)
+      Promise.resolve(isCustomerRateLimitQuery(args) ? 11 : 0),
     );
 
     await processWebhookPayload(textMessagePayload);
 
     // Customer message is still persisted.
     expect(messageCreate).toHaveBeenCalledTimes(1);
-    expect(messageCreate.mock.calls[0][0].data).toMatchObject({ sentBy: "customer" });
+    expect(messageCreate.mock.calls[0][0].data).toMatchObject({
+      sentBy: "customer",
+    });
 
     // No AI call, no reply sent, and a warn logged.
     expect(generateResponse).not.toHaveBeenCalled();
@@ -137,13 +144,13 @@ describe("per-conversation rate limiting", () => {
     expect(eventLogCreate).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ level: "warn", source: "webhook" }),
-      })
+      }),
     );
   });
 
   it("calls the AI normally when under the threshold", async () => {
     messageCount.mockImplementation((...args: unknown[]) =>
-      Promise.resolve(isCustomerRateLimitQuery(args) ? 3 : 0)
+      Promise.resolve(isCustomerRateLimitQuery(args) ? 3 : 0),
     );
 
     await processWebhookPayload(textMessagePayload);
@@ -156,14 +163,16 @@ describe("per-conversation rate limiting", () => {
 describe("per-business daily AI budget", () => {
   it("sends the fallback message instead of calling the AI once the daily budget is exhausted", async () => {
     messageCount.mockImplementation((...args: unknown[]) =>
-      Promise.resolve(isCustomerRateLimitQuery(args) ? 0 : 1000)
+      Promise.resolve(isCustomerRateLimitQuery(args) ? 0 : 1000),
     );
-    findFirstMessage.mockImplementation((args: { where: Record<string, unknown> }) => {
-      // Dedup-by-wamid pre-check (keyed only by `wamid`) vs the
-      // already-notified-today lookup (keyed by content too).
-      if ("content" in args.where) return Promise.resolve(null);
-      return Promise.resolve(null);
-    });
+    findFirstMessage.mockImplementation(
+      (args: { where: Record<string, unknown> }) => {
+        // Dedup-by-wamid pre-check (keyed only by `wamid`) vs the
+        // already-notified-today lookup (keyed by content too).
+        if ("content" in args.where) return Promise.resolve(null);
+        return Promise.resolve(null);
+      },
+    );
 
     await processWebhookPayload(textMessagePayload);
 
@@ -176,25 +185,27 @@ describe("per-business daily AI budget", () => {
       expect.objectContaining({ id: phoneNumber.id }),
       business.ownerId,
       "5215512345678",
-      "Estamos recibiendo muchos mensajes, en breve te responderemos."
+      "Estamos recibiendo muchos mensajes, en breve te responderemos.",
     );
     expect(eventLogCreate).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ level: "warn", source: "ai" }),
-      })
+      }),
     );
   });
 
   it("stays silent (no reply) if the daily budget notice was already sent today", async () => {
     messageCount.mockImplementation((...args: unknown[]) =>
-      Promise.resolve(isCustomerRateLimitQuery(args) ? 0 : 1000)
+      Promise.resolve(isCustomerRateLimitQuery(args) ? 0 : 1000),
     );
-    findFirstMessage.mockImplementation((args: { where: Record<string, unknown> }) => {
-      if ("content" in args.where) {
-        return Promise.resolve({ id: "msg_notice", wamid: null });
-      }
-      return Promise.resolve(null);
-    });
+    findFirstMessage.mockImplementation(
+      (args: { where: Record<string, unknown> }) => {
+        if ("content" in args.where) {
+          return Promise.resolve({ id: "msg_notice", wamid: null });
+        }
+        return Promise.resolve(null);
+      },
+    );
 
     await processWebhookPayload(textMessagePayload);
 

@@ -25,7 +25,8 @@ export default async function AdminClientsPage() {
   const clients = users.map((u) => {
     const activeBusinessesCount = u.businesses.filter((b) => b.isActive).length;
     const conversations = u.businesses.flatMap((b) => b.conversations);
-    const { unreadCount, lastActivityAt } = aggregateBusinessActivity(conversations);
+    const { unreadCount, lastActivityAt } =
+      aggregateBusinessActivity(conversations);
 
     return {
       id: u.id,

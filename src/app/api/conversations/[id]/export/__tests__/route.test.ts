@@ -48,7 +48,9 @@ describe("GET /api/conversations/[id]/export", () => {
   });
 
   afterAll(async () => {
-    await prisma.message.deleteMany({ where: { conversationId: conversation.id } });
+    await prisma.message.deleteMany({
+      where: { conversationId: conversation.id },
+    });
     await cleanupOwnershipFixtures([owner.id, other.id]);
   });
 

@@ -1,4 +1,10 @@
-import { AlertTriangle, Check, CheckCheck, Clock, RotateCcw } from "lucide-react";
+import {
+  AlertTriangle,
+  Check,
+  CheckCheck,
+  Clock,
+  RotateCcw,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { MEDIA_ICON } from "@/features/conversations/lib/format";
 import type { ConversationMessage } from "@/features/conversations/types";
@@ -64,7 +70,7 @@ export function MessageBubble({
           isCustomer
             ? "rounded-bl-sm bg-muted text-foreground"
             : "rounded-br-sm bg-emerald-600/15 text-foreground dark:bg-emerald-500/20",
-          message.failed && "border border-destructive/50"
+          message.failed && "border border-destructive/50",
         )}
       >
         {isHuman && (
@@ -75,13 +81,17 @@ export function MessageBubble({
 
         <div className="whitespace-pre-wrap break-words">
           {message.mediaType !== "text" && (
-            <span className="mr-1">{MEDIA_ICON[message.mediaType] ?? "📎"}</span>
+            <span className="mr-1">
+              {MEDIA_ICON[message.mediaType] ?? "📎"}
+            </span>
           )}
           {message.content}
         </div>
 
         <div className="mt-1 flex items-center justify-end gap-1 text-[10px] text-muted-foreground">
-          {message.pending && <Clock className="h-3 w-3" aria-label="Enviando" />}
+          {message.pending && (
+            <Clock className="h-3 w-3" aria-label="Enviando" />
+          )}
           {message.failed && onRetry ? (
             <button
               type="button"

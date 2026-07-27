@@ -6,7 +6,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
-import type { BusinessDetail, CredentialOption } from "@/features/businesses/types";
+import type {
+  BusinessDetail,
+  CredentialOption,
+} from "@/features/businesses/types";
 
 const MODEL_HINTS: Record<string, string> = {
   openai: "ej: gpt-4o-mini (chat/visión) · whisper-1 (audio)",
@@ -46,8 +49,12 @@ export function BusinessFormFields({
   const aiCredentials = credentials.filter((c) => c.kind === "ai");
   const waCredentials = credentials.filter((c) => c.kind === "whatsapp");
 
-  const initialAiCredential = aiCredentials.find((c) => c.id === business?.aiCredentialId);
-  const [aiProvider, setAiProvider] = useState(initialAiCredential?.provider ?? "");
+  const initialAiCredential = aiCredentials.find(
+    (c) => c.id === business?.aiCredentialId,
+  );
+  const [aiProvider, setAiProvider] = useState(
+    initialAiCredential?.provider ?? "",
+  );
   const modelHint = MODEL_HINTS[aiProvider];
 
   return (
@@ -104,10 +111,9 @@ export function BusinessFormFields({
           defaultValue={business?.phoneNumberId ?? undefined}
         />
         <p className="text-xs text-muted-foreground">
-          El Phone Number ID que asigna Meta al registrar el número en la
-          WABA — se encuentra en WhatsApp Manager, no es el número en sí.
-          Podés dejarlo vacío y agregar los números después, desde la página
-          del negocio.
+          El Phone Number ID que asigna Meta al registrar el número en la WABA —
+          se encuentra en WhatsApp Manager, no es el número en sí. Podés dejarlo
+          vacío y agregar los números después, desde la página del negocio.
         </p>
       </div>
 
@@ -157,7 +163,9 @@ export function BusinessFormFields({
           defaultValue={business?.whatsappCredentialId || ""}
           className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         >
-          <option value="">Heredar de Configuración (o usar el token de arriba)</option>
+          <option value="">
+            Heredar de Configuración (o usar el token de arriba)
+          </option>
           {waCredentials.map((c) => (
             <option key={c.id} value={c.id}>
               {c.label}
@@ -235,14 +243,19 @@ export function BusinessFormFields({
       </div>
       <p className="-mt-2 text-xs text-muted-foreground">
         Dejalos vacíos para heredar los modelos por defecto configurados en{" "}
-        <a href="/settings/credentials" className="text-primary hover:underline">
+        <a
+          href="/settings/credentials"
+          className="text-primary hover:underline"
+        >
           Configuración
         </a>
         . Completalos solo si este cliente necesita un modelo distinto.
       </p>
-      {modelHint && <p className="-mt-2 text-xs text-muted-foreground">{modelHint}</p>}
+      {modelHint && (
+        <p className="-mt-2 text-xs text-muted-foreground">{modelHint}</p>
+      )}
 
-      <div className="space-y-1.5 max-w-[200px]">
+      <div className="max-w-[200px] space-y-1.5">
         <Label htmlFor="maxHistoryMessages">Max historial</Label>
         <Input
           id="maxHistoryMessages"
@@ -254,7 +267,7 @@ export function BusinessFormFields({
         />
       </div>
 
-      <div className="space-y-1.5 max-w-[280px]">
+      <div className="max-w-[280px] space-y-1.5">
         <Label htmlFor="replyWindowSeconds">
           Ventana de espera antes de responder (segundos)
         </Label>
@@ -272,8 +285,8 @@ export function BusinessFormFields({
         <p className="text-xs text-muted-foreground">
           Si el cliente manda varios mensajes seguidos, esperamos este tiempo
           desde el último antes de responder, para juntarlos en una sola
-          respuesta en vez de contestar mensaje por mensaje. Vacío o 0
-          desactiva la espera (responde al instante, como hoy).
+          respuesta en vez de contestar mensaje por mensaje. Vacío o 0 desactiva
+          la espera (responde al instante, como hoy).
         </p>
       </div>
 

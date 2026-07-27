@@ -84,8 +84,11 @@ describe("GET/POST /api/businesses/[id]/phone-numbers", () => {
     const { POST } = await import("../route");
 
     const res = await POST(
-      buildRequest("POST", { phoneNumberId: "new-number", whatsappToken: "tok" }),
-      { params: Promise.resolve({ id: business.id }) }
+      buildRequest("POST", {
+        phoneNumberId: "new-number",
+        whatsappToken: "tok",
+      }),
+      { params: Promise.resolve({ id: business.id }) },
     );
 
     expect(res.status).toBe(404);
@@ -101,7 +104,7 @@ describe("GET/POST /api/businesses/[id]/phone-numbers", () => {
         displayPhone: "+54 9 11 5555-5555",
         whatsappToken: "tok",
       }),
-      { params: Promise.resolve({ id: business.id }) }
+      { params: Promise.resolve({ id: business.id }) },
     );
     const created = await res.json();
 
@@ -111,8 +114,13 @@ describe("GET/POST /api/businesses/[id]/phone-numbers", () => {
   });
 
   it("POST returns 400 when whatsappCredentialId belongs to a different owner", async () => {
-    const otherAdmin = await createTestUser("phone-numbers-other-admin", "admin");
-    const foreignCredential = await createTestCredential(otherAdmin.id, { kind: "whatsapp" });
+    const otherAdmin = await createTestUser(
+      "phone-numbers-other-admin",
+      "admin",
+    );
+    const foreignCredential = await createTestCredential(otherAdmin.id, {
+      kind: "whatsapp",
+    });
     getSessionUser.mockResolvedValueOnce(admin);
     const { POST } = await import("../route");
 
@@ -121,7 +129,7 @@ describe("GET/POST /api/businesses/[id]/phone-numbers", () => {
         phoneNumberId: `test-foreign-cred-${business.id}`,
         whatsappCredentialId: foreignCredential.id,
       }),
-      { params: Promise.resolve({ id: business.id }) }
+      { params: Promise.resolve({ id: business.id }) },
     );
     const body = await res.json();
 
@@ -140,7 +148,7 @@ describe("GET/POST /api/businesses/[id]/phone-numbers", () => {
         phoneNumberId: business.phoneNumbers[0].phoneNumberId,
         whatsappToken: "tok",
       }),
-      { params: Promise.resolve({ id: business.id }) }
+      { params: Promise.resolve({ id: business.id }) },
     );
     const body = await res.json();
 

@@ -3,7 +3,7 @@ import type { EventFilters, EventsPage } from "@/features/events/types";
 export function fetchEvents(
   filters: EventFilters,
   cursor?: string | null,
-  limit = 25
+  limit = 25,
 ): Promise<EventsPage> {
   const params = new URLSearchParams({ limit: String(limit) });
   if (filters.level) params.set("level", filters.level);

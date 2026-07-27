@@ -24,7 +24,8 @@ export function AppointmentsTableContainer({
       toast.success("Cita actualizada");
       router.refresh();
     },
-    onError: (error: Error) => toast.error(error.message || "Error al actualizar"),
+    onError: (error: Error) =>
+      toast.error(error.message || "Error al actualizar"),
   });
 
   const deleteMutation = useMutation({
@@ -33,7 +34,8 @@ export function AppointmentsTableContainer({
       toast.success("Cita eliminada");
       router.refresh();
     },
-    onError: (error: Error) => toast.error(error.message || "Error al eliminar"),
+    onError: (error: Error) =>
+      toast.error(error.message || "Error al eliminar"),
   });
 
   const busyId =

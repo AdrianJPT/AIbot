@@ -1,7 +1,11 @@
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { initialsFrom, relativeTime, MEDIA_ICON } from "@/features/conversations/lib/format";
+import {
+  initialsFrom,
+  relativeTime,
+  MEDIA_ICON,
+} from "@/features/conversations/lib/format";
 import type { ConversationListItem } from "@/features/conversations/types";
 
 export function ConversationListItemRow({
@@ -14,7 +18,9 @@ export function ConversationListItemRow({
   showBusinessBadge: boolean;
 }) {
   const name =
-    conversation.nickname || conversation.customerName || conversation.customerPhone;
+    conversation.nickname ||
+    conversation.customerName ||
+    conversation.customerPhone;
   const preview = previewText(conversation);
 
   return (
@@ -22,13 +28,13 @@ export function ConversationListItemRow({
       href={`/conversations/${conversation.id}`}
       className={cn(
         "flex items-start gap-3 border-b border-border px-4 py-3 transition-colors hover:bg-muted/50",
-        active && "bg-muted"
+        active && "bg-muted",
       )}
     >
       <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/15 text-sm font-semibold text-primary">
         {initialsFrom(
           conversation.nickname || conversation.customerName,
-          conversation.customerPhone
+          conversation.customerPhone,
         )}
       </div>
 
@@ -41,7 +47,9 @@ export function ConversationListItemRow({
         </div>
 
         <div className="mt-0.5 flex items-center justify-between gap-2">
-          <span className="truncate text-sm text-muted-foreground">{preview}</span>
+          <span className="truncate text-sm text-muted-foreground">
+            {preview}
+          </span>
           {conversation.unreadCount > 0 && (
             <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-primary px-1.5 text-xs font-semibold text-primary-foreground">
               {conversation.unreadCount}
@@ -61,7 +69,10 @@ export function ConversationListItemRow({
             </Badge>
           )}
           {conversation.status === "closed" && (
-            <Badge variant="outline" className="text-[10px] text-muted-foreground">
+            <Badge
+              variant="outline"
+              className="text-[10px] text-muted-foreground"
+            >
               Cerrada
             </Badge>
           )}

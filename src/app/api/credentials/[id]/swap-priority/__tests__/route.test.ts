@@ -1,4 +1,12 @@
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 import { NextRequest } from "next/server";
 import type { User } from "@prisma/client";
 import { prisma } from "@/lib/db";
@@ -50,8 +58,14 @@ describe("POST /api/credentials/[id]/swap-priority", () => {
   it("atomically swaps the priority of both credentials in one transaction", async () => {
     getSessionUser.mockResolvedValue(admin);
     const { POST } = await import("../route");
-    const first = await createTestCredential(owner.id, { kind: "ai", priority: 0 });
-    const second = await createTestCredential(owner.id, { kind: "ai", priority: 1 });
+    const first = await createTestCredential(owner.id, {
+      kind: "ai",
+      priority: 0,
+    });
+    const second = await createTestCredential(owner.id, {
+      kind: "ai",
+      priority: 1,
+    });
 
     const res = await POST(buildRequest({ withId: second.id }), ctx(first.id));
     expect(res.status).toBe(200);
@@ -87,7 +101,10 @@ describe("POST /api/credentials/[id]/swap-priority", () => {
     const { POST } = await import("../route");
     const cred = await createTestCredential(owner.id, { kind: "ai" });
 
-    const res = await POST(buildRequest({ withId: "nonexistent" }), ctx(cred.id));
+    const res = await POST(
+      buildRequest({ withId: "nonexistent" }),
+      ctx(cred.id),
+    );
     expect(res.status).toBe(404);
   });
 
@@ -104,8 +121,14 @@ describe("POST /api/credentials/[id]/swap-priority", () => {
   it("returns 404 for a non-admin caller", async () => {
     getSessionUser.mockResolvedValue(owner);
     const { POST } = await import("../route");
-    const first = await createTestCredential(owner.id, { kind: "ai", priority: 0 });
-    const second = await createTestCredential(owner.id, { kind: "ai", priority: 1 });
+    const first = await createTestCredential(owner.id, {
+      kind: "ai",
+      priority: 0,
+    });
+    const second = await createTestCredential(owner.id, {
+      kind: "ai",
+      priority: 1,
+    });
 
     const res = await POST(buildRequest({ withId: second.id }), ctx(first.id));
     expect(res.status).toBe(404);

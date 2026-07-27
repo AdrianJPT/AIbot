@@ -10,10 +10,10 @@ ese wizard es solo para el primer número; mezclar flujos rompe el número.
 
 ## Límites que te afectan
 
-| Estado de tu negocio en Meta | Números totales en tu portfolio |
-|---|---|
-| Sin verificar | 2 |
-| Verificado (Centro de seguridad → Verificación) | 20 |
+| Estado de tu negocio en Meta                    | Números totales en tu portfolio |
+| ----------------------------------------------- | ------------------------------- |
+| Sin verificar                                   | 2                               |
+| Verificado (Centro de seguridad → Verificación) | 20                              |
 
 - La calidad y los límites de mensajería se comparten a nivel portfolio: un
   cliente con mala calidad afecta a todos. Monitoreá la calidad por número en

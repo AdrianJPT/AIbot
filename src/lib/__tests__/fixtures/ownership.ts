@@ -5,7 +5,7 @@ import type { Business, Credential, PhoneNumber, User } from "@prisma/client";
 
 export async function createTestUser(
   prefix: string,
-  role: "admin" | "client" = "client"
+  role: "admin" | "client" = "client",
 ): Promise<User> {
   const id = randomUUID();
   return prisma.user.create({
@@ -15,7 +15,7 @@ export async function createTestUser(
 
 export async function createTestBusiness(
   ownerId: string,
-  suffix: string
+  suffix: string,
 ): Promise<Business & { phoneNumbers: PhoneNumber[] }> {
   return prisma.business.create({
     data: {
@@ -42,7 +42,7 @@ export async function createTestCredential(
     baseUrl: string | null;
     isActive: boolean;
     priority: number;
-  }> = {}
+  }> = {},
 ): Promise<Credential> {
   const key = overrides.key ?? `sk-test-${randomUUID()}`;
   return prisma.credential.create({
@@ -60,7 +60,10 @@ export async function createTestCredential(
   });
 }
 
-export async function createTestConversation(businessId: string, suffix: string) {
+export async function createTestConversation(
+  businessId: string,
+  suffix: string,
+) {
   const phoneNumber = await prisma.phoneNumber.findFirstOrThrow({
     where: { businessId },
   });
@@ -78,7 +81,9 @@ export async function createTestConversation(businessId: string, suffix: string)
  * the users that own them. Call in afterAll/afterEach to keep the shared
  * local Postgres clean between test runs.
  */
-export async function cleanupOwnershipFixtures(userIds: string[]): Promise<void> {
+export async function cleanupOwnershipFixtures(
+  userIds: string[],
+): Promise<void> {
   await prisma.business.deleteMany({ where: { ownerId: { in: userIds } } });
   await prisma.credential.deleteMany({ where: { ownerId: { in: userIds } } });
   await prisma.user.deleteMany({ where: { id: { in: userIds } } });

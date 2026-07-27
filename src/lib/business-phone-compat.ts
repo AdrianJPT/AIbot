@@ -9,7 +9,9 @@ import type { PhoneNumber } from "@prisma/client";
  */
 export function flattenBusinessPhoneNumber<
   T extends { phoneNumbers: PhoneNumber[] },
->(business: T): Omit<T, "phoneNumbers"> & {
+>(
+  business: T,
+): Omit<T, "phoneNumbers"> & {
   phoneNumberId: string | null;
   displayPhone: string | null;
   whatsappCredentialId: string | null;

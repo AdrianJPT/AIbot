@@ -28,9 +28,15 @@ describe("GET /api/conversations", () => {
     other = await createTestUser("search-other");
     admin = await createTestUser("search-admin", "admin");
     business = await createTestBusiness(owner.id, "conv-search");
-    const otherBusiness = await createTestBusiness(other.id, "conv-search-other");
+    const otherBusiness = await createTestBusiness(
+      other.id,
+      "conv-search-other",
+    );
     const secondPhoneNumber = await prisma.phoneNumber.create({
-      data: { businessId: business.id, phoneNumberId: `conv-search-second-${business.id}` },
+      data: {
+        businessId: business.id,
+        phoneNumberId: `conv-search-second-${business.id}`,
+      },
     });
     await prisma.conversation.create({
       data: {
@@ -106,7 +112,9 @@ describe("GET /api/conversations", () => {
     getSessionUser.mockResolvedValueOnce(owner);
     const { GET } = await import("../route");
 
-    const res = await GET(buildRequest(`?phoneNumberId=${business.phoneNumbers[0].id}`));
+    const res = await GET(
+      buildRequest(`?phoneNumberId=${business.phoneNumbers[0].id}`),
+    );
     const body = await res.json();
 
     expect(body).toHaveLength(1);
@@ -120,7 +128,9 @@ describe("GET /api/conversations", () => {
     const res = await GET(buildRequest(`?businessId=${business.id}`));
     const body = await res.json();
 
-    const names = body.map((c: { customerName: string | null }) => c.customerName);
+    const names = body.map(
+      (c: { customerName: string | null }) => c.customerName,
+    );
     expect(names.sort()).toEqual(["Ana García", "Luis Pérez"]);
   });
 
@@ -131,7 +141,9 @@ describe("GET /api/conversations", () => {
     const res = await GET(buildRequest());
     const body = await res.json();
 
-    const names = body.map((c: { customerName: string | null }) => c.customerName);
+    const names = body.map(
+      (c: { customerName: string | null }) => c.customerName,
+    );
     expect(names).toContain("Ana García");
     expect(names).toContain("Otro cliente");
   });

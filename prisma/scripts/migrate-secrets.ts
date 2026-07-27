@@ -39,7 +39,7 @@ async function migrateOpenAiKey(ownerIdOrEmail: {
 
   if (!ownerIdOrEmail.email && !ownerIdOrEmail.userId) {
     console.log(
-      "OPENAI_API_KEY is set but no --email/--user-id was given — skipping AI credential migration."
+      "OPENAI_API_KEY is set but no --email/--user-id was given — skipping AI credential migration.",
     );
     return;
   }
@@ -50,7 +50,7 @@ async function migrateOpenAiKey(ownerIdOrEmail: {
 
   if (!user) {
     console.error(
-      `No User found for ${ownerIdOrEmail.userId ? `id=${ownerIdOrEmail.userId}` : `email=${ownerIdOrEmail.email}`}. Skipping AI credential migration.`
+      `No User found for ${ownerIdOrEmail.userId ? `id=${ownerIdOrEmail.userId}` : `email=${ownerIdOrEmail.email}`}. Skipping AI credential migration.`,
     );
     return;
   }
@@ -60,7 +60,7 @@ async function migrateOpenAiKey(ownerIdOrEmail: {
   });
   if (existingCredential) {
     console.log(
-      `${user.email} already has an AI credential (${existingCredential.label}) — skipping.`
+      `${user.email} already has an AI credential (${existingCredential.label}) — skipping.`,
     );
     return;
   }

@@ -1,4 +1,12 @@
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 import { NextRequest } from "next/server";
 import type { User } from "@prisma/client";
 import { prisma } from "@/lib/db";
@@ -59,10 +67,15 @@ describe("/api/credentials/[id] actions", () => {
       const { DELETE } = await import("../route");
       const cred = await createTestCredential(owner.id);
 
-      const res = await DELETE(buildRequest("https://example.com"), ctx(cred.id));
+      const res = await DELETE(
+        buildRequest("https://example.com"),
+        ctx(cred.id),
+      );
       expect(res.status).toBe(200);
 
-      const row = await prisma.credential.findUnique({ where: { id: cred.id } });
+      const row = await prisma.credential.findUnique({
+        where: { id: cred.id },
+      });
       expect(row).toBeNull();
     });
 
@@ -76,7 +89,10 @@ describe("/api/credentials/[id] actions", () => {
         data: { aiCredentialId: cred.id },
       });
 
-      const res = await DELETE(buildRequest("https://example.com"), ctx(cred.id));
+      const res = await DELETE(
+        buildRequest("https://example.com"),
+        ctx(cred.id),
+      );
       const body = await res.json();
 
       expect(res.status).toBe(409);
@@ -98,7 +114,10 @@ describe("/api/credentials/[id] actions", () => {
         data: { whatsappCredentialId: cred.id },
       });
 
-      const res = await DELETE(buildRequest("https://example.com"), ctx(cred.id));
+      const res = await DELETE(
+        buildRequest("https://example.com"),
+        ctx(cred.id),
+      );
       const body = await res.json();
 
       expect(res.status).toBe(409);
@@ -115,7 +134,10 @@ describe("/api/credentials/[id] actions", () => {
         create: { id: "default", whatsappCredentialId: cred.id },
       });
 
-      const res = await DELETE(buildRequest("https://example.com"), ctx(cred.id));
+      const res = await DELETE(
+        buildRequest("https://example.com"),
+        ctx(cred.id),
+      );
       const body = await res.json();
 
       expect(res.status).toBe(409);
@@ -132,7 +154,10 @@ describe("/api/credentials/[id] actions", () => {
       const { DELETE } = await import("../route");
       const cred = await createTestCredential(owner.id);
 
-      const res = await DELETE(buildRequest("https://example.com"), ctx(cred.id));
+      const res = await DELETE(
+        buildRequest("https://example.com"),
+        ctx(cred.id),
+      );
 
       expect(res.status).toBe(404);
     });
@@ -141,7 +166,10 @@ describe("/api/credentials/[id] actions", () => {
       getSessionUser.mockResolvedValueOnce(admin);
       const { DELETE } = await import("../route");
 
-      const res = await DELETE(buildRequest("https://example.com"), ctx("nonexistent"));
+      const res = await DELETE(
+        buildRequest("https://example.com"),
+        ctx("nonexistent"),
+      );
 
       expect(res.status).toBe(404);
     });
@@ -155,14 +183,16 @@ describe("/api/credentials/[id] actions", () => {
 
       const res = await PATCH(
         buildRequest("https://example.com", { label: "New label" }),
-        ctx(cred.id)
+        ctx(cred.id),
       );
       const body = await res.json();
 
       expect(res.status).toBe(200);
       expect(body.label).toBe("New label");
 
-      const row = await prisma.credential.findUniqueOrThrow({ where: { id: cred.id } });
+      const row = await prisma.credential.findUniqueOrThrow({
+        where: { id: cred.id },
+      });
       expect(row.label).toBe("New label");
     });
 
@@ -173,14 +203,16 @@ describe("/api/credentials/[id] actions", () => {
 
       const res = await PATCH(
         buildRequest("https://example.com", { key: "sk-new-9999" }),
-        ctx(cred.id)
+        ctx(cred.id),
       );
       const body = await res.json();
 
       expect(res.status).toBe(200);
       expect(body.keyLast4).toBe("9999");
 
-      const row = await prisma.credential.findUniqueOrThrow({ where: { id: cred.id } });
+      const row = await prisma.credential.findUniqueOrThrow({
+        where: { id: cred.id },
+      });
       expect(row.keyLast4).toBe("9999");
       expect(decryptSecret(row.encryptedKey)).toBe("sk-new-9999");
     });
@@ -188,18 +220,23 @@ describe("/api/credentials/[id] actions", () => {
     it("updates isActive", async () => {
       getSessionUser.mockResolvedValueOnce(admin);
       const { PATCH } = await import("../route");
-      const cred = await createTestCredential(owner.id, { kind: "ai", isActive: true });
+      const cred = await createTestCredential(owner.id, {
+        kind: "ai",
+        isActive: true,
+      });
 
       const res = await PATCH(
         buildRequest("https://example.com", { isActive: false }),
-        ctx(cred.id)
+        ctx(cred.id),
       );
       const body = await res.json();
 
       expect(res.status).toBe(200);
       expect(body.isActive).toBe(false);
 
-      const row = await prisma.credential.findUniqueOrThrow({ where: { id: cred.id } });
+      const row = await prisma.credential.findUniqueOrThrow({
+        where: { id: cred.id },
+      });
       expect(row.isActive).toBe(false);
     });
 
@@ -214,7 +251,7 @@ describe("/api/credentials/[id] actions", () => {
 
       const res = await PATCH(
         buildRequest("https://example.com", { baseUrl: "" }),
-        ctx(cred.id)
+        ctx(cred.id),
       );
 
       expect(res.status).toBe(400);
@@ -224,16 +261,22 @@ describe("/api/credentials/[id] actions", () => {
       getSessionUser.mockResolvedValueOnce(admin);
       getSessionUser.mockResolvedValueOnce(admin);
       const { PATCH } = await import("../route");
-      const first = await createTestCredential(owner.id, { kind: "ai", priority: 0 });
-      const second = await createTestCredential(owner.id, { kind: "ai", priority: 1 });
+      const first = await createTestCredential(owner.id, {
+        kind: "ai",
+        priority: 0,
+      });
+      const second = await createTestCredential(owner.id, {
+        kind: "ai",
+        priority: 1,
+      });
 
       await PATCH(
         buildRequest("https://example.com", { priority: second.priority }),
-        ctx(first.id)
+        ctx(first.id),
       );
       await PATCH(
         buildRequest("https://example.com", { priority: first.priority }),
-        ctx(second.id)
+        ctx(second.id),
       );
 
       const rows = await prisma.credential.findMany({
@@ -251,10 +294,12 @@ describe("/api/credentials/[id] actions", () => {
 
       await PATCH(
         buildRequest("https://example.com", { baseUrl: "https://example.com" }),
-        ctx(cred.id)
+        ctx(cred.id),
       );
 
-      const row = await prisma.credential.findUniqueOrThrow({ where: { id: cred.id } });
+      const row = await prisma.credential.findUniqueOrThrow({
+        where: { id: cred.id },
+      });
       expect(row.baseUrl).toBeNull();
     });
 
@@ -265,7 +310,7 @@ describe("/api/credentials/[id] actions", () => {
 
       const res = await PATCH(
         buildRequest("https://example.com", { label: "x" }),
-        ctx(cred.id)
+        ctx(cred.id),
       );
 
       expect(res.status).toBe(404);
@@ -277,7 +322,7 @@ describe("/api/credentials/[id] actions", () => {
 
       const res = await PATCH(
         buildRequest("https://example.com", { label: "x" }),
-        ctx("nonexistent")
+        ctx("nonexistent"),
       );
 
       expect(res.status).toBe(404);

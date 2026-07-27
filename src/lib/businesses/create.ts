@@ -44,12 +44,15 @@ export type CreateBusinessInput = {
  * combined client-invite flow so both enforce the same rules.
  */
 export function validateCreateBusinessInput(
-  input: Partial<CreateBusinessInput>
+  input: Partial<CreateBusinessInput>,
 ): string | null {
   if (!input.name || !input.systemPrompt || !input.welcomeMessage) {
     return "Faltan campos requeridos del negocio";
   }
-  if ((input.whatsappToken || input.whatsappCredentialId) && !input.phoneNumberId) {
+  if (
+    (input.whatsappToken || input.whatsappCredentialId) &&
+    !input.phoneNumberId
+  ) {
     return "Cargaste un token de WhatsApp pero falta el ID técnico del número";
   }
   return null;
@@ -65,12 +68,16 @@ export function validateCreateBusinessInput(
  */
 export async function createBusinessForOwner(
   ownerId: string,
-  input: CreateBusinessInput
+  input: CreateBusinessInput,
 ) {
   const resolvedWhatsappCredentialId =
     input.whatsappCredentialId ||
     (input.whatsappToken
-      ? await ensureWhatsappCredential(ownerId, `WhatsApp (${input.name})`, input.whatsappToken)
+      ? await ensureWhatsappCredential(
+          ownerId,
+          `WhatsApp (${input.name})`,
+          input.whatsappToken,
+        )
       : null);
 
   return prisma.business.create({

@@ -13,7 +13,10 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { BusinessPicker, type PickableBusiness } from "@/features/admin/components/business-picker";
+import {
+  BusinessPicker,
+  type PickableBusiness,
+} from "@/features/admin/components/business-picker";
 import { updateBusiness } from "@/features/businesses/api";
 
 /**
@@ -33,13 +36,15 @@ export function AssociateBusinessDialogContainer({
   const router = useRouter();
 
   const mutation = useMutation({
-    mutationFn: (businessId: string) => updateBusiness(businessId, { ownerId: clientId }),
+    mutationFn: (businessId: string) =>
+      updateBusiness(businessId, { ownerId: clientId }),
     onSuccess: () => {
       toast.success("Negocio asociado");
       setOpen(false);
       router.refresh();
     },
-    onError: (error: Error) => toast.error(error.message || "Error al asociar el negocio"),
+    onError: (error: Error) =>
+      toast.error(error.message || "Error al asociar el negocio"),
   });
 
   return (
@@ -51,8 +56,8 @@ export function AssociateBusinessDialogContainer({
         <DialogHeader>
           <DialogTitle>Asociar negocio</DialogTitle>
           <DialogDescription>
-            Elegí uno de tus negocios (todavía sin cliente) para transferírselo a
-            este cliente.
+            Elegí uno de tus negocios (todavía sin cliente) para transferírselo
+            a este cliente.
           </DialogDescription>
         </DialogHeader>
         <BusinessPicker

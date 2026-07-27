@@ -22,7 +22,9 @@ const messageCount = vi.fn();
 
 vi.mock("../db", () => ({
   prisma: {
-    phoneNumber: { findFirst: (...args: unknown[]) => findFirstPhoneNumber(...args) },
+    phoneNumber: {
+      findFirst: (...args: unknown[]) => findFirstPhoneNumber(...args),
+    },
     conversation: {
       upsert: (...args: unknown[]) => conversationUpsert(...args),
       update: (...args: unknown[]) => conversationUpdate(...args),
@@ -48,8 +50,8 @@ vi.mock("../ai/generate", () => ({
 }));
 
 const fakeAiClient = { marker: "fake-ai-client" };
-const callWithAiCredential = vi.fn((_business: unknown, fn: (client: unknown) => unknown) =>
-  fn(fakeAiClient)
+const callWithAiCredential = vi.fn(
+  (_business: unknown, fn: (client: unknown) => unknown) => fn(fakeAiClient),
 );
 vi.mock("../ai/resolve", () => ({
   callWithAiCredential: (...args: Parameters<typeof callWithAiCredential>) =>
@@ -73,7 +75,8 @@ const describeImageFromBuffer = vi.fn();
 const transcribeAudioBuffer = vi.fn();
 vi.mock("../media", () => ({
   downloadMediaBuffer: (...args: unknown[]) => downloadMediaBuffer(...args),
-  describeImageFromBuffer: (...args: unknown[]) => describeImageFromBuffer(...args),
+  describeImageFromBuffer: (...args: unknown[]) =>
+    describeImageFromBuffer(...args),
   transcribeAudioBuffer: (...args: unknown[]) => transcribeAudioBuffer(...args),
 }));
 
@@ -153,7 +156,7 @@ describe("processWebhookPayload", () => {
       expect.objectContaining({ id: phoneNumber.id }),
       business.ownerId,
       "5215512345678",
-      "Respuesta generada"
+      "Respuesta generada",
     );
   });
 
@@ -168,7 +171,7 @@ describe("processWebhookPayload", () => {
 
     expect(downloadMediaBuffer).toHaveBeenCalledWith(
       "MEDIA_ID_IMAGE_001",
-      TEST_TOKEN
+      TEST_TOKEN,
     );
     expect(messageCreate.mock.calls[0][0].data).toMatchObject({
       mediaType: "image",
@@ -215,7 +218,9 @@ describe("processWebhookPayload", () => {
       buffer: Buffer.from("fake-image"),
       mimeType: "image/jpeg",
     });
-    describeImageFromBuffer.mockRejectedValue(new Error("invalid model for provider"));
+    describeImageFromBuffer.mockRejectedValue(
+      new Error("invalid model for provider"),
+    );
 
     await processWebhookPayload(imageMessagePayload);
 
@@ -249,12 +254,15 @@ describe("processWebhookPayload", () => {
 
     expect(generateResponse).not.toHaveBeenCalled();
     expect(messageCreate.mock.calls[1][0].data.content).toContain(
-      "no puedo leer archivos"
+      "no puedo leer archivos",
     );
   });
 
   it("handles delivery status update payloads: updates the matching Message by wamid, no new message/conversation created", async () => {
-    findFirstMessage.mockResolvedValue({ id: "msg_out_1", wamid: "wamid.TEXT_MESSAGE_ID_001" });
+    findFirstMessage.mockResolvedValue({
+      id: "msg_out_1",
+      wamid: "wamid.TEXT_MESSAGE_ID_001",
+    });
 
     await processWebhookPayload(statusUpdatePayload);
 
@@ -298,21 +306,21 @@ describe("processWebhookPayload", () => {
         customerName: "Cliente de Prueba",
       },
     });
-    expect(conversationUpdate.mock.calls[0][0].data.lastMessageAt).toBeInstanceOf(
-      Date
-    );
+    expect(
+      conversationUpdate.mock.calls[0][0].data.lastMessageAt,
+    ).toBeInstanceOf(Date);
 
     // Second conversation.update call: alongside the bot reply insert, no
     // unreadCount/customerName touch.
     expect(conversationUpdate.mock.calls[1][0].data).not.toHaveProperty(
-      "unreadCount"
+      "unreadCount",
     );
     expect(conversationUpdate.mock.calls[1][0].data).not.toHaveProperty(
-      "customerName"
+      "customerName",
     );
-    expect(conversationUpdate.mock.calls[1][0].data.lastMessageAt).toBeInstanceOf(
-      Date
-    );
+    expect(
+      conversationUpdate.mock.calls[1][0].data.lastMessageAt,
+    ).toBeInstanceOf(Date);
   });
 
   it("marks the customer message as sentBy:customer and the bot reply as sentBy:bot", async () => {

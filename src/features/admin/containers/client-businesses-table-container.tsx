@@ -21,10 +21,13 @@ export function ClientBusinessesTableContainer({
     mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) =>
       updateBusiness(id, { isActive }),
     onSuccess: (_data, variables) => {
-      toast.success(variables.isActive ? "Número reactivado" : "Número desactivado");
+      toast.success(
+        variables.isActive ? "Número reactivado" : "Número desactivado",
+      );
       router.refresh();
     },
-    onError: (error: Error) => toast.error(error.message || "Error al actualizar"),
+    onError: (error: Error) =>
+      toast.error(error.message || "Error al actualizar"),
   });
 
   const unassignMutation = useMutation({
@@ -33,7 +36,8 @@ export function ClientBusinessesTableContainer({
       toast.success("Negocio quitado del cliente");
       router.refresh();
     },
-    onError: (error: Error) => toast.error(error.message || "Error al quitar el negocio"),
+    onError: (error: Error) =>
+      toast.error(error.message || "Error al quitar el negocio"),
   });
 
   return (
@@ -50,12 +54,18 @@ export function ClientBusinessesTableContainer({
         toggleMutation.mutate({ id, isActive: nextIsActive });
       }}
       onUnassign={(id) => {
-        if (!confirm("¿Quitar este negocio del cliente? Vuelve a tu cuenta de administrador.")) {
+        if (
+          !confirm(
+            "¿Quitar este negocio del cliente? Vuelve a tu cuenta de administrador.",
+          )
+        ) {
           return;
         }
         unassignMutation.mutate(id);
       }}
-      unassigningId={unassignMutation.isPending ? unassignMutation.variables : null}
+      unassigningId={
+        unassignMutation.isPending ? unassignMutation.variables : null
+      }
       onPhoneNumberAdded={() => router.refresh()}
     />
   );

@@ -40,16 +40,22 @@ export function HandoffToggle({
         <span className="text-sm font-medium">
           {isHuman ? "Atención humana" : "Bot activo"}
         </span>
-        <Switch checked={isHuman} disabled={loading} onCheckedChange={handleToggle} />
+        <Switch
+          checked={isHuman}
+          disabled={loading}
+          onCheckedChange={handleToggle}
+        />
       </div>
 
       <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>¿Pasar esta conversación a atención humana?</DialogTitle>
+            <DialogTitle>
+              ¿Pasar esta conversación a atención humana?
+            </DialogTitle>
             <DialogDescription>
-              El bot dejará de responder automáticamente a este cliente hasta que
-              vuelvas a activarlo.
+              El bot dejará de responder automáticamente a este cliente hasta
+              que vuelvas a activarlo.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

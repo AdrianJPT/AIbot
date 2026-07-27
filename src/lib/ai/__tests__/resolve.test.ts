@@ -31,7 +31,9 @@ vi.mock("../../log", () => ({
 
 type FakeOpenAIInstance = { apiKey?: string; baseURL?: string };
 const openAiCtor = vi.fn(
-  (config: { apiKey?: string; baseURL?: string }): FakeOpenAIInstance => ({ ...config })
+  (config: { apiKey?: string; baseURL?: string }): FakeOpenAIInstance => ({
+    ...config,
+  }),
 );
 vi.mock("openai", () => ({
   default: class {
@@ -98,7 +100,11 @@ beforeEach(() => {
 
 describe("resolveModels", () => {
   it("uses the business override when set", async () => {
-    const business = makeBusiness({ model: "biz-chat", visionModel: "biz-vision", audioModel: "biz-audio" });
+    const business = makeBusiness({
+      model: "biz-chat",
+      visionModel: "biz-vision",
+      audioModel: "biz-audio",
+    });
 
     const models = await resolveModels(business);
 
@@ -115,7 +121,11 @@ describe("resolveModels", () => {
       visionModel: "config-vision",
       audioModel: "config-audio",
     });
-    const business = makeBusiness({ model: null, visionModel: null, audioModel: null });
+    const business = makeBusiness({
+      model: null,
+      visionModel: null,
+      audioModel: null,
+    });
 
     const models = await resolveModels(business);
 
@@ -128,7 +138,11 @@ describe("resolveModels", () => {
 
   it("falls back to the hardcoded default when neither business nor AppConfig has one", async () => {
     appConfigFindUnique.mockResolvedValue(null);
-    const business = makeBusiness({ model: null, visionModel: null, audioModel: null });
+    const business = makeBusiness({
+      model: null,
+      visionModel: null,
+      audioModel: null,
+    });
 
     const models = await resolveModels(business);
 
@@ -157,12 +171,18 @@ describe("client caching", () => {
     const business = makeBusiness({ aiCredentialId: "cred_rotate" });
     const fn = vi.fn().mockResolvedValue("ok");
     credentialFindUnique.mockResolvedValueOnce(
-      makeCredential({ id: "cred_rotate", updatedAt: new Date("2026-01-01T00:00:00.000Z") })
+      makeCredential({
+        id: "cred_rotate",
+        updatedAt: new Date("2026-01-01T00:00:00.000Z"),
+      }),
     );
     await callWithAiCredential(business, fn);
 
     credentialFindUnique.mockResolvedValueOnce(
-      makeCredential({ id: "cred_rotate", updatedAt: new Date("2026-02-01T00:00:00.000Z") })
+      makeCredential({
+        id: "cred_rotate",
+        updatedAt: new Date("2026-02-01T00:00:00.000Z"),
+      }),
     );
     await callWithAiCredential(business, fn);
 
@@ -177,7 +197,7 @@ describe("client caching", () => {
     await callWithAiCredential(business, vi.fn().mockResolvedValue("ok"));
 
     expect(openAiCtor).toHaveBeenCalledWith(
-      expect.objectContaining({ timeout: 20_000, maxRetries: 0 })
+      expect.objectContaining({ timeout: 20_000, maxRetries: 0 }),
     );
   });
 });
@@ -212,7 +232,9 @@ describe("callWithAiCredential — explicit pin (business.aiCredentialId set)", 
     err.status = 401;
     const fn = vi.fn().mockRejectedValue(err);
 
-    await expect(callWithAiCredential(business, fn)).rejects.toThrow("Unauthorized");
+    await expect(callWithAiCredential(business, fn)).rejects.toThrow(
+      "Unauthorized",
+    );
 
     expect(fn).toHaveBeenCalledTimes(1);
     expect(logEvent).toHaveBeenCalledWith(
@@ -220,7 +242,7 @@ describe("callWithAiCredential — explicit pin (business.aiCredentialId set)", 
       "credentials",
       "AI credential auth failure",
       expect.objectContaining({ credentialId: "cred_active" }),
-      business.id
+      business.id,
     );
     expect(credentialUpdate).toHaveBeenCalledWith({
       where: { id: "cred_active" },
@@ -235,14 +257,19 @@ describe("callWithAiCredential — explicit pin (business.aiCredentialId set)", 
 
     const fn = vi.fn().mockRejectedValue(new Error("network blip"));
 
-    await expect(callWithAiCredential(business, fn)).rejects.toThrow("network blip");
+    await expect(callWithAiCredential(business, fn)).rejects.toThrow(
+      "network blip",
+    );
     expect(fn).toHaveBeenCalledTimes(1);
     expect(logEvent).toHaveBeenCalledWith(
       "error",
       "credentials",
       "AI credential auth failure",
-      expect.objectContaining({ credentialId: "cred_active", error: "network blip" }),
-      business.id
+      expect.objectContaining({
+        credentialId: "cred_active",
+        error: "network blip",
+      }),
+      business.id,
     );
     expect(credentialUpdate).toHaveBeenCalledWith({
       where: { id: "cred_active" },
@@ -257,7 +284,10 @@ describe("callWithAiCredential — explicit pin (business.aiCredentialId set)", 
 
     const err = new Error("Rate limited") as Error & { status: number };
     err.status = 429;
-    const fn = vi.fn().mockRejectedValueOnce(err).mockResolvedValueOnce("ok after retry");
+    const fn = vi
+      .fn()
+      .mockRejectedValueOnce(err)
+      .mockResolvedValueOnce("ok after retry");
 
     const result = await callWithAiCredential(business, fn);
 
@@ -275,12 +305,17 @@ describe("callWithAiCredential — explicit pin (business.aiCredentialId set)", 
     credentialFindUnique.mockResolvedValue(credential);
     const business = makeBusiness({ aiCredentialId: "cred_active" });
 
-    const err = new Error("Rate limited") as Error & { status: number; code: string };
+    const err = new Error("Rate limited") as Error & {
+      status: number;
+      code: string;
+    };
     err.status = 429;
     err.code = "rate_limit_exceeded";
     const fn = vi.fn().mockRejectedValue(err);
 
-    await expect(callWithAiCredential(business, fn)).rejects.toThrow("Rate limited");
+    await expect(callWithAiCredential(business, fn)).rejects.toThrow(
+      "Rate limited",
+    );
 
     expect(fn).toHaveBeenCalledTimes(2);
     expect(logEvent).toHaveBeenCalledWith(
@@ -292,7 +327,7 @@ describe("callWithAiCredential — explicit pin (business.aiCredentialId set)", 
         code: "rate_limit_exceeded",
         error: "Rate limited: Rate limited",
       }),
-      business.id
+      business.id,
     );
     expect(credentialUpdate).toHaveBeenCalledWith({
       where: { id: "cred_active" },
@@ -309,7 +344,9 @@ describe("callWithAiCredential — explicit pin (business.aiCredentialId set)", 
     err.status = 429;
     const fn = vi.fn().mockRejectedValue(err);
 
-    await expect(callWithAiCredential(business, fn)).rejects.toThrow("Too many requests");
+    await expect(callWithAiCredential(business, fn)).rejects.toThrow(
+      "Too many requests",
+    );
 
     expect(credentialUpdate).toHaveBeenCalledWith({
       where: { id: "cred_429" },
@@ -326,7 +363,9 @@ describe("callWithAiCredential — explicit pin (business.aiCredentialId set)", 
     err.status = 401;
     const fn = vi.fn().mockRejectedValue(err);
 
-    await expect(callWithAiCredential(business, fn)).rejects.toThrow("Invalid API key");
+    await expect(callWithAiCredential(business, fn)).rejects.toThrow(
+      "Invalid API key",
+    );
 
     expect(credentialUpdate).toHaveBeenCalledWith({
       where: { id: "cred_401" },
@@ -339,12 +378,14 @@ describe("callWithAiCredential — explicit pin (business.aiCredentialId set)", 
     const business = makeBusiness({ aiCredentialId: "cred_missing" });
 
     await expect(callWithAiCredential(business, vi.fn())).rejects.toThrow(
-      /No AI credential is configured/
+      /No AI credential is configured/,
     );
   });
 
   it("queries the pinned credential filtered by isActive:true and kind:'ai'", async () => {
-    credentialFindUnique.mockResolvedValue(makeCredential({ id: "cred_active" }));
+    credentialFindUnique.mockResolvedValue(
+      makeCredential({ id: "cred_active" }),
+    );
     const business = makeBusiness({ aiCredentialId: "cred_active" });
 
     await callWithAiCredential(business, vi.fn().mockResolvedValue("ok"));
@@ -362,7 +403,10 @@ describe("callWithAiCredential — explicit pin (business.aiCredentialId set)", 
     const business = makeBusiness({ aiCredentialId: "cred_inactive_pin" });
 
     await expect(
-      callWithAiCredential(business, vi.fn().mockResolvedValue("should not be called"))
+      callWithAiCredential(
+        business,
+        vi.fn().mockResolvedValue("should not be called"),
+      ),
     ).rejects.toThrow(/No AI credential is configured/);
 
     expect(credentialFindMany).not.toHaveBeenCalled();
@@ -375,7 +419,10 @@ describe("callWithAiCredential — explicit pin (business.aiCredentialId set)", 
     const business = makeBusiness({ aiCredentialId: "cred_wrong_kind" });
 
     await expect(
-      callWithAiCredential(business, vi.fn().mockResolvedValue("should not be called"))
+      callWithAiCredential(
+        business,
+        vi.fn().mockResolvedValue("should not be called"),
+      ),
     ).rejects.toThrow(/No AI credential is configured/);
 
     expect(credentialFindMany).not.toHaveBeenCalled();
@@ -408,16 +455,22 @@ describe("callWithAiCredential — global fallback chain (no business.aiCredenti
     ];
     credentialFindMany.mockResolvedValue(sharedChain);
 
-    const businessOwnedByClientA = makeBusiness({ aiCredentialId: null, ownerId: "client_a" });
-    const businessOwnedByClientB = makeBusiness({ aiCredentialId: null, ownerId: "client_b" });
+    const businessOwnedByClientA = makeBusiness({
+      aiCredentialId: null,
+      ownerId: "client_a",
+    });
+    const businessOwnedByClientB = makeBusiness({
+      aiCredentialId: null,
+      ownerId: "client_b",
+    });
 
     const resultA = await callWithAiCredential(
       businessOwnedByClientA,
-      vi.fn().mockResolvedValue("ok for A")
+      vi.fn().mockResolvedValue("ok for A"),
     );
     const resultB = await callWithAiCredential(
       businessOwnedByClientB,
-      vi.fn().mockResolvedValue("ok for B")
+      vi.fn().mockResolvedValue("ok for B"),
     );
 
     expect(resultA).toBe("ok for A");
@@ -474,7 +527,7 @@ describe("callWithAiCredential — global fallback chain (no business.aiCredenti
       "credentials",
       "AI credential auth failure",
       expect.objectContaining({ credentialId: "cred_first" }),
-      business.id
+      business.id,
     );
     // Success bookkeeping happened on the SECOND credential specifically.
     expect(credentialUpdate).toHaveBeenCalledWith({
@@ -489,7 +542,9 @@ describe("callWithAiCredential — global fallback chain (no business.aiCredenti
     credentialFindMany.mockResolvedValue([first, second]);
     const business = makeBusiness({ aiCredentialId: null });
 
-    const rateLimitErr = new Error("Rate limited") as Error & { status: number };
+    const rateLimitErr = new Error("Rate limited") as Error & {
+      status: number;
+    };
     rateLimitErr.status = 429;
     const fn = vi
       .fn()
@@ -518,7 +573,9 @@ describe("callWithAiCredential — global fallback chain (no business.aiCredenti
       .mockRejectedValueOnce(new Error("first is broken"))
       .mockRejectedValueOnce(new Error("second is broken too"));
 
-    await expect(callWithAiCredential(business, fn)).rejects.toThrow("second is broken too");
+    await expect(callWithAiCredential(business, fn)).rejects.toThrow(
+      "second is broken too",
+    );
     expect(fn).toHaveBeenCalledTimes(2);
     expect(credentialUpdate).toHaveBeenCalledWith({
       where: { id: "cred_first" },
@@ -542,7 +599,9 @@ describe("callWithAiCredential — global fallback chain (no business.aiCredenti
     await callWithAiCredential(business, fn);
 
     expect(credentialFindMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: expect.objectContaining({ isActive: true }) })
+      expect.objectContaining({
+        where: expect.objectContaining({ isActive: true }),
+      }),
     );
     expect(fn).toHaveBeenCalledTimes(1);
   });
@@ -552,7 +611,7 @@ describe("callWithAiCredential — global fallback chain (no business.aiCredenti
     const business = makeBusiness({ aiCredentialId: null });
 
     await expect(callWithAiCredential(business, vi.fn())).rejects.toThrow(
-      /No AI credential is configured/
+      /No AI credential is configured/,
     );
   });
 });

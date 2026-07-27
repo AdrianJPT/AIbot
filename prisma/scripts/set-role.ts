@@ -29,13 +29,15 @@ async function main() {
 
   if (!email || !role) {
     console.error(
-      "Usage: npx tsx prisma/scripts/set-role.ts --email <email> --role admin|client"
+      "Usage: npx tsx prisma/scripts/set-role.ts --email <email> --role admin|client",
     );
     process.exit(1);
   }
 
   if (!VALID_ROLES.includes(role)) {
-    console.error(`Invalid role "${role}". Must be one of: ${VALID_ROLES.join(", ")}.`);
+    console.error(
+      `Invalid role "${role}". Must be one of: ${VALID_ROLES.join(", ")}.`,
+    );
     process.exit(1);
   }
 
@@ -43,7 +45,7 @@ async function main() {
   if (!user) {
     console.error(
       `No User found for email=${email}. The user must have logged in at least once ` +
-        "(User rows are created on first login)."
+        "(User rows are created on first login).",
     );
     process.exit(1);
   }
@@ -53,7 +55,9 @@ async function main() {
     data: { role },
   });
 
-  console.log(`Set role="${updated.role}" for ${updated.email} (${updated.id}).`);
+  console.log(
+    `Set role="${updated.role}" for ${updated.email} (${updated.id}).`,
+  );
 }
 
 main()

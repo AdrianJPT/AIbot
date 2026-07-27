@@ -15,7 +15,7 @@ function getMasterKey(): Buffer {
   const key = Buffer.from(encoded, "base64");
   if (key.length !== KEY_LENGTH) {
     throw new Error(
-      `APP_ENCRYPTION_KEY must decode to exactly ${KEY_LENGTH} bytes`
+      `APP_ENCRYPTION_KEY must decode to exactly ${KEY_LENGTH} bytes`,
     );
   }
   return key;
@@ -57,9 +57,6 @@ export function decryptSecret(stored: string): string {
   const decipher = createDecipheriv(ALGORITHM, getMasterKey(), iv);
   decipher.setAuthTag(authTag);
 
-  const plain = Buffer.concat([
-    decipher.update(ciphertext),
-    decipher.final(),
-  ]);
+  const plain = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
   return plain.toString("utf8");
 }

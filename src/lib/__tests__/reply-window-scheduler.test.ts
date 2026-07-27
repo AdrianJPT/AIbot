@@ -109,9 +109,11 @@ beforeEach(() => {
  * — mirrors what flushDueConversation's fresh re-fetch would get back from a
  * real DB for each conversation under test.
  */
-function stubFreshLookup(conversations: ReturnType<typeof makeConversation>[]): void {
+function stubFreshLookup(
+  conversations: ReturnType<typeof makeConversation>[],
+): void {
   conversationFindUnique.mockImplementation((args: { where: { id: string } }) =>
-    Promise.resolve(conversations.find((c) => c.id === args.where.id) ?? null)
+    Promise.resolve(conversations.find((c) => c.id === args.where.id) ?? null),
   );
 }
 
@@ -148,16 +150,26 @@ describe("reply-window sweep", () => {
     conversationFindMany.mockResolvedValue([conversation]);
     conversationUpdateMany.mockResolvedValue({ count: 1 });
     stubFreshLookup([conversation]);
-    messageFindMany.mockImplementation((args: { where: Record<string, unknown> }) => {
-      if (args.where.sentBy === "customer") {
-        expect(args.where).toMatchObject({ batchedAt: null });
-        return Promise.resolve([
-          { id: "m1", content: "hola", createdAt: new Date("2026-01-01T00:00:01.000Z") },
-          { id: "m2", content: "quiero una reserva", createdAt: new Date("2026-01-01T00:00:02.000Z") },
-        ]);
-      }
-      return Promise.resolve([]); // history query
-    });
+    messageFindMany.mockImplementation(
+      (args: { where: Record<string, unknown> }) => {
+        if (args.where.sentBy === "customer") {
+          expect(args.where).toMatchObject({ batchedAt: null });
+          return Promise.resolve([
+            {
+              id: "m1",
+              content: "hola",
+              createdAt: new Date("2026-01-01T00:00:01.000Z"),
+            },
+            {
+              id: "m2",
+              content: "quiero una reserva",
+              createdAt: new Date("2026-01-01T00:00:02.000Z"),
+            },
+          ]);
+        }
+        return Promise.resolve([]); // history query
+      },
+    );
     resolveAiReply.mockResolvedValue("Respuesta batcheada");
 
     const startReplyWindowScheduler = await freshScheduler();
@@ -177,7 +189,8 @@ describe("reply-window sweep", () => {
     });
 
     expect(resolveAiReply).toHaveBeenCalledTimes(1);
-    const [calledBusiness, calledConversationId, , calledContent] = resolveAiReply.mock.calls[0];
+    const [calledBusiness, calledConversationId, , calledContent] =
+      resolveAiReply.mock.calls[0];
     expect(calledBusiness.id).toBe("biz_1");
     expect(calledConversationId).toBe("conv_1");
     expect(calledContent).toContain("hola");
@@ -193,7 +206,7 @@ describe("reply-window sweep", () => {
       expect.objectContaining({ id: "phone_1" }),
       "conv_1",
       "5215512345678",
-      "Respuesta batcheada"
+      "Respuesta batcheada",
     );
 
     vi.clearAllTimers();
@@ -223,17 +236,26 @@ describe("reply-window sweep", () => {
     conversationFindMany.mockResolvedValue([bad, ok]);
     conversationUpdateMany.mockResolvedValue({ count: 1 });
     stubFreshLookup([bad, ok]);
-    messageFindMany.mockImplementation((args: { where: Record<string, unknown> }) => {
-      if (args.where.sentBy === "customer" && args.where.conversationId === "conv_bad") {
-        throw new Error("boom");
-      }
-      if (args.where.sentBy === "customer") {
-        return Promise.resolve([
-          { id: "m1", content: "hola", createdAt: new Date("2026-01-01T00:00:01.000Z") },
-        ]);
-      }
-      return Promise.resolve([]);
-    });
+    messageFindMany.mockImplementation(
+      (args: { where: Record<string, unknown> }) => {
+        if (
+          args.where.sentBy === "customer" &&
+          args.where.conversationId === "conv_bad"
+        ) {
+          throw new Error("boom");
+        }
+        if (args.where.sentBy === "customer") {
+          return Promise.resolve([
+            {
+              id: "m1",
+              content: "hola",
+              createdAt: new Date("2026-01-01T00:00:01.000Z"),
+            },
+          ]);
+        }
+        return Promise.resolve([]);
+      },
+    );
     resolveAiReply.mockResolvedValue("ok");
 
     const startReplyWindowScheduler = await freshScheduler();
@@ -245,7 +267,7 @@ describe("reply-window sweep", () => {
       "ai",
       "Reply-window flush failed",
       expect.objectContaining({ conversationId: "conv_bad" }),
-      business.id
+      business.id,
     );
     // The second (healthy) conversation still gets flushed despite the first failing.
     expect(sendAndPersistReply).toHaveBeenCalledTimes(1);
@@ -284,14 +306,20 @@ describe("reply-window sweep", () => {
     conversationFindMany.mockResolvedValue([conversation]);
     conversationUpdateMany.mockResolvedValue({ count: 1 });
     stubFreshLookup([conversation]);
-    messageFindMany.mockImplementation((args: { where: Record<string, unknown> }) => {
-      if (args.where.sentBy === "customer") {
-        return Promise.resolve([
-          { id: "m1", content: "hola", createdAt: new Date("2026-01-01T00:00:01.000Z") },
-        ]);
-      }
-      return Promise.resolve([]);
-    });
+    messageFindMany.mockImplementation(
+      (args: { where: Record<string, unknown> }) => {
+        if (args.where.sentBy === "customer") {
+          return Promise.resolve([
+            {
+              id: "m1",
+              content: "hola",
+              createdAt: new Date("2026-01-01T00:00:01.000Z"),
+            },
+          ]);
+        }
+        return Promise.resolve([]);
+      },
+    );
     isRateLimited.mockResolvedValue(true);
 
     const startReplyWindowScheduler = await freshScheduler();
@@ -373,18 +401,20 @@ describe("reply-window sweep", () => {
       createdAt: new Date("2026-01-01T00:00:01.000Z"),
     };
 
-    messageFindMany.mockImplementation((args: { where: Record<string, unknown> }) => {
-      if (args.where.sentBy === "customer") {
-        // Selection must be by batchedAt only — no createdAt/gt comparison.
-        expect(args.where).toEqual({
-          conversationId: "conv_1",
-          sentBy: "customer",
-          batchedAt: null,
-        });
-        return Promise.resolve([customerMessage]);
-      }
-      return Promise.resolve([]); // history query
-    });
+    messageFindMany.mockImplementation(
+      (args: { where: Record<string, unknown> }) => {
+        if (args.where.sentBy === "customer") {
+          // Selection must be by batchedAt only — no createdAt/gt comparison.
+          expect(args.where).toEqual({
+            conversationId: "conv_1",
+            sentBy: "customer",
+            batchedAt: null,
+          });
+          return Promise.resolve([customerMessage]);
+        }
+        return Promise.resolve([]); // history query
+      },
+    );
     resolveAiReply.mockResolvedValue("Respuesta");
 
     const startReplyWindowScheduler = await freshScheduler();

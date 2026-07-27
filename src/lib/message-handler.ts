@@ -58,11 +58,9 @@ const KNOWN_STATUSES = new Set(["sent", "delivered", "read", "failed"]);
 
 export async function processWebhookPayload(body: unknown): Promise<void> {
   const entry = (body as { entry?: unknown[] })?.entry?.[0] as
-    | { changes?: unknown[] }
-    | undefined;
+    { changes?: unknown[] } | undefined;
   const change = entry?.changes?.[0] as
-    | { value?: Record<string, unknown> }
-    | undefined;
+    { value?: Record<string, unknown> } | undefined;
   const value = change?.value;
   if (!value) return;
 
@@ -93,12 +91,11 @@ export async function processWebhookPayload(body: unknown): Promise<void> {
   if (!messages?.length) return;
 
   const contacts = value.contacts as
-    | Array<{ profile?: { name?: string }; wa_id?: string }>
-    | undefined;
+    Array<{ profile?: { name?: string }; wa_id?: string }> | undefined;
 
   for (const message of messages) {
-    const customerName = contacts?.find((c) => c.wa_id === message.from)?.profile
-      ?.name;
+    const customerName = contacts?.find((c) => c.wa_id === message.from)
+      ?.profile?.name;
     await handleOneMessage(business, phoneNumber, message, customerName);
   }
 }
@@ -111,7 +108,7 @@ export async function processWebhookPayload(body: unknown): Promise<void> {
 async function handleStatusUpdate(
   businessId: string,
   phoneNumberId: string,
-  status: WaStatus
+  status: WaStatus,
 ): Promise<void> {
   if (!status?.id || !KNOWN_STATUSES.has(status.status)) return;
 
@@ -132,7 +129,7 @@ async function handleStatusUpdate(
       "Message delivery failed",
       { wamid: status.id, errors: status.errors, messageId: message.id },
       businessId,
-      phoneNumberId
+      phoneNumberId,
     );
   }
 }
@@ -141,7 +138,7 @@ async function handleOneMessage(
   business: Business,
   phoneNumber: PhoneNumber,
   message: WaMessage,
-  customerName?: string
+  customerName?: string,
 ): Promise<void> {
   const from = message.from;
   if (!from) return;
@@ -201,13 +198,27 @@ async function handleOneMessage(
     // Only the immediate-reply path needs history — loaded here (not
     // unconditionally above) so businesses using the reply-window batching
     // above don't pay for a wasted history query on every single message.
-    const history = await loadHistory(conversation.id, business.maxHistoryMessages);
-    reply = await resolveAiReply(business, conversation.id, history, parsed.content);
+    const history = await loadHistory(
+      conversation.id,
+      business.maxHistoryMessages,
+    );
+    reply = await resolveAiReply(
+      business,
+      conversation.id,
+      history,
+      parsed.content,
+    );
   }
 
   if (reply === null) return;
 
-  await sendAndPersistReply(business, phoneNumber, conversation.id, from, reply);
+  await sendAndPersistReply(
+    business,
+    phoneNumber,
+    conversation.id,
+    from,
+    reply,
+  );
 }
 
 /**
@@ -223,7 +234,7 @@ export async function sendAndPersistReply(
   phoneNumber: PhoneNumber,
   conversationId: string,
   from: string,
-  reply: string
+  reply: string,
 ): Promise<void> {
   const [outboundMessage] = await prisma.$transaction([
     prisma.message.create({
@@ -242,7 +253,12 @@ export async function sendAndPersistReply(
   ]);
 
   try {
-    const wamid = await sendFromNumber(phoneNumber, business.ownerId, from, reply);
+    const wamid = await sendFromNumber(
+      phoneNumber,
+      business.ownerId,
+      from,
+      reply,
+    );
     if (wamid) {
       await prisma.message.update({
         where: { id: outboundMessage.id },
@@ -256,7 +272,7 @@ export async function sendAndPersistReply(
       "sendMessage failed",
       { error: describeError(err), conversationId },
       business.id,
-      phoneNumber.id
+      phoneNumber.id,
     );
     await prisma.message.update({
       where: { id: outboundMessage.id },
@@ -273,7 +289,7 @@ export async function sendAndPersistReply(
  */
 export async function isRateLimited(
   conversationId: string,
-  businessId: string
+  businessId: string,
 ): Promise<boolean> {
   const recentCustomerCount = await prisma.message.count({
     where: {
@@ -290,7 +306,7 @@ export async function isRateLimited(
     "webhook",
     "Per-conversation rate limit exceeded, skipping AI generation",
     { conversationId, recentCustomerCount },
-    businessId
+    businessId,
   );
   return true;
 }
@@ -310,7 +326,7 @@ export async function resolveAiReply(
   business: Business,
   conversationId: string,
   history: ChatCompletionMessageParam[],
-  content: string
+  content: string,
 ): Promise<string | null> {
   const startOfDay = new Date();
   startOfDay.setUTCHours(0, 0, 0, 0);
@@ -339,7 +355,7 @@ export async function resolveAiReply(
         "ai",
         "Daily AI budget exceeded, staying silent (already notified today)",
         { businessId: business.id, aiCallsToday },
-        business.id
+        business.id,
       );
       return null;
     }
@@ -349,7 +365,7 @@ export async function resolveAiReply(
       "ai",
       "Daily AI budget exceeded, sending fallback message",
       { businessId: business.id, aiCallsToday },
-      business.id
+      business.id,
     );
     return DAILY_LIMIT_MESSAGE;
   }
@@ -358,7 +374,7 @@ export async function resolveAiReply(
     const systemPrompt = buildSystemPrompt(business);
     const { chatModel } = await resolveModels(business);
     return await callWithAiCredential(business, (client) =>
-      generateResponse(client, systemPrompt, history, content, chatModel)
+      generateResponse(client, systemPrompt, history, content, chatModel),
     );
   } catch (err) {
     await logEvent(
@@ -366,7 +382,7 @@ export async function resolveAiReply(
       "ai",
       "generateResponse failed",
       { error: describeError(err), conversationId },
-      business.id
+      business.id,
     );
     return null;
   }
@@ -381,7 +397,7 @@ async function persistCustomerMessage(
   conversationId: string,
   parsed: { content: string; mediaType: string },
   wamid: string | undefined,
-  customerName: string | undefined
+  customerName: string | undefined,
 ): Promise<void> {
   await prisma.$transaction([
     prisma.message.create({
@@ -405,7 +421,11 @@ async function persistCustomerMessage(
   ]);
 }
 
-function describeError(err: unknown): { message: string; stack?: string; code?: string } {
+function describeError(err: unknown): {
+  message: string;
+  stack?: string;
+  code?: string;
+} {
   // AI provider errors (e.g. openai's APIError) expose `code`/`type` as
   // top-level properties — surfacing it here means a 429/401/403 shows up
   // in the EventLog even though the caller (resolveAiReply) only sees the
@@ -414,13 +434,16 @@ function describeError(err: unknown): { message: string; stack?: string; code?: 
     (err as { code?: string | null; type?: string | null })?.code ??
     (err as { code?: string | null; type?: string | null })?.type ??
     undefined;
-  const base = err instanceof Error ? { message: err.message, stack: err.stack } : { message: String(err) };
+  const base =
+    err instanceof Error
+      ? { message: err.message, stack: err.stack }
+      : { message: String(err) };
   return code ? { ...base, code } : base;
 }
 
 async function loadHistory(
   conversationId: string,
-  max: number
+  max: number,
 ): Promise<ChatCompletionMessageParam[]> {
   const rows = await prisma.message.findMany({
     where: { conversationId },
@@ -436,7 +459,7 @@ async function loadHistory(
 async function parseUserContent(
   business: Business,
   phoneNumber: PhoneNumber,
-  message: WaMessage
+  message: WaMessage,
 ): Promise<{ content: string; mediaType: string } | null> {
   switch (message.type) {
     case "text":
@@ -469,7 +492,7 @@ async function parseUserContent(
           "describeImageFromBuffer failed",
           { error: describeError(err) },
           business.id,
-          phoneNumber.id
+          phoneNumber.id,
         );
         return {
           content: "[Imagen del cliente — no se pudo procesar]",
@@ -493,7 +516,7 @@ async function parseUserContent(
           "transcribeAudioBuffer failed",
           { error: describeError(err) },
           business.id,
-          phoneNumber.id
+          phoneNumber.id,
         );
         return {
           content: "[Audio del cliente — no se pudo transcribir]",

@@ -55,7 +55,7 @@ To verify:
 3. Open a conversation thread as User A. In the browser devtools console,
    confirm the Realtime subscription is scoped to `conversationId=eq.<A's id>`
    (see the `filter` passed in `use-realtime-messages.ts`).
-4. As User B, trigger a new message on one of *User A's* conversations
+4. As User B, trigger a new message on one of _User A's_ conversations
    (e.g. via a test webhook call or manual send using User A's business,
    if you have direct DB/API access for the test). User A's open browser
    tab should **not** receive any Realtime event for it — the `Conversation`

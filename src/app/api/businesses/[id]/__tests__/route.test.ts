@@ -62,7 +62,7 @@ describe("PATCH/DELETE /api/businesses/[id]", () => {
         visionModel: "gpt-4o",
         audioModel: "whisper-1",
       }),
-      { params: Promise.resolve({ id: business.id }) }
+      { params: Promise.resolve({ id: business.id }) },
     );
     const updated = await res.json();
 
@@ -76,9 +76,12 @@ describe("PATCH/DELETE /api/businesses/[id]", () => {
     getSessionUser.mockResolvedValueOnce(admin);
     const { PATCH } = await import("../route");
 
-    const res = await PATCH(buildPatch({ phoneNumberId: other.phoneNumbers[0].phoneNumberId }), {
-      params: Promise.resolve({ id: business.id }),
-    });
+    const res = await PATCH(
+      buildPatch({ phoneNumberId: other.phoneNumbers[0].phoneNumberId }),
+      {
+        params: Promise.resolve({ id: business.id }),
+      },
+    );
     const body = await res.json();
 
     expect(res.status).toBe(409);
@@ -95,7 +98,9 @@ describe("PATCH/DELETE /api/businesses/[id]", () => {
     });
 
     expect(res.status).toBe(200);
-    const stored = await prisma.business.findUnique({ where: { id: business.id } });
+    const stored = await prisma.business.findUnique({
+      where: { id: business.id },
+    });
     expect(stored?.ownerId).toBe(client.id);
 
     // Hand it back so the shared fixture keeps its original owner.
@@ -160,9 +165,12 @@ describe("PATCH/DELETE /api/businesses/[id]", () => {
     getSessionUser.mockResolvedValueOnce(owner);
     const { DELETE } = await import("../route");
 
-    const res = await DELETE(new NextRequest("https://example.com/api/businesses/x"), {
-      params: Promise.resolve({ id: business.id }),
-    });
+    const res = await DELETE(
+      new NextRequest("https://example.com/api/businesses/x"),
+      {
+        params: Promise.resolve({ id: business.id }),
+      },
+    );
 
     expect(res.status).toBe(404);
   });
