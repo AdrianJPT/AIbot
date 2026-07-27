@@ -1,4 +1,12 @@
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 import { NextRequest } from "next/server";
 import type { User } from "@prisma/client";
 import { prisma } from "@/lib/db";
@@ -21,9 +29,10 @@ vi.mock("@/lib/auth", () => ({
 
 const testAiCredential = vi.fn();
 const testWhatsappCredential = vi.fn();
-vi.mock("@/lib/credentials/provider-test", () => ({
+vi.mock("@/lib/credentials/provider-check", () => ({
   testAiCredential: (...args: unknown[]) => testAiCredential(...args),
-  testWhatsappCredential: (...args: unknown[]) => testWhatsappCredential(...args),
+  testWhatsappCredential: (...args: unknown[]) =>
+    testWhatsappCredential(...args),
 }));
 
 function buildRequest(url: string, body?: unknown): NextRequest {
@@ -65,7 +74,10 @@ describe("/api/credentials/[id] actions", () => {
       const { POST } = await import("../test/route");
       const cred = await createTestCredential(owner.id);
 
-      const res = await POST(buildRequest("https://example.com", {}), ctx(cred.id));
+      const res = await POST(
+        buildRequest("https://example.com", {}),
+        ctx(cred.id),
+      );
 
       expect(res.status).toBe(404);
     });
@@ -75,7 +87,10 @@ describe("/api/credentials/[id] actions", () => {
       const { POST } = await import("../test/route");
       const cred = await createTestCredential(owner.id);
 
-      const res = await POST(buildRequest("https://example.com", {}), ctx(cred.id));
+      const res = await POST(
+        buildRequest("https://example.com", {}),
+        ctx(cred.id),
+      );
 
       expect(res.status).toBe(404);
     });
@@ -86,31 +101,44 @@ describe("/api/credentials/[id] actions", () => {
       const { POST } = await import("../test/route");
       const cred = await createTestCredential(owner.id, { kind: "ai" });
 
-      const res = await POST(buildRequest("https://example.com", {}), ctx(cred.id));
+      const res = await POST(
+        buildRequest("https://example.com", {}),
+        ctx(cred.id),
+      );
       const body = await res.json();
 
       expect(res.status).toBe(200);
       expect(body.ok).toBe(true);
       expect(testAiCredential).toHaveBeenCalledTimes(1);
 
-      const row = await prisma.credential.findUniqueOrThrow({ where: { id: cred.id } });
+      const row = await prisma.credential.findUniqueOrThrow({
+        where: { id: cred.id },
+      });
       expect(row.lastError).toBeNull();
       expect(row.lastUsedAt).not.toBeNull();
     });
 
     it("persists lastError on failure", async () => {
       getSessionUser.mockResolvedValueOnce(admin);
-      testAiCredential.mockResolvedValueOnce({ ok: false, error: "invalid key" });
+      testAiCredential.mockResolvedValueOnce({
+        ok: false,
+        error: "invalid key",
+      });
       const { POST } = await import("../test/route");
       const cred = await createTestCredential(owner.id, { kind: "ai" });
 
-      const res = await POST(buildRequest("https://example.com", {}), ctx(cred.id));
+      const res = await POST(
+        buildRequest("https://example.com", {}),
+        ctx(cred.id),
+      );
       const body = await res.json();
 
       expect(res.status).toBe(200);
       expect(body.ok).toBe(false);
 
-      const row = await prisma.credential.findUniqueOrThrow({ where: { id: cred.id } });
+      const row = await prisma.credential.findUniqueOrThrow({
+        where: { id: cred.id },
+      });
       expect(row.lastError).toBe("invalid key");
     });
 
@@ -122,12 +150,12 @@ describe("/api/credentials/[id] actions", () => {
 
       await POST(
         buildRequest("https://example.com", { phoneNumberId: "123" }),
-        ctx(cred.id)
+        ctx(cred.id),
       );
 
       expect(testWhatsappCredential).toHaveBeenCalledWith(
         expect.objectContaining({ id: cred.id }),
-        "123"
+        "123",
       );
     });
   });
@@ -146,7 +174,10 @@ describe("/api/credentials/[id] actions", () => {
         status: "standby",
       });
 
-      const res = await POST(buildRequest("https://example.com"), ctx(standby.id));
+      const res = await POST(
+        buildRequest("https://example.com"),
+        ctx(standby.id),
+      );
       expect(res.status).toBe(200);
 
       const rows = await prisma.credential.findMany({
@@ -163,9 +194,14 @@ describe("/api/credentials/[id] actions", () => {
     it("rejects activating a revoked credential", async () => {
       getSessionUser.mockResolvedValueOnce(admin);
       const { POST } = await import("../activate/route");
-      const revoked = await createTestCredential(owner.id, { status: "revoked" });
+      const revoked = await createTestCredential(owner.id, {
+        status: "revoked",
+      });
 
-      const res = await POST(buildRequest("https://example.com"), ctx(revoked.id));
+      const res = await POST(
+        buildRequest("https://example.com"),
+        ctx(revoked.id),
+      );
 
       expect(res.status).toBe(400);
     });
@@ -223,7 +259,10 @@ describe("/api/credentials/[id] actions", () => {
       const { DELETE } = await import("../route");
       const cred = await createTestCredential(owner.id, { status: "standby" });
 
-      const res = await DELETE(buildRequest("https://example.com"), ctx(cred.id));
+      const res = await DELETE(
+        buildRequest("https://example.com"),
+        ctx(cred.id),
+      );
 
       expect(res.status).toBe(400);
     });
@@ -233,10 +272,15 @@ describe("/api/credentials/[id] actions", () => {
       const { DELETE } = await import("../route");
       const cred = await createTestCredential(owner.id, { status: "revoked" });
 
-      const res = await DELETE(buildRequest("https://example.com"), ctx(cred.id));
+      const res = await DELETE(
+        buildRequest("https://example.com"),
+        ctx(cred.id),
+      );
       expect(res.status).toBe(200);
 
-      const row = await prisma.credential.findUnique({ where: { id: cred.id } });
+      const row = await prisma.credential.findUnique({
+        where: { id: cred.id },
+      });
       expect(row).toBeNull();
     });
 
@@ -245,7 +289,10 @@ describe("/api/credentials/[id] actions", () => {
       const { DELETE } = await import("../route");
       const cred = await createTestCredential(owner.id, { status: "revoked" });
 
-      const res = await DELETE(buildRequest("https://example.com"), ctx(cred.id));
+      const res = await DELETE(
+        buildRequest("https://example.com"),
+        ctx(cred.id),
+      );
 
       expect(res.status).toBe(404);
     });

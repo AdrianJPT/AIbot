@@ -24,11 +24,12 @@ export type CredentialTestResult = { ok: boolean; error?: string };
  * the returned result so route handlers can persist lastError/lastUsedAt.
  */
 export async function testAiCredential(
-  credential: Credential
+  credential: Credential,
 ): Promise<CredentialTestResult> {
   try {
     const apiKey = decryptSecret(credential.encryptedKey);
-    const baseURL = credential.baseUrl || PROVIDER_BASE_URLS[credential.provider];
+    const baseURL =
+      credential.baseUrl || PROVIDER_BASE_URLS[credential.provider];
     const client = new OpenAI({ apiKey, baseURL });
 
     await client.chat.completions.create({
@@ -54,12 +55,13 @@ export async function testAiCredential(
  */
 export async function testWhatsappCredential(
   credential: Credential,
-  phoneNumberId?: string
+  phoneNumberId?: string,
 ): Promise<CredentialTestResult> {
   if (!phoneNumberId) {
     return {
       ok: false,
-      error: "phoneNumberId es requerido para probar una credencial de WhatsApp",
+      error:
+        "phoneNumberId es requerido para probar una credencial de WhatsApp",
     };
   }
 
@@ -67,7 +69,7 @@ export async function testWhatsappCredential(
     const token = decryptSecret(credential.encryptedKey);
     await axios.get(
       `https://graph.facebook.com/${WHATSAPP_API_VERSION}/${phoneNumberId}`,
-      { headers: { Authorization: `Bearer ${token}` } }
+      { headers: { Authorization: `Bearer ${token}` } },
     );
     return { ok: true };
   } catch (err) {
