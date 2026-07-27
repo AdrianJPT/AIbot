@@ -60,12 +60,12 @@ Si querés login local real, necesitás un proyecto de Supabase para `NEXT_PUBLI
 
 ## Panel admin
 
-| Ruta | Uso |
-|------|-----|
-| `/` | Resumen: negocios activos, conversaciones hoy, citas pendientes |
-| `/businesses` | CRUD negocios, prompts, `businessInfo` JSON |
+| Ruta             | Uso                                                                                   |
+| ---------------- | ------------------------------------------------------------------------------------- |
+| `/`              | Resumen: negocios activos, conversaciones hoy, citas pendientes                       |
+| `/businesses`    | CRUD negocios, prompts, `businessInfo` JSON                                           |
 | `/conversations` | Lista con filtros; detalle con historial, **pasar a humano**, envío manual a WhatsApp |
-| `/appointments` | Citas/reservas: filtros, confirmar/cancelar/borrar, **Nueva cita** |
+| `/appointments`  | Citas/reservas: filtros, confirmar/cancelar/borrar, **Nueva cita**                    |
 
 ## Webhook
 
@@ -105,15 +105,74 @@ configs/                # JSON de ejemplo (referencia; el sistema usa la BD)
 
 ## Scripts
 
-| Comando | Descripción |
-|---------|-------------|
-| `npm run dev` | Next.js en desarrollo |
-| `npm run build` | `prisma generate` + `next build` |
-| `npm start` | Producción (`next start`) |
-| `npm run db:push` | Sincronizar schema con la BD |
-| `npm run db:seed` | Seed de negocios de ejemplo |
-| `npm run db:studio` | Prisma Studio |
+| Comando                | Descripción                          |
+| ---------------------- | ------------------------------------ |
+| `npm run dev`          | Next.js en desarrollo                |
+| `npm run build`        | `prisma generate` + `next build`     |
+| `npm start`            | Producción (`next start`)            |
+| `npm run lint`         | ESLint                               |
+| `npm run lint:fix`     | ESLint con autofix                   |
+| `npm run format`       | Prettier sobre todo el repo          |
+| `npm run format:check` | Prettier en modo verificación        |
+| `npm run typecheck`    | `tsc --noEmit`                       |
+| `npm test`             | Suite Vitest (unit + integración)    |
+| `npm run test:watch`   | Vitest en watch                      |
+| `npm run test:db:up`   | Levanta el Postgres de tests (55432) |
+| `npm run test:db:down` | Baja el Postgres de tests            |
+| `npm run test:e2e`     | Playwright (E2E)                     |
+| `npm run db:push`      | Sincronizar schema con la BD         |
+| `npm run db:seed`      | Seed de negocios de ejemplo          |
+| `npm run db:studio`    | Prisma Studio                        |
+
+## Tests
+
+La suite corre contra un Postgres **propio** en el puerto `55432`, separado del de desarrollo (`5432`), así ejecutar los tests nunca toca tus datos locales.
+
+```bash
+npm run test:db:up   # levanta el contenedor de tests (docker-compose.test.yml)
+npm test             # unit + integración (Vitest)
+npm run test:db:down # lo baja y borra el volumen
+```
+
+`vitest.global-setup.ts` verifica que la base esté arriba antes de correr nada y le sincroniza el schema con `prisma db push`. Si el contenedor no está, la corrida falla con el comando exacto a ejecutar, en vez de decenas de errores de conexión de Prisma.
+
+Los archivos de test corren en serie (`fileParallelism: false`): las queries con scope de admin leen sobre todos los dueños, así que los fixtures de un archivo concurrente pisan a los de otro.
+
+### E2E
+
+Playwright cubre el gate de autenticación: que ninguna ruta protegida quede accesible sin sesión.
+
+```bash
+npx playwright install chromium  # una sola vez
+npm run test:e2e
+```
+
+Levanta el dev server por su cuenta (`webServer` en `playwright.config.ts`) y necesita un `.env` válido. Por ahora sólo cubre flujos anónimos — cubrir flujos autenticados requiere antes decidir cómo sembrar una sesión de Supabase en los tests.
 
 ## Seguridad
 
-El panel no incluye autenticación todavía; no expongas el admin a internet sin VPN, Basic Auth o similar. `NEXTAUTH_SECRET` está reservado para una futura auth.
+### Autenticación
+
+Supabase Auth por magic link. Los clientes se crean por invitación desde **Admin > Clientes** (`POST /api/admin/clients`), que envía el mail y precrea la fila `User`. Rutas involucradas: `/login`, `/auth/callback`, `/auth/logout`.
+
+`src/middleware.ts` refresca la cookie de sesión en cada request y redirige a `/login` todo lo no autenticado. Su `matcher` excluye únicamente `/login`, `/auth/*`, `/api/webhook`, `/api/health` y assets estáticos — el resto del panel y de la API queda cerrado por defecto.
+
+### Autorización
+
+Dos roles en `User.role`: `admin` y `client`.
+
+- `getSessionUser()` (`src/lib/auth.ts`) es el **único** punto de entrada para resolver el usuario actual. No leas la sesión de Supabase desde otro lugar ni caches el resultado entre requests.
+- `requireAdmin()` exige rol `admin` y devuelve `null` tanto sin sesión como sin permisos, para que las rutas respondan igual en los dos casos (404) y no filtren si el usuario está autenticado.
+- `src/lib/scope.ts` (`businessScope`, `conversationScope`, `appointmentScope`) filtra por `ownerId`: un `client` sólo ve sus propios negocios, conversaciones y citas; un `admin` ve todo.
+
+### Credenciales
+
+Las API keys de cada cliente se guardan cifradas con AES-256-GCM usando `APP_ENCRYPTION_KEY` (`src/lib/crypto.ts`). Hacia el panel sólo se expone `keyLast4`.
+
+### Webhook
+
+`POST /api/webhook` queda fuera del middleware a propósito: lo llama Meta, no un usuario con sesión. Se valida con HMAC-SHA256 del body crudo contra `WHATSAPP_APP_SECRET`, comparado con `timingSafeEqual`. El `GET` de verificación compara `hub.verify_token` contra `WEBHOOK_VERIFY_TOKEN`.
+
+### Healthcheck
+
+`GET /api/health` es público y es sólo liveness: no toca la base ni expone estado interno.
