@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { Business, Conversation, PhoneNumber } from "@prisma/client";
+import type { Conversation } from "@prisma/client";
+import { buildBusiness, buildPhoneNumber } from "./fixtures/business";
 
 const conversationFindMany = vi.fn();
 const conversationUpdateMany = vi.fn();
@@ -37,35 +38,15 @@ vi.mock("../log", () => ({
   logEvent: (...args: unknown[]) => logEvent(...args),
 }));
 
-const business: Business = {
-  id: "biz_1",
-  name: "Test Business",
-  wabaId: null,
+const business = buildBusiness({
   systemPrompt: "prompt",
   welcomeMessage: "welcome",
-  businessInfo: {},
-  model: "gpt-4o-mini",
   visionModel: null,
   audioModel: null,
-  maxHistoryMessages: 20,
   replyWindowMs: 30_000,
-  dailyAiLimit: 1000,
-  isActive: true,
-  ownerId: "owner_1",
-  aiCredentialId: null,
-  createdAt: new Date(),
-};
+});
 
-const phoneNumber: PhoneNumber = {
-  id: "phone_1",
-  businessId: business.id,
-  phoneNumberId: "PHONE_ID",
-  displayPhone: null,
-  whatsappCredentialId: null,
-  isActive: true,
-  createdAt: new Date(),
-  updatedAt: new Date(),
-};
+const phoneNumber = buildPhoneNumber({ phoneNumberId: "PHONE_ID" });
 
 const pendingFlushAt = new Date("2026-01-01T00:00:05.000Z");
 
