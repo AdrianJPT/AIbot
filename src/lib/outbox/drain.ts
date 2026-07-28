@@ -65,7 +65,12 @@ export async function runDrain(
       break;
     }
 
-    const batch = await claimBatch(batchSize, LEASE_TTL_SECONDS, workerId, eventId);
+    const batch = await claimBatch(
+      batchSize,
+      LEASE_TTL_SECONDS,
+      workerId,
+      eventId,
+    );
     if (batch.length === 0) break;
     result.claimed += batch.length;
 

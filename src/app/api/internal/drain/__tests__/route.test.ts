@@ -8,10 +8,7 @@ vi.mock("@/lib/outbox/drain", () => ({
 
 const TOKEN = "test-internal-drain-token";
 
-function buildRequest(
-  method: string,
-  token?: string | null,
-): NextRequest {
+function buildRequest(method: string, token?: string | null): NextRequest {
   const headers: Record<string, string> = {};
   if (token) headers["x-internal-token"] = token;
   return new NextRequest("https://example.com/api/internal/drain", {

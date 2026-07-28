@@ -211,9 +211,7 @@ describe("outbox/repository", () => {
 });
 
 async function claimWith(client: PrismaClient, limit: number) {
-  return client.$queryRaw<
-    Array<{ id: string }>
-  >`UPDATE "WebhookEvent" e
+  return client.$queryRaw<Array<{ id: string }>>`UPDATE "WebhookEvent" e
     SET status = 'processing'::"WebhookEventStatus",
         attempts = e.attempts + 1,
         "leaseExpiresAt" = now() + make_interval(secs => 90),
