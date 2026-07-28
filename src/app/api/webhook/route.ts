@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createHmac, timingSafeEqual } from "node:crypto";
-import { processWebhookPayload } from "@/lib/message-handler";
+import { enqueue } from "@/lib/outbox/repository";
+import { runDrain } from "@/lib/outbox/drain";
+import { logEvent } from "@/lib/log";
 
 function isValidSignature(
   rawBody: string,
@@ -40,6 +42,13 @@ export async function GET(req: NextRequest) {
   return new NextResponse("Forbidden", { status: 403 });
 }
 
+/**
+ * Meta allows ~20s before it considers the webhook timed out and redelivers.
+ * 12s leaves margin for TLS, cold start, and returning the 200 itself — see
+ * design.md §5 "Inline budget on the webhook path".
+ */
+const INLINE_DRAIN_BUDGET_MS = 12_000;
+
 export async function POST(req: NextRequest) {
   const rawBody = await req.text();
   const signature = req.headers.get("x-hub-signature-256");
@@ -48,13 +57,40 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
   }
 
+  let body: unknown;
   try {
-    const body = JSON.parse(rawBody);
-    void processWebhookPayload(body).catch((e) =>
-      console.error("Webhook process error:", e),
+    body = JSON.parse(rawBody);
+  } catch (err) {
+    // HMAC already verified above, so this genuinely came from Meta — a
+    // malformed body that passed signature verification will never parse on
+    // redelivery either. Returning 400 here would make Meta retry forever;
+    // swallow, log, and return 200, matching today's behavior.
+    await logEvent(
+      "error",
+      "webhook",
+      "Malformed JSON body after signature verification",
+      { error: err instanceof Error ? err.message : String(err) },
     );
-  } catch (e) {
-    console.error("Webhook parse error:", e);
+    return NextResponse.json({ ok: true });
   }
+
+  // Durability boundary: once this resolves, the payload survives even if
+  // nothing below it ever runs. An INSERT failure here is left to throw —
+  // Next.js turns it into a 5xx so Meta redelivers, since nothing was
+  // persisted.
+  const event = await enqueue(body);
+
+  try {
+    // Awaited so the reply goes out before the 200 when it can (matches
+    // today's customer-visible latency); the internal drain endpoint is the
+    // safety net for whatever this doesn't finish in time.
+    await runDrain({ eventId: event.id, budgetMs: INLINE_DRAIN_BUDGET_MS });
+  } catch (err) {
+    // The event is already durable — an inline failure here must not turn
+    // into a 5xx (that would make Meta redeliver a payload we've already
+    // got). The sweep/next drain retries it.
+    console.error("Webhook inline drain error:", err);
+  }
+
   return NextResponse.json({ ok: true });
 }
