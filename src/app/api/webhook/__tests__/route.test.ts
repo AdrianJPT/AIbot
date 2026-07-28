@@ -74,6 +74,18 @@ describe("POST /api/webhook", () => {
     });
   });
 
+  it("propagates an enqueue failure instead of acknowledging the payload", async () => {
+    const { POST } = await import("../route");
+    const rawBody = JSON.stringify(textMessagePayload);
+    const req = buildRequest(rawBody, signBody(rawBody));
+    enqueue.mockRejectedValue(new Error("connection terminated"));
+
+    // Nothing was persisted, so the handler must not return 200 — Next turns
+    // the throw into a 5xx and Meta redelivers.
+    await expect(POST(req)).rejects.toThrow("connection terminated");
+    expect(runDrain).not.toHaveBeenCalled();
+  });
+
   it("returns 401 and does not persist when the signature is missing", async () => {
     const { POST } = await import("../route");
     const rawBody = JSON.stringify(textMessagePayload);
