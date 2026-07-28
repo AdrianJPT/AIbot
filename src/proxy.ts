@@ -8,8 +8,13 @@ import { SITE_URL } from "@/lib/site-url";
  * requests to /login. The matcher below already excludes /login, /auth/*,
  * /api/webhook, /api/health, and static assets, so this only runs for
  * protected pages and API routes.
+ *
+ * Next 16 renamed this convention from `middleware` to `proxy`: the file is
+ * `src/proxy.ts` and the export must be named `proxy` (or be the default).
+ * `config.matcher` is read exactly as before. Proxy always runs on the
+ * Node.js runtime, so route segment config is not allowed here.
  */
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
 
   const supabase = createServerClient(

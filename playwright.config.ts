@@ -16,7 +16,7 @@ export default defineConfig({
   webServer: {
     command: "npm run dev",
     // Poll the public healthcheck rather than `/`: every other route is
-    // behind the auth middleware, so readiness would be indistinguishable
+    // behind the auth proxy, so readiness would be indistinguishable
     // from a redirect loop.
     url: `${BASE_URL}/api/health`,
     reuseExistingServer: !process.env.CI,
