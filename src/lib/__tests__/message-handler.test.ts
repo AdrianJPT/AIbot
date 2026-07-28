@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { Business, PhoneNumber } from "@prisma/client";
+import { buildBusiness, buildPhoneNumber } from "./fixtures/business";
 import {
   audioMessagePayload,
   documentMessagePayload,
@@ -8,7 +8,6 @@ import {
   locationMessagePayload,
   statusUpdatePayload,
   textMessagePayload,
-  TEST_PHONE_NUMBER_ID,
 } from "./fixtures/webhook-payload";
 
 const findFirstPhoneNumber = vi.fn();
@@ -82,35 +81,9 @@ vi.mock("../media", () => ({
 
 const { processWebhookPayload } = await import("../message-handler");
 
-const business: Business = {
-  id: "biz_1",
-  name: "Test Business",
-  wabaId: null,
-  systemPrompt: "You are a helpful assistant for {businessName}.",
-  welcomeMessage: "Welcome to {businessName}",
-  businessInfo: {},
-  model: "gpt-4o-mini",
-  visionModel: "gpt-4o-mini",
-  audioModel: "whisper-1",
-  maxHistoryMessages: 20,
-  replyWindowMs: 0,
-  dailyAiLimit: 1000,
-  isActive: true,
-  ownerId: "owner_1",
-  aiCredentialId: null,
-  createdAt: new Date(),
-};
+const business = buildBusiness();
 
-const phoneNumber: PhoneNumber = {
-  id: "phone_1",
-  businessId: business.id,
-  phoneNumberId: TEST_PHONE_NUMBER_ID,
-  displayPhone: null,
-  whatsappCredentialId: null,
-  isActive: true,
-  createdAt: new Date(),
-  updatedAt: new Date(),
-};
+const phoneNumber = buildPhoneNumber();
 
 const TEST_TOKEN = "test-token";
 
