@@ -170,3 +170,33 @@ model EventLog {
   @@index([createdAt])
   @@index([source, createdAt])
 }
+
+enum WebhookEventStatus {
+  pending
+  processing
+  done
+  failed
+}
+
+// Durable landing zone for every HMAC-verified webhook payload, written
+// before any parsing/processing happens — see src/lib/outbox/repository.ts.
+// Makes ingest resumable: a crash mid-processing leaves a row a later drain
+// can retry instead of silently dropping the payload (today's fire-and-forget
+// behavior). No FK to Business/PhoneNumber — that resolution happens inside
+// processWebhookPayload, after this row is already durable.
+model WebhookEvent {
+  id             String             @id @default(cuid())
+  payload        Json
+  status         WebhookEventStatus @default(pending)
+  attempts       Int                @default(0)
+  maxAttempts    Int                @default(1) // PR1: no-retry parity with today. Raised in a later change once dispatch is resumable.
+  nextRunAt      DateTime           @default(now())
+  leaseExpiresAt DateTime?
+  lockedBy       String?
+  lastError      String?
+  processedAt    DateTime?
+  createdAt      DateTime           @default(now())
+
+  @@index([status, nextRunAt])
+  @@index([status, leaseExpiresAt])
+}
