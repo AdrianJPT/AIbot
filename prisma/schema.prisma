@@ -101,22 +101,23 @@ model Credential {
 }
 
 model Conversation {
-  id             String        @id @default(cuid())
-  businessId     String // denormalized copy of phoneNumber.businessId — kept so RLS policies and scope.ts stay a single-hop join; PhoneNumber.businessId is immutable so this can't drift
-  business       Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  phoneNumberId  String
-  phoneNumber    PhoneNumber   @relation(fields: [phoneNumberId], references: [id], onDelete: Cascade)
-  customerPhone  String
-  customerName   String? // WhatsApp profile name from webhook `contacts[0].profile.name` — overwritten on every inbound message, never edited by hand
-  nickname       String? // admin-set alias, takes display priority over customerName; webhook never touches this
-  status         String        @default("active")
-  lastMessageAt  DateTime      @default(now()) // denormalized for list ordering — bumped on every message insert
-  unreadCount    Int           @default(0) // customer messages since admin last opened the thread
-  pendingFlushAt DateTime? // set when Business.replyWindowMs > 0 and a customer message is awaiting the batched AI reply; cleared (claimed) by reply-window-scheduler.ts when the window elapses
-  messages       Message[]
-  appointments   Appointment[]
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
+  id              String        @id @default(cuid())
+  businessId      String // denormalized copy of phoneNumber.businessId — kept so RLS policies and scope.ts stay a single-hop join; PhoneNumber.businessId is immutable so this can't drift
+  business        Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  phoneNumberId   String
+  phoneNumber     PhoneNumber   @relation(fields: [phoneNumberId], references: [id], onDelete: Cascade)
+  customerPhone   String
+  customerName    String? // WhatsApp profile name from webhook `contacts[0].profile.name` — overwritten on every inbound message, never edited by hand
+  nickname        String? // admin-set alias, takes display priority over customerName; webhook never touches this
+  status          String        @default("active")
+  lastMessageAt   DateTime      @default(now()) // denormalized for list ordering — bumped on every message insert
+  unreadCount     Int           @default(0) // customer messages since admin last opened the thread
+  pendingFlushAt  DateTime? // set (by message-handler.ts, always — not only when replyWindowMs > 0) when a customer message is awaiting dispatch; cleared (claimed) by reply-window-scheduler.ts when the window elapses
+  flushLeaseUntil DateTime? // set by reply-window-scheduler.ts while a flush is in flight; prevents a crash between claim and send from orphaning pendingFlushAt forever — see reply-window-scheduler.ts's flushDueConversation
+  messages        Message[]
+  appointments    Appointment[]
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
 
   @@unique([phoneNumberId, customerPhone])
   @@index([businessId, lastMessageAt])
@@ -134,7 +135,8 @@ model Message {
   mediaUrl       String?
   wamid          String?      @unique
   sentBy         String       @default("bot") // "bot" | "human" | "customer"
-  status         String       @default("sent") // "sent" | "delivered" | "read" | "failed" (wired in Phase 6)
+  status         String       @default("sent") // "sent" | "delivered" | "read" | "failed" | "pending" (bot replies start "pending" until sendFromNumber resolves — see message-handler.ts's sendAndPersistReply)
+  dispatchId     String?      @unique // deterministic send-intent key (sha256 of conversationId + batched message ids) set on bot replies; the unique constraint is the no-double-send guard when the inline path and the sweep race the same conversation — see reply-window-scheduler.ts
   batchedAt      DateTime? // set by reply-window-scheduler.ts when this customer message is consumed into a batched flush — makes "pending" an explicit per-message marker instead of a createdAt-vs-lastBotMessage comparison, which can drop a message when an unrelated overlapping flush's bot reply lands with a later timestamp
   createdAt      DateTime     @default(now())
 
