@@ -1,9 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { buildBusiness, buildPhoneNumber } from "./fixtures/business";
-import {
-  documentMessagePayload,
-  textMessagePayload,
-} from "./fixtures/webhook-payload";
+import { textMessagePayload } from "./fixtures/webhook-payload";
 
 const findFirstPhoneNumber = vi.fn();
 const findFirstMessage = vi.fn();
@@ -94,8 +91,16 @@ beforeEach(() => {
   sendFromNumber.mockResolvedValue("wamid.OUTBOUND_001");
 });
 
-describe("reply window (Business.replyWindowMs)", () => {
-  it("sets pendingFlushAt and skips the AI call / reply when replyWindowMs > 0", async () => {
+/**
+ * Ingest never calls the AI or sends, regardless of `replyWindowMs` — that
+ * split disappeared with the ingest/dispatch cut (design §3). What ingest
+ * still owns is computing the right due time on `pendingFlushAt`. AI
+ * generation, rate limiting, the document canned reply, and sending are all
+ * exercised against the sweep instead — see reply-window-scheduler.test.ts
+ * and dispatch-resumability.test.ts.
+ */
+describe("reply window (Business.replyWindowMs) — ingest due-time computation", () => {
+  it("sets pendingFlushAt in the future and never touches the AI/send path when replyWindowMs > 0", async () => {
     findFirstPhoneNumber.mockResolvedValue({
       ...phoneNumber,
       business: baseBusiness,
@@ -105,7 +110,8 @@ describe("reply window (Business.replyWindowMs)", () => {
 
     expect(generateResponse).not.toHaveBeenCalled();
     expect(sendFromNumber).not.toHaveBeenCalled();
-    // Only the customer message persisted, not a bot reply.
+    // Only the customer message persisted, never a bot reply — that only
+    // ever happens in the sweep now.
     expect(messageCreate).toHaveBeenCalledTimes(1);
 
     const pendingUpdateCall = conversationUpdate.mock.calls.find(
@@ -118,34 +124,15 @@ describe("reply window (Business.replyWindowMs)", () => {
     );
   });
 
-  it("does not batch document messages even when replyWindowMs > 0 — keeps the immediate canned reply", async () => {
+  it("sets pendingFlushAt to (approximately) now, never touching the AI/send path, when replyWindowMs is 0 (default/backward-compatible) — the sweep dispatches it on the very next tick", async () => {
     findFirstPhoneNumber.mockResolvedValue({
       ...phoneNumber,
-      business: baseBusiness,
+      business: { ...baseBusiness, replyWindowMs: 0 },
     });
 
-    await processWebhookPayload(documentMessagePayload);
-
-    expect(generateResponse).not.toHaveBeenCalled();
-    expect(sendFromNumber).toHaveBeenCalledTimes(1);
-    expect(messageCreate.mock.calls[1][0].data.content).toContain(
-      "no puedo leer archivos",
-    );
-
-    const pendingUpdateCall = conversationUpdate.mock.calls.find(
-      (call) => call[0]?.data?.pendingFlushAt instanceof Date,
-    );
-    expect(pendingUpdateCall).toBeFalsy();
-  });
-
-  it("does not batch when the conversation is rate-limited — rate limiting stays a hard stop", async () => {
-    messageCount.mockResolvedValue(11);
-    findFirstPhoneNumber.mockResolvedValue({
-      ...phoneNumber,
-      business: baseBusiness,
-    });
-
+    const before = Date.now();
     await processWebhookPayload(textMessagePayload);
+    const after = Date.now();
 
     expect(generateResponse).not.toHaveBeenCalled();
     expect(sendFromNumber).not.toHaveBeenCalled();
@@ -153,23 +140,9 @@ describe("reply window (Business.replyWindowMs)", () => {
     const pendingUpdateCall = conversationUpdate.mock.calls.find(
       (call) => call[0]?.data?.pendingFlushAt instanceof Date,
     );
-    expect(pendingUpdateCall).toBeFalsy();
-  });
-
-  it("replies immediately, with no pendingFlushAt update, when replyWindowMs is 0 (default/backward-compatible)", async () => {
-    findFirstPhoneNumber.mockResolvedValue({
-      ...phoneNumber,
-      business: { ...baseBusiness, replyWindowMs: 0 },
-    });
-
-    await processWebhookPayload(textMessagePayload);
-
-    expect(generateResponse).toHaveBeenCalledTimes(1);
-    expect(sendFromNumber).toHaveBeenCalledTimes(1);
-
-    const pendingUpdateCall = conversationUpdate.mock.calls.find(
-      (call) => call[0]?.data?.pendingFlushAt instanceof Date,
-    );
-    expect(pendingUpdateCall).toBeFalsy();
+    expect(pendingUpdateCall).toBeTruthy();
+    const pendingFlushAt: Date = pendingUpdateCall![0].data.pendingFlushAt;
+    expect(pendingFlushAt.getTime()).toBeGreaterThanOrEqual(before);
+    expect(pendingFlushAt.getTime()).toBeLessThanOrEqual(after);
   });
 });

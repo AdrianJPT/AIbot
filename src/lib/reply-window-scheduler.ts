@@ -2,6 +2,7 @@ import type { ChatCompletionMessageParam } from "openai/resources/chat/completio
 import type { Business, Conversation, PhoneNumber } from "@prisma/client";
 import { prisma } from "./db";
 import {
+  computeDispatchId,
   isRateLimited,
   resolveAiReply,
   sendAndPersistReply,
@@ -9,12 +10,14 @@ import {
 import { logEvent } from "./log";
 
 /**
- * How often the sweep looks for conversations whose reply-window
- * (Business.replyWindowMs) has elapsed. Coarser than the window itself is
- * ever expected to be (seconds, not ms) — this just bounds the extra
- * latency added on top of the configured window.
+ * How long a conversation's dispatch claim (`flushLeaseUntil`) stays held
+ * before it's eligible for reclaim by a later sweep tick — see
+ * flushDueConversation's claim step. Strictly smaller worst case than the
+ * outbox's 90s lease (repository.ts): parsing already happened at ingest, so
+ * a flush is only history load + AI call + send. 2x headroom over the
+ * credential-chain failover worst case (~30s, see design §2).
  */
-const SWEEP_INTERVAL_MS = 3000;
+const FLUSH_LEASE_MS = 60_000;
 
 /**
  * Framing string prepended to the batched JSON payload so the model treats
@@ -26,21 +29,32 @@ const BATCH_INSTRUCTION =
   'El cliente envió varios mensajes seguidos, en este orden (ver "n"). ' +
   "Respondelos todos juntos, en una sola respuesta:\n";
 
+const DOCUMENT_FALLBACK_REPLY =
+  "Por ahora no puedo leer archivos o documentos. ¿Puedes escribir tu consulta en un mensaje de texto?";
+
+type DueConversation = Conversation & {
+  business: Business;
+  phoneNumber: PhoneNumber;
+};
+
+/**
+ * How often the transitional in-process sweep loop below polls for
+ * conversations whose reply-window has elapsed.
+ */
+const SWEEP_INTERVAL_MS = 3000;
+
 let started = false;
 
 /**
- * Starts the reply-window sweep loop. Must run exactly once per process —
- * guarded by the module-level `started` flag — and only hooked in from
- * src/instrumentation.ts under the Node.js runtime (not edge), since it
- * uses setInterval and the Prisma client.
- *
- * Why polling instead of a per-conversation in-memory timer: Railway
- * restarts the Node process on every deploy, which would silently drop any
- * in-flight timer and its pending batch. This project's existing
- * per-conversation rate limiter already commits to "never silently drop
- * messages" (see message-handler.ts's RATE_LIMIT_WINDOW_MS comment) —
- * persisting the due-time on Conversation.pendingFlushAt and sweeping for it
- * keeps that guarantee across restarts.
+ * Starts the reply-window sweep loop. TEMPORARY: a later commit removes
+ * this in-process `setInterval` entirely — once every reply flows through
+ * the lease-safe sweep below, booting it from `src/instrumentation.ts` means
+ * an idle scale-to-zero instance sends no reply at all, not just batched
+ * ones (see design §6) — replaced by the authenticated external drain
+ * endpoint plus a NODE_ENV-guarded dev-only ticker. Kept here for this
+ * commit only so `src/instrumentation.ts` doesn't need to change while this
+ * commit is exclusively about making dispatch itself resumable. Must run at
+ * most once per process.
  */
 export function startReplyWindowScheduler(): void {
   if (started) return;
@@ -55,14 +69,26 @@ export function startReplyWindowScheduler(): void {
   }, SWEEP_INTERVAL_MS);
 }
 
-type DueConversation = Conversation & {
-  business: Business;
-  phoneNumber: PhoneNumber;
-};
-
-async function sweepDueConversations(): Promise<void> {
+/**
+ * Sweeps every conversation whose `pendingFlushAt` has elapsed and flushes
+ * each one. This is the entire dispatch path now — the ingest side
+ * (message-handler.ts) never calls the AI or sends. Called both by the
+ * external drain endpoint (unscoped, replacing the old `setInterval`) and,
+ * scoped via `conversationIds`, by the inline webhook path right after
+ * ingest — see src/lib/outbox/drain.ts.
+ *
+ * Scoping matters: an unscoped sweep inside a webhook request would flush
+ * *other businesses'* conversations too and add unbounded latency to a
+ * request Meta is timing.
+ */
+export async function sweepDueConversations(
+  opts: { conversationIds?: string[] } = {},
+): Promise<void> {
   const due = await prisma.conversation.findMany({
-    where: { pendingFlushAt: { lte: new Date() } },
+    where: {
+      pendingFlushAt: { lte: new Date() },
+      ...(opts.conversationIds ? { id: { in: opts.conversationIds } } : {}),
+    },
     include: { business: true, phoneNumber: true },
   });
 
@@ -85,32 +111,77 @@ async function sweepDueConversations(): Promise<void> {
 }
 
 /**
- * Flushes a single due conversation: atomically claims it (so a slow flush
- * that overruns the next sweep tick, or two overlapping process instances,
- * can't double-send), batches every not-yet-answered customer message into
- * one AI call, and sends the single reply back.
+ * Claims a due conversation with a lease (not a destructive null-out),
+ * flushes it, and releases the lease. Fixes the orphan bug: previously the
+ * claim set `pendingFlushAt: null` with no expiry, so a crash between claim
+ * and send lost the conversation's pending messages forever — the due query
+ * would never see it again. Now `pendingFlushAt` stays set for the whole
+ * flush and only `flushLeaseUntil` moves, so a crashed flush is reclaimable
+ * once the lease expires — see design §4.
  */
 async function flushDueConversation(
   conversation: DueConversation,
 ): Promise<void> {
-  // Atomic claim: only proceed if this sweep is the one that flips
-  // pendingFlushAt from the value we just read to null. If another tick (or
-  // process) already claimed it, count is 0 and we skip — avoids double
-  // processing without needing a separate lock table.
+  const claimedPendingFlushAt = conversation.pendingFlushAt;
+  const now = new Date();
+
   const claim = await prisma.conversation.updateMany({
-    where: { id: conversation.id, pendingFlushAt: conversation.pendingFlushAt },
-    data: { pendingFlushAt: null },
+    where: {
+      id: conversation.id,
+      pendingFlushAt: claimedPendingFlushAt,
+      OR: [{ flushLeaseUntil: null }, { flushLeaseUntil: { lte: now } }],
+    },
+    data: { flushLeaseUntil: new Date(now.getTime() + FLUSH_LEASE_MS) },
   });
   if (claim.count !== 1) return;
 
-  // Re-read the conversation (plus business/phoneNumber) fresh rather than
-  // trusting the row the sweep originally queried — status may have changed
-  // to "handed_off" (a human agent took over) or the business/number may
-  // have been deactivated in the time between the message arriving and the
-  // window elapsing. Extends the claim step's DB round-trip rather than
-  // adding a second one.
+  let threw = false;
+  try {
+    await doFlush(conversation.id);
+  } catch (err) {
+    threw = true;
+    throw err;
+  } finally {
+    if (threw) {
+      // Leave pendingFlushAt set so a later sweep retries; only release the
+      // lease. resolveAiReply/sendAndPersistReply already swallow their own
+      // errors, so reaching here means a genuine DB fault mid-flush.
+      await prisma.conversation.updateMany({
+        where: { id: conversation.id },
+        data: { flushLeaseUntil: null },
+      });
+    } else {
+      // Compare-and-set: only clear pendingFlushAt if it's still the value
+      // claimed above — a newer message may have bumped it mid-flush, in
+      // which case that new window must survive, and only the lease clears.
+      const released = await prisma.conversation.updateMany({
+        where: { id: conversation.id, pendingFlushAt: claimedPendingFlushAt },
+        data: { pendingFlushAt: null, flushLeaseUntil: null },
+      });
+      if (released.count === 0) {
+        await prisma.conversation.updateMany({
+          where: { id: conversation.id },
+          data: { flushLeaseUntil: null },
+        });
+      }
+    }
+  }
+}
+
+/**
+ * Runs the actual flush once the lease is held: re-fetches fresh state,
+ * batches every not-yet-dispatched customer message, and resolves + sends
+ * (or skips) the one reply. Every terminal branch below returns normally —
+ * only a genuinely unexpected failure should throw out of here, since a
+ * throw leaves `pendingFlushAt` set for a retry (see flushDueConversation).
+ */
+async function doFlush(conversationId: string): Promise<void> {
+  // Re-read fresh rather than trusting the row the sweep originally
+  // queried — status may have changed to "handed_off" or the
+  // business/number may have been deactivated in the time between the
+  // message arriving and the window elapsing.
   const fresh = await prisma.conversation.findUnique({
-    where: { id: conversation.id },
+    where: { id: conversationId },
     include: { business: true, phoneNumber: true },
   });
   if (!fresh) return;
@@ -122,35 +193,44 @@ async function flushDueConversation(
   // Every not-yet-batched customer message — this is the batch, regardless
   // of how many separate windows it spanned (each new message resets
   // pendingFlushAt, so by the time we get here everything pending belongs to
-  // one settled window). Uses an explicit per-message marker (batchedAt)
-  // rather than comparing against the last bot message's createdAt: an
-  // overlapping/slow flush's bot reply can be persisted with a timestamp
-  // after a newer customer message, which would otherwise wrongly exclude
-  // that message from its own batch.
+  // one settled window). `batchedAt` is only ever set alongside the
+  // terminal action for that batch (send, or an explicit skip below) — never
+  // before — so a crash mid-flush leaves these messages exactly as pending
+  // as they were, for a later reclaim to pick back up.
   const pendingMessages = await prisma.message.findMany({
     where: {
-      conversationId: conversation.id,
+      conversationId: fresh.id,
       sentBy: "customer",
       batchedAt: null,
     },
     orderBy: { createdAt: "asc" },
   });
-
   if (pendingMessages.length === 0) return;
 
-  // Mark these messages consumed before calling the AI — not after — so a
-  // message can never be double-counted across overlapping flushes.
-  await prisma.message.updateMany({
-    where: { id: { in: pendingMessages.map((m) => m.id) } },
-    data: { batchedAt: new Date() },
-  });
+  const batchedIds = pendingMessages.map((m) => m.id);
+  const dispatchId = computeDispatchId(fresh.id, batchedIds);
 
-  // Same per-conversation abuse throttle as the immediate-reply path (see
-  // message-handler.ts's isRateLimited) — without this, batching would let a
-  // flood of messages defeat the rate limit by riding in on one AI call.
-  // Messages stay persisted (and now marked batched) either way; only the AI
-  // call/reply is skipped, matching the immediate path's semantics.
-  if (await isRateLimited(conversation.id, business.id)) return;
+  if (pendingMessages.every((m) => m.mediaType === "document")) {
+    await sendAndPersistReply(
+      business,
+      phoneNumber,
+      fresh.id,
+      fresh.customerPhone,
+      DOCUMENT_FALLBACK_REPLY,
+      dispatchId,
+      batchedIds,
+    );
+    return;
+  }
+
+  // Same per-conversation abuse throttle as the (now-removed) immediate-reply
+  // path — without this, batching would let a flood of messages defeat the
+  // rate limit by riding in on one AI call. Messages stay persisted (and now
+  // marked batched) either way; only the AI call/reply is skipped.
+  if (await isRateLimited(fresh.id, business.id)) {
+    await markBatched(batchedIds);
+    return;
+  }
 
   const batchedContent =
     BATCH_INSTRUCTION +
@@ -162,30 +242,44 @@ async function flushDueConversation(
       })),
     );
 
-  // History excludes the pending batch itself (it's passed separately, as
-  // batchedContent) — mirrors the immediate-reply path in message-handler.ts,
-  // which loads history before persisting the triggering message.
   const history = await loadHistoryBefore(
-    conversation.id,
+    fresh.id,
     business.maxHistoryMessages,
     pendingMessages[0].createdAt,
   );
 
   const reply = await resolveAiReply(
     business,
-    conversation.id,
+    fresh.id,
     history,
     batchedContent,
   );
-  if (reply === null) return;
+  if (reply === null) {
+    await markBatched(batchedIds);
+    return;
+  }
 
   await sendAndPersistReply(
     business,
     phoneNumber,
-    conversation.id,
-    conversation.customerPhone,
+    fresh.id,
+    fresh.customerPhone,
     reply,
+    dispatchId,
+    batchedIds,
   );
+}
+
+/**
+ * Marks a batch consumed without sending a reply — used by the rate-limit
+ * and null-reply skip paths, which have no assistant Message row to fold
+ * this into (see sendAndPersistReply's transaction for the send path).
+ */
+async function markBatched(messageIds: string[]): Promise<void> {
+  await prisma.message.updateMany({
+    where: { id: { in: messageIds } },
+    data: { batchedAt: new Date() },
+  });
 }
 
 async function loadHistoryBefore(

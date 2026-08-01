@@ -110,27 +110,33 @@ beforeEach(() => {
   sendFromNumber.mockResolvedValue("wamid.OUTBOUND_001");
 });
 
-describe("processWebhookPayload", () => {
-  it("handles text messages: persists user + assistant message and sends reply", async () => {
-    await processWebhookPayload(textMessagePayload);
+/**
+ * `processWebhookPayload` is ingest-only now — it never calls the AI or
+ * sends a reply (that's the reply-window scheduler's job, see
+ * reply-window-scheduler.test.ts and dispatch-resumability.test.ts for those
+ * assertions). These tests cover exactly what ingest is responsible for:
+ * dedupe, content parsing per message type, persistence, and marking the
+ * conversation due for dispatch.
+ */
+describe("processWebhookPayload (ingest)", () => {
+  it("handles text messages: persists the user message and marks the conversation due", async () => {
+    const touched = await processWebhookPayload(textMessagePayload);
 
-    expect(messageCreate).toHaveBeenCalledTimes(2);
+    expect(touched).toEqual(["conv_1"]);
+    expect(messageCreate).toHaveBeenCalledTimes(1);
     expect(messageCreate.mock.calls[0][0].data).toMatchObject({
       role: "user",
       mediaType: "text",
       content: "Hola, quiero hacer una reserva",
     });
-    expect(messageCreate.mock.calls[1][0].data).toMatchObject({
-      role: "assistant",
-      mediaType: "text",
-      content: "Respuesta generada",
-    });
-    expect(sendFromNumber).toHaveBeenCalledWith(
-      expect.objectContaining({ id: phoneNumber.id }),
-      business.ownerId,
-      "5215512345678",
-      "Respuesta generada",
+    expect(generateResponse).not.toHaveBeenCalled();
+    expect(sendFromNumber).not.toHaveBeenCalled();
+
+    const pendingUpdateCall = conversationUpdate.mock.calls.find(
+      (call) => call[0]?.data?.pendingFlushAt instanceof Date,
     );
+    expect(pendingUpdateCall).toBeTruthy();
+    expect(pendingUpdateCall![0]).toMatchObject({ where: { id: "conv_1" } });
   });
 
   it("handles image messages: downloads media and describes it", async () => {
@@ -168,25 +174,26 @@ describe("processWebhookPayload", () => {
     });
   });
 
-  it("still replies when transcribeAudioBuffer throws, instead of leaving the customer with no response", async () => {
+  it("still persists a fallback and marks the conversation due when transcribeAudioBuffer throws, instead of losing the message entirely", async () => {
     downloadMediaBuffer.mockResolvedValue({
       buffer: Buffer.from("fake-audio"),
       mimeType: "audio/ogg",
     });
     transcribeAudioBuffer.mockRejectedValue(new Error("404 no such endpoint"));
 
-    await processWebhookPayload(audioMessagePayload);
+    const touched = await processWebhookPayload(audioMessagePayload);
 
     expect(messageCreate.mock.calls[0][0].data).toMatchObject({
       mediaType: "audio",
       content: "[Audio del cliente — no se pudo transcribir]",
     });
-    // The pipeline still runs to completion and sends a reply — the
-    // customer never sees total silence just because transcription failed.
-    expect(sendFromNumber).toHaveBeenCalledTimes(1);
+    // The pipeline still runs to completion and marks the conversation due
+    // for dispatch — the customer never ends up with total silence just
+    // because transcription failed; the sweep still owes them a reply.
+    expect(touched).toEqual(["conv_1"]);
   });
 
-  it("still replies when describeImageFromBuffer throws, instead of leaving the customer with no response", async () => {
+  it("still persists a fallback and marks the conversation due when describeImageFromBuffer throws, instead of losing the message entirely", async () => {
     downloadMediaBuffer.mockResolvedValue({
       buffer: Buffer.from("fake-image"),
       mimeType: "image/jpeg",
@@ -195,13 +202,13 @@ describe("processWebhookPayload", () => {
       new Error("invalid model for provider"),
     );
 
-    await processWebhookPayload(imageMessagePayload);
+    const touched = await processWebhookPayload(imageMessagePayload);
 
     expect(messageCreate.mock.calls[0][0].data).toMatchObject({
       mediaType: "image",
       content: "[Imagen del cliente — no se pudo procesar]",
     });
-    expect(sendFromNumber).toHaveBeenCalledTimes(1);
+    expect(touched).toEqual(["conv_1"]);
   });
 
   it("handles location messages", async () => {
@@ -222,13 +229,17 @@ describe("processWebhookPayload", () => {
     });
   });
 
-  it("handles document messages with a static fallback and skips the AI call", async () => {
-    await processWebhookPayload(documentMessagePayload);
+  it("handles document messages: persists as-is and marks due — the canned fallback now comes from the sweep, not ingest", async () => {
+    const touched = await processWebhookPayload(documentMessagePayload);
 
+    expect(messageCreate).toHaveBeenCalledTimes(1);
+    expect(messageCreate.mock.calls[0][0].data).toMatchObject({
+      mediaType: "document",
+      content: "[Documento adjunto]",
+    });
     expect(generateResponse).not.toHaveBeenCalled();
-    expect(messageCreate.mock.calls[1][0].data.content).toContain(
-      "no puedo leer archivos",
-    );
+    expect(sendFromNumber).not.toHaveBeenCalled();
+    expect(touched).toEqual(["conv_1"]);
   });
 
   it("handles delivery status update payloads: updates the matching Message by wamid, no new message/conversation created", async () => {
@@ -237,8 +248,9 @@ describe("processWebhookPayload", () => {
       wamid: "wamid.TEXT_MESSAGE_ID_001",
     });
 
-    await processWebhookPayload(statusUpdatePayload);
+    const touched = await processWebhookPayload(statusUpdatePayload);
 
+    expect(touched).toEqual([]);
     expect(messageCreate).not.toHaveBeenCalled();
     expect(conversationUpsert).not.toHaveBeenCalled();
     expect(findFirstMessage).toHaveBeenCalledWith({
@@ -258,19 +270,11 @@ describe("processWebhookPayload", () => {
     expect(messageUpdate).not.toHaveBeenCalled();
   });
 
-  it("captures the outbound wamid returned by sendFromNumber on the bot reply", async () => {
+  it("bumps lastMessageAt, unreadCount and customerName on the customer message, and marks the conversation due", async () => {
     await processWebhookPayload(textMessagePayload);
 
-    expect(messageUpdate).toHaveBeenCalledWith({
-      where: { id: "msg_out_1" },
-      data: { wamid: "wamid.OUTBOUND_001" },
-    });
-  });
-
-  it("bumps lastMessageAt, unreadCount and customerName on the customer message, and lastMessageAt again on the bot reply", async () => {
-    await processWebhookPayload(textMessagePayload);
-
-    // First conversation.update call: alongside the customer message insert.
+    // First conversation.update call: alongside the customer message insert
+    // (persistCustomerMessage's transaction).
     expect(conversationUpdate).toHaveBeenCalledTimes(2);
     expect(conversationUpdate.mock.calls[0][0]).toMatchObject({
       where: { id: "conv_1" },
@@ -283,33 +287,29 @@ describe("processWebhookPayload", () => {
       conversationUpdate.mock.calls[0][0].data.lastMessageAt,
     ).toBeInstanceOf(Date);
 
-    // Second conversation.update call: alongside the bot reply insert, no
+    // Second conversation.update call: the explicit due-marker, no
     // unreadCount/customerName touch.
+    expect(conversationUpdate.mock.calls[1][0].data).toMatchObject({
+      pendingFlushAt: expect.any(Date),
+    });
     expect(conversationUpdate.mock.calls[1][0].data).not.toHaveProperty(
       "unreadCount",
     );
     expect(conversationUpdate.mock.calls[1][0].data).not.toHaveProperty(
       "customerName",
     );
-    expect(
-      conversationUpdate.mock.calls[1][0].data.lastMessageAt,
-    ).toBeInstanceOf(Date);
   });
 
-  it("marks the customer message as sentBy:customer and the bot reply as sentBy:bot", async () => {
+  it("marks the customer message as sentBy:customer", async () => {
     await processWebhookPayload(textMessagePayload);
 
     expect(messageCreate.mock.calls[0][0].data).toMatchObject({
       role: "user",
       sentBy: "customer",
     });
-    expect(messageCreate.mock.calls[1][0].data).toMatchObject({
-      role: "assistant",
-      sentBy: "bot",
-    });
   });
 
-  it("still persists the customer message and bumps unreadCount when handed_off, without calling the AI or sending a reply", async () => {
+  it("still persists the customer message and bumps unreadCount when handed_off, without marking the conversation due or touching the AI/send path", async () => {
     conversationUpsert.mockResolvedValueOnce({
       id: "conv_1",
       businessId: business.id,
@@ -319,8 +319,9 @@ describe("processWebhookPayload", () => {
       updatedAt: new Date(),
     });
 
-    await processWebhookPayload(textMessagePayload);
+    const touched = await processWebhookPayload(textMessagePayload);
 
+    expect(touched).toEqual(["conv_1"]);
     expect(generateResponse).not.toHaveBeenCalled();
     expect(sendFromNumber).not.toHaveBeenCalled();
     expect(messageCreate).toHaveBeenCalledTimes(1);

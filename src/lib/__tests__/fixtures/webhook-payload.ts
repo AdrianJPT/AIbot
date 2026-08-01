@@ -39,6 +39,52 @@ function buildPayload(messages: WaMessage[]) {
   };
 }
 
+/**
+ * Parameterized text-message payload for real-DB tests, whose
+ * `PhoneNumber.phoneNumberId`/customer phone/wamid are generated per test run
+ * (unlike the fixed-fixture `textMessagePayload` below, built for the mocked
+ * unit tests against `TEST_PHONE_NUMBER_ID`).
+ */
+export function buildInboundTextPayload(opts: {
+  phoneNumberId: string;
+  from: string;
+  wamid: string;
+  body: string;
+}) {
+  return {
+    object: "whatsapp_business_account",
+    entry: [
+      {
+        id: "WHATSAPP_BUSINESS_ACCOUNT_ID",
+        changes: [
+          {
+            value: {
+              messaging_product: "whatsapp",
+              metadata: {
+                display_phone_number: TEST_DISPLAY_PHONE_NUMBER,
+                phone_number_id: opts.phoneNumberId,
+              },
+              contacts: [
+                { profile: { name: "Cliente de Prueba" }, wa_id: opts.from },
+              ],
+              messages: [
+                {
+                  from: opts.from,
+                  id: opts.wamid,
+                  timestamp: `${Math.floor(Date.now() / 1000)}`,
+                  type: "text",
+                  text: { body: opts.body },
+                },
+              ],
+            },
+            field: "messages",
+          },
+        ],
+      },
+    ],
+  };
+}
+
 export const textMessagePayload = buildPayload([
   {
     from: TEST_CUSTOMER_PHONE,

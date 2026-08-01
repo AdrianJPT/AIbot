@@ -11,6 +11,11 @@ vi.mock("../../message-handler", () => ({
   processWebhookPayload: (...args: unknown[]) => processWebhookPayload(...args),
 }));
 
+const sweepDueConversations = vi.fn();
+vi.mock("../../reply-window-scheduler", () => ({
+  sweepDueConversations: (...args: unknown[]) => sweepDueConversations(...args),
+}));
+
 describe("outbox/drain runDrain", () => {
   beforeEach(() => {
     // resetAllMocks (not clearAllMocks) — also clears any queued
@@ -20,7 +25,11 @@ describe("outbox/drain runDrain", () => {
     expireStale.mockResolvedValue(undefined);
     complete.mockResolvedValue(undefined);
     fail.mockResolvedValue(undefined);
-    processWebhookPayload.mockResolvedValue(undefined);
+    // processWebhookPayload now returns the touched conversation ids (see
+    // message-handler.ts) — default to none so tests that don't care about
+    // dispatch scoping don't have to think about it.
+    processWebhookPayload.mockResolvedValue([]);
+    sweepDueConversations.mockResolvedValue(undefined);
   });
 
   it("always reaps orphaned leases before claiming", async () => {
@@ -46,10 +55,11 @@ describe("outbox/drain runDrain", () => {
     });
   });
 
-  it("claims, processes, and completes pending events until the queue is empty", async () => {
+  it("claims, processes, and completes pending events until the queue is empty, then sweeps unscoped", async () => {
     claimBatch
       .mockResolvedValueOnce([{ id: "evt_1", payload: { a: 1 } }])
       .mockResolvedValueOnce([]);
+    processWebhookPayload.mockResolvedValueOnce(["conv_1"]);
     const { runDrain } = await import("../drain");
 
     const result = await runDrain({ budgetMs: 50_000, batchSize: 10 });
@@ -63,6 +73,32 @@ describe("outbox/drain runDrain", () => {
       failed: 0,
       remaining: false,
     });
+    // No eventId given — this is the external/scheduled drain, which sweeps
+    // every due conversation, not just the ones this tick happened to touch
+    // (that's what replaces the old setInterval — see design §5-6).
+    expect(sweepDueConversations).toHaveBeenCalledWith();
+  });
+
+  it("scopes the sweep to exactly the conversations an eventId-scoped drain touched, and skips it entirely when nothing was touched", async () => {
+    claimBatch.mockResolvedValueOnce([{ id: "evt_1", payload: {} }]);
+    processWebhookPayload.mockResolvedValueOnce(["conv_1", "conv_2"]);
+    const { runDrain } = await import("../drain");
+
+    await runDrain({ eventId: "evt_1", budgetMs: 12_000 });
+
+    expect(sweepDueConversations).toHaveBeenCalledWith({
+      conversationIds: ["conv_1", "conv_2"],
+    });
+  });
+
+  it("does not sweep at all when an eventId-scoped drain touched nothing (dedupe hit)", async () => {
+    claimBatch.mockResolvedValueOnce([{ id: "evt_1", payload: {} }]);
+    processWebhookPayload.mockResolvedValueOnce([]);
+    const { runDrain } = await import("../drain");
+
+    await runDrain({ eventId: "evt_1", budgetMs: 12_000 });
+
+    expect(sweepDueConversations).not.toHaveBeenCalled();
   });
 
   it("marks a processing failure as failed and keeps going", async () => {
@@ -87,6 +123,7 @@ describe("outbox/drain runDrain", () => {
     ]);
     processWebhookPayload.mockImplementationOnce(async () => {
       now = 100; // blow the budget after the first event in the batch
+      return [];
     });
     const { runDrain } = await import("../drain");
 

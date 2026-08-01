@@ -1,4 +1,5 @@
-import type { Business, PhoneNumber } from "@prisma/client";
+import { createHash } from "node:crypto";
+import { Prisma, type Business, type PhoneNumber } from "@prisma/client";
 import type { ChatCompletionMessageParam } from "openai/resources/chat/completions";
 import { prisma } from "./db";
 import { generateResponse } from "./ai/generate";
@@ -56,17 +57,26 @@ type WaStatus = {
 /** Statuses this app persists on Message.status; anything else is ignored. */
 const KNOWN_STATUSES = new Set(["sent", "delivered", "read", "failed"]);
 
-export async function processWebhookPayload(body: unknown): Promise<void> {
+/**
+ * Ingests one webhook payload: verifies dedupe, persists inbound messages,
+ * and marks their conversations due for dispatch. Performs zero AI calls and
+ * zero WhatsApp sends — that is the entire point of the ingest/dispatch
+ * split (see design §3). Returns the ids of conversations this payload
+ * touched, so the caller (src/lib/outbox/drain.ts) can scope the dispatch
+ * sweep to exactly the conversations that might now be due, instead of
+ * sweeping every business's pending work inside a request Meta is timing.
+ */
+export async function processWebhookPayload(body: unknown): Promise<string[]> {
   const entry = (body as { entry?: unknown[] })?.entry?.[0] as
     { changes?: unknown[] } | undefined;
   const change = entry?.changes?.[0] as
     { value?: Record<string, unknown> } | undefined;
   const value = change?.value;
-  if (!value) return;
+  if (!value) return [];
 
   const metadata = value.metadata as { phone_number_id?: string } | undefined;
   const metaPhoneNumberId = metadata?.phone_number_id;
-  if (!metaPhoneNumberId) return;
+  if (!metaPhoneNumberId) return [];
 
   const phoneNumber = await prisma.phoneNumber.findFirst({
     where: {
@@ -76,7 +86,7 @@ export async function processWebhookPayload(body: unknown): Promise<void> {
     },
     include: { business: true },
   });
-  if (!phoneNumber) return;
+  if (!phoneNumber) return [];
 
   const { business } = phoneNumber;
 
@@ -88,16 +98,24 @@ export async function processWebhookPayload(body: unknown): Promise<void> {
   }
 
   const messages = value.messages as WaMessage[] | undefined;
-  if (!messages?.length) return;
+  if (!messages?.length) return [];
 
   const contacts = value.contacts as
     Array<{ profile?: { name?: string }; wa_id?: string }> | undefined;
 
+  const touchedConversationIds: string[] = [];
   for (const message of messages) {
     const customerName = contacts?.find((c) => c.wa_id === message.from)
       ?.profile?.name;
-    await handleOneMessage(business, phoneNumber, message, customerName);
+    const conversationId = await handleOneMessage(
+      business,
+      phoneNumber,
+      message,
+      customerName,
+    );
+    if (conversationId) touchedConversationIds.push(conversationId);
   }
+  return touchedConversationIds;
 }
 
 /**
@@ -134,23 +152,35 @@ async function handleStatusUpdate(
   }
 }
 
+/**
+ * Ingests exactly one inbound message: dedupe gate, content parsing,
+ * conversation upsert, persistence — and nothing else. Cut here (not one
+ * line further) so this function's scope matches the `Message.wamid`
+ * @unique dedupe gate exactly: a retry that re-enters after a crash sees the
+ * wamid already persisted and returns, with nothing un-sent left behind,
+ * because nothing past persistence ever ran inline. See design §3.
+ *
+ * Returns the conversation id touched (so the caller can scope the dispatch
+ * sweep), or undefined when nothing was persisted (missing `from`, dedupe
+ * hit, or unparseable content).
+ */
 async function handleOneMessage(
   business: Business,
   phoneNumber: PhoneNumber,
   message: WaMessage,
   customerName?: string,
-): Promise<void> {
+): Promise<string | undefined> {
   const from = message.from;
-  if (!from) return;
+  if (!from) return undefined;
 
   const wamid = message.id;
   if (wamid) {
     const existing = await prisma.message.findFirst({ where: { wamid } });
-    if (existing) return;
+    if (existing) return undefined;
   }
 
   const parsed = await parseUserContent(business, phoneNumber, message);
-  if (!parsed) return;
+  if (!parsed) return undefined;
 
   const conversation = await prisma.conversation.upsert({
     where: {
@@ -170,64 +200,69 @@ async function handleOneMessage(
 
   if (conversation.status === "handed_off") {
     await persistCustomerMessage(conversation.id, parsed, wamid, customerName);
-    return;
+    return conversation.id;
   }
 
   await persistCustomerMessage(conversation.id, parsed, wamid, customerName);
 
-  let reply: string | null = null;
+  // Ingest's job ends here: mark the conversation due for dispatch. The
+  // sweep (reply-window-scheduler.ts) picks it up — immediately, for the
+  // default replyWindowMs = 0 (now() is already due), or after the debounce
+  // window elapses for businesses that batch. One reply path replaces the
+  // old immediate/batched split; AI generation, rate limiting, and sending
+  // all now live in the sweep, never inline.
+  await prisma.conversation.update({
+    where: { id: conversation.id },
+    data: { pendingFlushAt: new Date(Date.now() + business.replyWindowMs) },
+  });
 
-  if (parsed.mediaType === "document") {
-    reply =
-      "Por ahora no puedo leer archivos o documentos. ¿Puedes escribir tu consulta en un mensaje de texto?";
-  } else if (await isRateLimited(conversation.id, business.id)) {
-    // Persisted above already — just skip AI generation and the reply.
-  } else if (business.replyWindowMs > 0) {
-    // Debounce: don't call the AI for every single message — wait for the
-    // customer to stop sending consecutive messages first. Persisted on the
-    // Conversation row (not an in-memory timer) so a Railway redeploy
-    // mid-window can't silently drop the pending batch — see the
-    // rate-limiter comment above and reply-window-scheduler.ts, which polls
-    // for elapsed windows and sends the one batched reply.
-    await prisma.conversation.update({
-      where: { id: conversation.id },
-      data: { pendingFlushAt: new Date(Date.now() + business.replyWindowMs) },
-    });
-    return;
-  } else {
-    // Only the immediate-reply path needs history — loaded here (not
-    // unconditionally above) so businesses using the reply-window batching
-    // above don't pay for a wasted history query on every single message.
-    const history = await loadHistory(
-      conversation.id,
-      business.maxHistoryMessages,
-    );
-    reply = await resolveAiReply(
-      business,
-      conversation.id,
-      history,
-      parsed.content,
-    );
-  }
+  return conversation.id;
+}
 
-  if (reply === null) return;
+/**
+ * Deterministic send-intent key for one dispatch attempt: a hash of the
+ * conversation plus the exact set of customer messages being answered.
+ * Stable across re-entry — a reclaimed flush re-queries the same
+ * `batchedAt: null` messages and gets the same key, so a retry after a crash
+ * collides on the same row instead of sending twice. A genuinely new message
+ * arriving mid-flush changes the batch (and therefore the key), which is
+ * correct: new content deserves a new reply, not a suppressed one.
+ */
+export function computeDispatchId(
+  conversationId: string,
+  batchedMessageIds: string[],
+): string {
+  const key = `${conversationId}:${[...batchedMessageIds].sort().join(",")}`;
+  return createHash("sha256").update(key).digest("hex");
+}
 
-  await sendAndPersistReply(
-    business,
-    phoneNumber,
-    conversation.id,
-    from,
-    reply,
+function isDispatchIdConflict(err: unknown): boolean {
+  return (
+    err instanceof Prisma.PrismaClientKnownRequestError &&
+    err.code === "P2002" &&
+    (Array.isArray(err.meta?.target)
+      ? err.meta.target.includes("dispatchId")
+      : true)
   );
 }
 
 /**
- * Persists the bot's reply as a Message row (bumping the conversation's
- * lastMessageAt in the same transaction), sends it over WhatsApp, and
- * records the resulting wamid — or marks the message "failed" if the send
- * throws. Shared by the immediate reply path above and the reply-window
- * scheduler's batched-flush path (see reply-window-scheduler.ts), so both
- * get identical persistence/error-handling behavior.
+ * Persists the bot's reply as a Message row, marks the batched customer
+ * messages consumed, and bumps the conversation's lastMessageAt — all in one
+ * transaction — then sends over WhatsApp and flips the reply to "sent"
+ * (recording the wamid) or "failed". Only the reply-window scheduler calls
+ * this now (see reply-window-scheduler.ts's doFlush); the ingest path never
+ * sends.
+ *
+ * The assistant row is created `status: "pending"` (not the schema default
+ * "sent") so a crash between this transaction and the send call is
+ * observable as `role: assistant AND status: 'pending' AND wamid IS NULL`,
+ * not indistinguishable from a delivered message.
+ *
+ * `dispatchId` is the no-double-send guard: if a prior attempt (the inline
+ * path, or an earlier sweep tick before its crash) already got this far, the
+ * unique constraint on `Message.dispatchId` rejects this transaction with
+ * P2002 — that means don't send, not an error to propagate.
  */
 export async function sendAndPersistReply(
   business: Business,
@@ -235,22 +270,46 @@ export async function sendAndPersistReply(
   conversationId: string,
   from: string,
   reply: string,
+  dispatchId: string,
+  batchedMessageIds: string[],
 ): Promise<void> {
-  const [outboundMessage] = await prisma.$transaction([
-    prisma.message.create({
-      data: {
-        conversationId,
-        role: "assistant",
-        content: reply,
-        mediaType: "text",
-        sentBy: "bot",
-      },
-    }),
-    prisma.conversation.update({
-      where: { id: conversationId },
-      data: { lastMessageAt: new Date() },
-    }),
-  ]);
+  let outboundMessage: { id: string };
+  try {
+    [outboundMessage] = await prisma.$transaction([
+      prisma.message.create({
+        data: {
+          conversationId,
+          role: "assistant",
+          content: reply,
+          mediaType: "text",
+          sentBy: "bot",
+          status: "pending",
+          dispatchId,
+        },
+      }),
+      prisma.message.updateMany({
+        where: { id: { in: batchedMessageIds } },
+        data: { batchedAt: new Date() },
+      }),
+      prisma.conversation.update({
+        where: { id: conversationId },
+        data: { lastMessageAt: new Date() },
+      }),
+    ]);
+  } catch (err) {
+    if (isDispatchIdConflict(err)) {
+      await logEvent(
+        "error",
+        "whatsapp-send",
+        "Duplicate dispatch blocked by dispatchId uniqueness — a prior attempt already sent this reply",
+        { conversationId, dispatchId },
+        business.id,
+        phoneNumber.id,
+      );
+      return;
+    }
+    throw err;
+  }
 
   try {
     const wamid = await sendFromNumber(
@@ -259,12 +318,10 @@ export async function sendAndPersistReply(
       from,
       reply,
     );
-    if (wamid) {
-      await prisma.message.update({
-        where: { id: outboundMessage.id },
-        data: { wamid },
-      });
-    }
+    await prisma.message.update({
+      where: { id: outboundMessage.id },
+      data: wamid ? { wamid, status: "sent" } : { status: "sent" },
+    });
   } catch (err) {
     await logEvent(
       "error",
@@ -439,21 +496,6 @@ function describeError(err: unknown): {
       ? { message: err.message, stack: err.stack }
       : { message: String(err) };
   return code ? { ...base, code } : base;
-}
-
-async function loadHistory(
-  conversationId: string,
-  max: number,
-): Promise<ChatCompletionMessageParam[]> {
-  const rows = await prisma.message.findMany({
-    where: { conversationId },
-    orderBy: { createdAt: "desc" },
-    take: max,
-  });
-  return rows.reverse().map((m) => ({
-    role: m.role as "user" | "assistant",
-    content: m.content,
-  }));
 }
 
 async function parseUserContent(
