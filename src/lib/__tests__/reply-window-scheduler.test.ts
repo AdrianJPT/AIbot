@@ -40,8 +40,7 @@ vi.mock("../log", () => ({
   logEvent: (...args: unknown[]) => logEvent(...args),
 }));
 
-const { sweepDueConversations, startReplyWindowScheduler } =
-  await import("../reply-window-scheduler");
+const { sweepDueConversations } = await import("../reply-window-scheduler");
 
 const business = buildBusiness({
   systemPrompt: "prompt",
@@ -120,27 +119,6 @@ beforeEach(() => {
   isRateLimited.mockResolvedValue(false);
   computeDispatchId.mockReturnValue("dispatch_default");
   sendAndPersistReply.mockResolvedValue(undefined);
-});
-
-// TEMPORARY: startReplyWindowScheduler and this test are both removed in a
-// later commit that replaces the in-process setInterval with the external
-// drain endpoint plus a NODE_ENV-guarded dev ticker (design §6).
-describe("startReplyWindowScheduler", () => {
-  it("is a no-op to call twice — only one interval loop runs (module-level guard)", () => {
-    vi.useFakeTimers();
-
-    const before = vi.getTimerCount();
-    startReplyWindowScheduler();
-    const afterFirst = vi.getTimerCount();
-    startReplyWindowScheduler();
-    const afterSecond = vi.getTimerCount();
-
-    expect(afterFirst).toBe(before + 1);
-    expect(afterSecond).toBe(afterFirst);
-
-    vi.clearAllTimers();
-    vi.useRealTimers();
-  });
 });
 
 describe("sweepDueConversations", () => {

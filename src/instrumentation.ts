@@ -9,8 +9,17 @@ export async function register() {
   if (process.env.NEXT_RUNTIME === "nodejs") {
     await import("./lib/env");
 
-    const { startReplyWindowScheduler } =
-      await import("./lib/reply-window-scheduler");
-    startReplyWindowScheduler();
+    // Production/Railway never boots a scheduler here — dispatch runs only
+    // through the authenticated POST /api/internal/drain endpoint, invoked
+    // externally (Cloud Scheduler/cron). A per-process setInterval here
+    // would send at most one reply per instance and none on a scaled-to-zero
+    // one, which is strictly worse than not shipping the outbox at all — see
+    // design §6. Local dev has no external scheduler, so it gets its own
+    // in-process ticker instead, guarded by NODE_ENV so it can never boot in
+    // production.
+    if (process.env.NODE_ENV !== "production") {
+      const { startDevDrainTicker } = await import("./lib/outbox/dev-ticker");
+      startDevDrainTicker();
+    }
   }
 }

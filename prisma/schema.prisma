@@ -191,7 +191,7 @@ model WebhookEvent {
   payload        Json
   status         WebhookEventStatus @default(pending)
   attempts       Int                @default(0)
-  maxAttempts    Int                @default(1) // PR1: no-retry parity with today. Raised in a later change once dispatch is resumable.
+  maxAttempts    Int                @default(5) // 5 retries with backoff (repository.ts's fail()). Safe only once dispatch itself is resumable — see message-handler.ts's ingest/dispatch split and reply-window-scheduler.ts's flush lease; raising this before that landed would have retried straight into the dropped-reply bug (wamid gate returns early, reply never generated).
   nextRunAt      DateTime           @default(now())
   leaseExpiresAt DateTime?
   lockedBy       String?

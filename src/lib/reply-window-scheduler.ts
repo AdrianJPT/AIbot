@@ -38,38 +38,6 @@ type DueConversation = Conversation & {
 };
 
 /**
- * How often the transitional in-process sweep loop below polls for
- * conversations whose reply-window has elapsed.
- */
-const SWEEP_INTERVAL_MS = 3000;
-
-let started = false;
-
-/**
- * Starts the reply-window sweep loop. TEMPORARY: a later commit removes
- * this in-process `setInterval` entirely — once every reply flows through
- * the lease-safe sweep below, booting it from `src/instrumentation.ts` means
- * an idle scale-to-zero instance sends no reply at all, not just batched
- * ones (see design §6) — replaced by the authenticated external drain
- * endpoint plus a NODE_ENV-guarded dev-only ticker. Kept here for this
- * commit only so `src/instrumentation.ts` doesn't need to change while this
- * commit is exclusively about making dispatch itself resumable. Must run at
- * most once per process.
- */
-export function startReplyWindowScheduler(): void {
-  if (started) return;
-  started = true;
-
-  setInterval(() => {
-    sweepDueConversations().catch((err) => {
-      logEvent("error", "ai", "Reply-window sweep failed", {
-        error: err instanceof Error ? err.message : String(err),
-      }).catch(() => undefined);
-    });
-  }, SWEEP_INTERVAL_MS);
-}
-
-/**
  * Sweeps every conversation whose `pendingFlushAt` has elapsed and flushes
  * each one. This is the entire dispatch path now — the ingest side
  * (message-handler.ts) never calls the AI or sends. Called both by the
