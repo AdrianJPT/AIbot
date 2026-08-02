@@ -1,4 +1,5 @@
-import { processWebhookPayload } from "../message-handler";
+import { processWebhookPayload, reapStrandedSends } from "../message-handler";
+import { sweepDueConversations } from "../reply-window-scheduler";
 import { claimBatch, complete, expireStale, fail } from "./repository";
 
 const DEFAULT_BATCH_SIZE = 10;
@@ -56,6 +57,7 @@ export async function runDrain(
     failed: 0,
     remaining: false,
   };
+  const touchedConversationIds = new Set<string>();
 
   await expireStale();
 
@@ -85,7 +87,8 @@ export async function runDrain(
       }
 
       try {
-        await processWebhookPayload(event.payload);
+        const touched = await processWebhookPayload(event.payload);
+        for (const id of touched) touchedConversationIds.add(id);
         await complete(event.id);
         result.processed += 1;
       } catch (err) {
@@ -97,6 +100,29 @@ export async function runDrain(
     // A single scoped event is always a complete drain regardless of what
     // else is pending; an under-full batch means the queue is empty.
     if (eventId || batch.length < batchSize) break;
+  }
+
+  // Dispatch is entirely event-driven now — nothing sends inline during
+  // ingest (see message-handler.ts's processWebhookPayload). The inline
+  // webhook path scopes the sweep to exactly the conversations its own
+  // payload touched (never other businesses' pending work, inside a request
+  // Meta is timing); the scheduled/external drain sweeps unscoped, which is
+  // what replaces the removed setInterval — see design §5-6.
+  if (eventId) {
+    if (touchedConversationIds.size > 0) {
+      await sweepDueConversations({
+        conversationIds: [...touchedConversationIds],
+      });
+    }
+  } else {
+    // Stranded-send recovery only runs on the unscoped (scheduled/dev
+    // ticker) path, never inline — a stranded row by definition belongs to
+    // some earlier request that already returned, so recovering it can't
+    // improve this request's latency and shouldn't eat into its 12s budget.
+    // See message-handler.ts's reapStrandedSends for the crash window this
+    // closes.
+    await reapStrandedSends();
+    await sweepDueConversations();
   }
 
   return result;

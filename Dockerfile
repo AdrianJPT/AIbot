@@ -19,6 +19,12 @@ ARG NEXT_PUBLIC_SUPABASE_URL
 ARG NEXT_PUBLIC_SUPABASE_ANON_KEY
 ARG SUPABASE_SERVICE_ROLE_KEY
 ARG APP_ENCRYPTION_KEY
+# Next statically replaces NEXT_PUBLIC_* at build time, including in server
+# and proxy bundles. site-url.ts feeds proxy.ts and the auth routes,
+# so building without this bakes `undefined` into those redirects and
+# `new URL("/login", undefined)` throws at runtime. Railway injected it
+# implicitly; Cloud Run passes build args explicitly, so declare it here.
+ARG NEXT_PUBLIC_SITE_URL
 
 ENV DATABASE_URL=$DATABASE_URL
 ENV DIRECT_URL=$DIRECT_URL
@@ -28,6 +34,7 @@ ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL
 ENV NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY
 ENV SUPABASE_SERVICE_ROLE_KEY=$SUPABASE_SERVICE_ROLE_KEY
 ENV APP_ENCRYPTION_KEY=$APP_ENCRYPTION_KEY
+ENV NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL
 RUN npx prisma generate
 RUN npm run build
 

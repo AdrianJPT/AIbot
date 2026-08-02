@@ -32,6 +32,38 @@ export async function createTestBusiness(
   });
 }
 
+/**
+ * Like `createTestBusiness`, but overridable on the fields real-DB dispatch
+ * (reply-window-scheduler) tests need — `createTestBusiness` hardcodes
+ * `replyWindowMs` away (schema default 0), which is exactly the knob a sweep
+ * test needs to control debounce timing separately from immediate dispatch.
+ */
+export async function createTestBusinessWithNumber(
+  ownerId: string,
+  suffix: string,
+  overrides: Partial<{ replyWindowMs: number; isActive: boolean }> = {},
+): Promise<Business & { phoneNumbers: PhoneNumber[] }> {
+  return prisma.business.create({
+    data: {
+      name: `Test Business ${suffix}`,
+      systemPrompt: "test prompt",
+      welcomeMessage: "hola",
+      businessInfo: {},
+      ownerId,
+      ...(overrides.replyWindowMs !== undefined && {
+        replyWindowMs: overrides.replyWindowMs,
+      }),
+      ...(overrides.isActive !== undefined && {
+        isActive: overrides.isActive,
+      }),
+      phoneNumbers: {
+        create: { phoneNumberId: `test-phone-${suffix}-${randomUUID()}` },
+      },
+    },
+    include: { phoneNumbers: true },
+  });
+}
+
 export async function createTestCredential(
   ownerId: string,
   overrides: Partial<{

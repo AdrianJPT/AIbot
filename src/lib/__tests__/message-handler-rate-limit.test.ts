@@ -6,9 +6,13 @@ const findFirstPhoneNumber = vi.fn();
 const findFirstMessage = vi.fn();
 const conversationUpsert = vi.fn();
 const conversationUpdate = vi.fn();
+const conversationFindMany = vi.fn();
+const conversationUpdateMany = vi.fn();
+const conversationFindUnique = vi.fn();
 const messageCreate = vi.fn();
 const messageFindMany = vi.fn();
 const messageUpdate = vi.fn();
+const messageUpdateMany = vi.fn();
 const messageCount = vi.fn();
 const eventLogCreate = vi.fn();
 
@@ -20,12 +24,16 @@ vi.mock("../db", () => ({
     conversation: {
       upsert: (...args: unknown[]) => conversationUpsert(...args),
       update: (...args: unknown[]) => conversationUpdate(...args),
+      findMany: (...args: unknown[]) => conversationFindMany(...args),
+      updateMany: (...args: unknown[]) => conversationUpdateMany(...args),
+      findUnique: (...args: unknown[]) => conversationFindUnique(...args),
     },
     message: {
       create: (...args: unknown[]) => messageCreate(...args),
       findFirst: (...args: unknown[]) => findFirstMessage(...args),
       findMany: (...args: unknown[]) => messageFindMany(...args),
       update: (...args: unknown[]) => messageUpdate(...args),
+      updateMany: (...args: unknown[]) => messageUpdateMany(...args),
       count: (...args: unknown[]) => messageCount(...args),
     },
     eventLog: { create: (...args: unknown[]) => eventLogCreate(...args) },
@@ -60,6 +68,7 @@ vi.mock("../whatsapp", () => ({
 }));
 
 const { processWebhookPayload } = await import("../message-handler");
+const { sweepDueConversations } = await import("../reply-window-scheduler");
 
 const business = buildBusiness();
 
@@ -69,6 +78,20 @@ const phoneNumber = buildPhoneNumber();
 function isCustomerRateLimitQuery(args: unknown[]): boolean {
   const where = (args[0] as { where?: Record<string, unknown> })?.where;
   return where?.sentBy === "customer";
+}
+
+/**
+ * Rate limiting (isRateLimited) and the daily AI budget (resolveAiReply) are
+ * both evaluated on the sweep now, never during ingest — see design §3.
+ * These tests run the real ingest-then-sweep sequence end to end (only
+ * db/ai/whatsapp are mocked; message-handler and reply-window-scheduler are
+ * both real), same shape as an inline webhook request followed by its
+ * scoped drain sweep.
+ */
+async function runIngestThenSweep(payload: unknown): Promise<string[]> {
+  const touched = await processWebhookPayload(payload);
+  await sweepDueConversations({ conversationIds: touched });
+  return touched;
 }
 
 beforeEach(() => {
@@ -85,14 +108,56 @@ beforeEach(() => {
     updatedAt: new Date(),
   });
   conversationUpdate.mockResolvedValue({});
+  conversationFindMany.mockResolvedValue([
+    {
+      id: "conv_1",
+      businessId: business.id,
+      phoneNumberId: phoneNumber.id,
+      customerPhone: "5215512345678",
+      status: "active",
+      pendingFlushAt: new Date(Date.now() - 1000),
+      flushLeaseUntil: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    },
+  ]);
+  conversationUpdateMany.mockResolvedValue({ count: 1 });
+  conversationFindUnique.mockResolvedValue({
+    id: "conv_1",
+    businessId: business.id,
+    phoneNumberId: phoneNumber.id,
+    customerPhone: "5215512345678",
+    status: "active",
+    pendingFlushAt: new Date(),
+    flushLeaseUntil: null,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    business,
+    phoneNumber,
+  });
   messageCreate.mockResolvedValue({ id: "msg_out_1" });
-  messageFindMany.mockResolvedValue([]);
+  messageFindMany.mockImplementation(
+    (args: { where: Record<string, unknown> }) => {
+      if (args.where.sentBy === "customer" && args.where.batchedAt === null) {
+        return Promise.resolve([
+          {
+            id: "msg_user_1",
+            content: "Hola, quiero hacer una reserva",
+            mediaType: "text",
+            createdAt: new Date(Date.now() - 500),
+          },
+        ]);
+      }
+      return Promise.resolve([]); // history query
+    },
+  );
   messageUpdate.mockResolvedValue({});
+  messageUpdateMany.mockResolvedValue({ count: 1 });
   messageCount.mockResolvedValue(0);
   eventLogCreate.mockResolvedValue({});
   generateResponse.mockResolvedValue("Respuesta generada");
   resolveWhatsappToken.mockResolvedValue("test-token");
-  sendFromNumber.mockResolvedValue(undefined);
+  sendFromNumber.mockResolvedValue("wamid.OUTBOUND_001");
 });
 
 describe("per-conversation rate limiting", () => {
@@ -101,9 +166,9 @@ describe("per-conversation rate limiting", () => {
       Promise.resolve(isCustomerRateLimitQuery(args) ? 11 : 0),
     );
 
-    await processWebhookPayload(textMessagePayload);
+    await runIngestThenSweep(textMessagePayload);
 
-    // Customer message is still persisted.
+    // Customer message is still persisted at ingest; no assistant reply.
     expect(messageCreate).toHaveBeenCalledTimes(1);
     expect(messageCreate.mock.calls[0][0].data).toMatchObject({
       sentBy: "customer",
@@ -117,6 +182,13 @@ describe("per-conversation rate limiting", () => {
         data: expect.objectContaining({ level: "warn", source: "webhook" }),
       }),
     );
+
+    // The batch is still marked consumed — skipped, not held back for a
+    // future flush to double-count.
+    expect(messageUpdateMany).toHaveBeenCalledWith({
+      where: { id: { in: ["msg_user_1"] } },
+      data: { batchedAt: expect.any(Date) },
+    });
   });
 
   it("calls the AI normally when under the threshold", async () => {
@@ -124,7 +196,7 @@ describe("per-conversation rate limiting", () => {
       Promise.resolve(isCustomerRateLimitQuery(args) ? 3 : 0),
     );
 
-    await processWebhookPayload(textMessagePayload);
+    await runIngestThenSweep(textMessagePayload);
 
     expect(generateResponse).toHaveBeenCalledTimes(1);
     expect(sendFromNumber).toHaveBeenCalledTimes(1);
@@ -145,12 +217,15 @@ describe("per-business daily AI budget", () => {
       },
     );
 
-    await processWebhookPayload(textMessagePayload);
+    await runIngestThenSweep(textMessagePayload);
 
     expect(generateResponse).not.toHaveBeenCalled();
+    // calls[0] = ingest's customer message; calls[1] = the sweep's fallback
+    // assistant reply.
     expect(messageCreate.mock.calls[1][0].data).toMatchObject({
       role: "assistant",
       content: "Estamos recibiendo muchos mensajes, en breve te responderemos.",
+      status: "pending",
     });
     expect(sendFromNumber).toHaveBeenCalledWith(
       expect.objectContaining({ id: phoneNumber.id }),
@@ -178,11 +253,11 @@ describe("per-business daily AI budget", () => {
       },
     );
 
-    await processWebhookPayload(textMessagePayload);
+    await runIngestThenSweep(textMessagePayload);
 
     expect(generateResponse).not.toHaveBeenCalled();
     expect(sendFromNumber).not.toHaveBeenCalled();
-    // Only the customer message is persisted — no assistant reply.
+    // Only the customer message is persisted — no assistant reply created.
     expect(messageCreate).toHaveBeenCalledTimes(1);
   });
 });

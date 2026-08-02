@@ -27,6 +27,17 @@ function DeliveryTicks({ status }: { status: string }) {
       </span>
     );
   }
+  if (status === "pending") {
+    // Message.status starts "pending" (message-handler.ts's
+    // sendAndPersistReply) until the WhatsApp send resolves — distinct from
+    // the optimistic-UI `message.pending` flag above, which this component
+    // already renders a Clock icon for.
+    return (
+      <span title="Enviando" aria-label="Enviando">
+        <Clock className="h-3 w-3 text-muted-foreground" />
+      </span>
+    );
+  }
   if (status === "read") {
     return (
       <span title="Leído" aria-label="Leído">
