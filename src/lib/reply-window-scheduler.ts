@@ -161,10 +161,16 @@ async function doFlush(conversationId: string): Promise<void> {
   // Every not-yet-batched customer message — this is the batch, regardless
   // of how many separate windows it spanned (each new message resets
   // pendingFlushAt, so by the time we get here everything pending belongs to
-  // one settled window). `batchedAt` is only ever set alongside the
-  // terminal action for that batch (send, or an explicit skip below) — never
-  // before — so a crash mid-flush leaves these messages exactly as pending
-  // as they were, for a later reclaim to pick back up.
+  // one settled window). `batchedAt` is set inside `sendAndPersistReply`'s
+  // persistence transaction, which commits BEFORE the actual WhatsApp send
+  // (message-handler.ts:279-... — see its docstring). That means a crash
+  // between that commit and the send resolving does NOT leave these
+  // messages "exactly as pending as they were" — they're already
+  // `batchedAt`-stamped, so this query (and therefore a later reclaim by
+  // this function) will never see them again. The stranded assistant row
+  // (`status: "pending"`, `wamid: null`) is instead recovered by the
+  // separate `reapStrandedSends` reaper (message-handler.ts), wired into
+  // the unscoped drain path — see outbox/drain.ts.
   const pendingMessages = await prisma.message.findMany({
     where: {
       conversationId: fresh.id,

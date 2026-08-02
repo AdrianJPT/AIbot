@@ -7,8 +7,10 @@ const fail = vi.fn();
 vi.mock("../repository", () => ({ expireStale, claimBatch, complete, fail }));
 
 const processWebhookPayload = vi.fn();
+const reapStrandedSends = vi.fn();
 vi.mock("../../message-handler", () => ({
   processWebhookPayload: (...args: unknown[]) => processWebhookPayload(...args),
+  reapStrandedSends: (...args: unknown[]) => reapStrandedSends(...args),
 }));
 
 const sweepDueConversations = vi.fn();
@@ -30,6 +32,7 @@ describe("outbox/drain runDrain", () => {
     // dispatch scoping don't have to think about it.
     processWebhookPayload.mockResolvedValue([]);
     sweepDueConversations.mockResolvedValue(undefined);
+    reapStrandedSends.mockResolvedValue(undefined);
   });
 
   it("always reaps orphaned leases before claiming", async () => {
@@ -77,6 +80,19 @@ describe("outbox/drain runDrain", () => {
     // every due conversation, not just the ones this tick happened to touch
     // (that's what replaces the old setInterval — see design §5-6).
     expect(sweepDueConversations).toHaveBeenCalledWith();
+    // The unscoped path is also the only one that runs the stranded-send
+    // reaper — see message-handler.ts's reapStrandedSends.
+    expect(reapStrandedSends).toHaveBeenCalledOnce();
+  });
+
+  it("does not reap stranded sends on an eventId-scoped (inline webhook) drain", async () => {
+    claimBatch.mockResolvedValueOnce([{ id: "evt_1", payload: {} }]);
+    processWebhookPayload.mockResolvedValueOnce(["conv_1"]);
+    const { runDrain } = await import("../drain");
+
+    await runDrain({ eventId: "evt_1", budgetMs: 12_000 });
+
+    expect(reapStrandedSends).not.toHaveBeenCalled();
   });
 
   it("scopes the sweep to exactly the conversations an eventId-scoped drain touched, and skips it entirely when nothing was touched", async () => {

@@ -242,8 +242,229 @@ function isDispatchIdConflict(err: unknown): boolean {
     err.code === "P2002" &&
     (Array.isArray(err.meta?.target)
       ? err.meta.target.includes("dispatchId")
-      : true)
+      : // An unconfirmable target means we cannot prove this P2002 is the
+        // dispatchId collision this catch exists to swallow. Defaulting to
+        // "no, rethrow" is the safe direction: a false negative here is loud
+        // (an unrelated P2002 propagates as an error, gets noticed) while a
+        // false positive would silently swallow a real, actionable bug — the
+        // wrong tradeoff for a defensive fallback.
+        false)
   );
+}
+
+/**
+ * How long a compare-and-set claim on a `Message`'s dispatch (see
+ * `claimDispatch`) is held before it's eligible to be reclaimed. Same lease
+ * pattern as `Conversation.flushLeaseUntil` / `WebhookEvent.leaseExpiresAt` —
+ * long enough to comfortably cover one `sendFromNumber` call, short enough
+ * that a stranded claim (crash mid-send) becomes reapable well within the
+ * reaper's cadence. Mirrors `FLUSH_LEASE_MS` in reply-window-scheduler.ts,
+ * whose rationale (history load + AI call already happened by this point;
+ * only the send itself remains) applies here too.
+ */
+const DISPATCH_LEASE_MS = 60_000;
+
+/**
+ * How many times `reapStrandedSends` will re-attempt a stranded pending
+ * send before marking it terminally "failed". Mirrors
+ * `WebhookEvent.maxAttempts`'s bounded-retry convention (see
+ * `outbox/repository.ts`'s `fail()`) so a permanently-unreachable number
+ * doesn't get retried forever.
+ */
+export const MAX_DISPATCH_ATTEMPTS = 5;
+
+/**
+ * How old a `status: "pending"` assistant message must be (with no claim
+ * lease in flight) before the reaper will touch it. Wide margin over
+ * `DISPATCH_LEASE_MS` / the flush lease (60s) / the outbox lease (90s), so
+ * the reaper never contends with a legitimately in-flight first attempt —
+ * it only ever picks up rows that are genuinely stranded.
+ */
+const REAP_STALE_MS = 5 * 60_000;
+
+/**
+ * Compare-and-set claim on a `Message`'s dispatch lease. This is the single
+ * choke point that makes finishing a "pending" send crash-safe and
+ * race-safe: `sendAndPersistReply`'s own happy path (right after it creates
+ * the row), its P2002-conflict "someone else already committed this
+ * dispatchId" resume path, and the periodic `reapStrandedSends` sweep all
+ * funnel through here, so no two of them can ever call `sendFromNumber` for
+ * the same row concurrently — see dispatch-resumability.test.ts's
+ * concurrent-race and reaper coverage. A claim miss (lease already held and
+ * not yet expired) is a silent no-op: another caller is already handling,
+ * or already handled, this row.
+ */
+async function claimDispatch(messageId: string): Promise<boolean> {
+  const now = new Date();
+  const claim = await prisma.message.updateMany({
+    where: {
+      id: messageId,
+      status: "pending",
+      wamid: null,
+      OR: [{ dispatchLeaseUntil: null }, { dispatchLeaseUntil: { lt: now } }],
+    },
+    data: {
+      dispatchAttempts: { increment: 1 },
+      dispatchLeaseUntil: new Date(now.getTime() + DISPATCH_LEASE_MS),
+    },
+  });
+  return claim.count === 1;
+}
+
+/**
+ * Claims and sends a reply exactly once: on failure this marks the row
+ * terminally "failed" immediately, with no retry — used for the first,
+ * live attempt at a send (fresh creation, or a same-request resume of a
+ * conflicting `dispatchId`), where a thrown error is a genuine response
+ * from `sendFromNumber`, not the crash-mid-flight ambiguity the reaper
+ * exists to resolve. Bounded-retry-with-backoff for the ambiguous case
+ * lives in `reapStrandedSends` instead.
+ */
+async function claimAndSendOnce(
+  messageId: string,
+  content: string,
+  business: Business,
+  phoneNumber: PhoneNumber,
+  from: string,
+  conversationId: string,
+): Promise<void> {
+  if (!(await claimDispatch(messageId))) return;
+
+  try {
+    const wamid = await sendFromNumber(
+      phoneNumber,
+      business.ownerId,
+      from,
+      content,
+    );
+    await prisma.message.update({
+      where: { id: messageId },
+      data: wamid ? { wamid, status: "sent" } : { status: "sent" },
+    });
+  } catch (err) {
+    await logEvent(
+      "error",
+      "whatsapp-send",
+      "sendMessage failed",
+      { error: describeError(err), conversationId },
+      business.id,
+      phoneNumber.id,
+    );
+    await prisma.message.update({
+      where: { id: messageId },
+      data: { status: "failed" },
+    });
+  }
+}
+
+/**
+ * Bounded-retry counterpart of `claimAndSendOnce`, used only by
+ * `reapStrandedSends`. A failure here doesn't necessarily mean the row is
+ * unrecoverable — it might just be a transient WhatsApp API blip on a
+ * message we already don't know the true outcome of — so it retries up to
+ * `MAX_DISPATCH_ATTEMPTS` claims before giving up and marking "failed".
+ * Between attempts, no explicit backoff bookkeeping is needed: the lease
+ * `claimDispatch` sets naturally gates the next reap attempt until it
+ * expires.
+ */
+async function claimAndRetrySend(
+  message: { id: string; content: string; dispatchAttempts: number },
+  business: Business,
+  phoneNumber: PhoneNumber,
+  from: string,
+  conversationId: string,
+): Promise<void> {
+  if (!(await claimDispatch(message.id))) return;
+  const attempts = message.dispatchAttempts + 1;
+
+  try {
+    const wamid = await sendFromNumber(
+      phoneNumber,
+      business.ownerId,
+      from,
+      message.content,
+    );
+    await prisma.message.update({
+      where: { id: message.id },
+      data: wamid ? { wamid, status: "sent" } : { status: "sent" },
+    });
+  } catch (err) {
+    await logEvent(
+      "error",
+      "whatsapp-send",
+      "Reaper resend attempt failed",
+      {
+        error: describeError(err),
+        conversationId,
+        messageId: message.id,
+        attempts,
+      },
+      business.id,
+      phoneNumber.id,
+    );
+    if (attempts >= MAX_DISPATCH_ATTEMPTS) {
+      await prisma.message.update({
+        where: { id: message.id },
+        data: { status: "failed" },
+      });
+    }
+    // Otherwise leave status "pending": the lease claimDispatch just set
+    // gates the next reap attempt until it expires, so this row is retried
+    // on a later drain tick rather than immediately looping.
+  }
+}
+
+/**
+ * Bounded reaper for outbound sends stranded by a crash between
+ * `sendAndPersistReply`'s persistence transaction (which commits
+ * `batchedAt` on the answered customer messages and creates the assistant
+ * row `status: "pending"`) and the network call actually resolving. Once
+ * that transaction commits, those customer messages and that conversation
+ * never look stale again — `doFlush`'s `batchedAt: null` query finds
+ * nothing on a later sweep, so this is the only path that can ever recover
+ * the reply. See design/verify-report's CRITICAL #1 for the full
+ * crash-window analysis.
+ *
+ * Only ever invoked from the unscoped (scheduled/dev-ticker) drain path —
+ * see outbox/drain.ts — never from the inline webhook path, to keep the
+ * webhook's 12s budget free of unrelated stranded-message work.
+ */
+export async function reapStrandedSends(): Promise<void> {
+  const now = new Date();
+  const staleCutoff = new Date(now.getTime() - REAP_STALE_MS);
+
+  const stranded = await prisma.message.findMany({
+    where: {
+      sentBy: "bot",
+      status: "pending",
+      wamid: null,
+      dispatchAttempts: { lt: MAX_DISPATCH_ATTEMPTS },
+      OR: [
+        { dispatchLeaseUntil: { lt: now } },
+        {
+          AND: [
+            { dispatchLeaseUntil: null },
+            { createdAt: { lte: staleCutoff } },
+          ],
+        },
+      ],
+    },
+    include: {
+      conversation: { include: { business: true, phoneNumber: true } },
+    },
+  });
+
+  for (const message of stranded) {
+    const { conversation } = message;
+    if (!conversation) continue;
+    await claimAndRetrySend(
+      message,
+      conversation.business,
+      conversation.phoneNumber,
+      conversation.customerPhone,
+      conversation.id,
+    );
+  }
 }
 
 /**
@@ -262,7 +483,15 @@ function isDispatchIdConflict(err: unknown): boolean {
  * `dispatchId` is the no-double-send guard: if a prior attempt (the inline
  * path, or an earlier sweep tick before its crash) already got this far, the
  * unique constraint on `Message.dispatchId` rejects this transaction with
- * P2002 — that means don't send, not an error to propagate.
+ * P2002. That is not automatically "don't send" — only a prior attempt that
+ * actually reached a terminal state ("sent"/"failed") is a genuine
+ * duplicate. A prior attempt still `status: "pending"` means its
+ * persistence committed but the send itself never finished (a live race, or
+ * a stranded crash) — see `claimAndSendOnce`, which this falls through to.
+ * The actual send/flip-to-terminal logic (and its exclusivity guarantee
+ * against a concurrent claimer) lives in `claimDispatch`/`claimAndSendOnce`,
+ * shared with the periodic `reapStrandedSends` reaper — see CRITICAL #1 in
+ * `sdd/webhook-outbox/verify-report` for why this exists.
  */
 export async function sendAndPersistReply(
   business: Business,
@@ -301,41 +530,46 @@ export async function sendAndPersistReply(
       await logEvent(
         "error",
         "whatsapp-send",
-        "Duplicate dispatch blocked by dispatchId uniqueness — a prior attempt already sent this reply",
+        "Duplicate dispatch blocked by dispatchId uniqueness",
         { conversationId, dispatchId },
         business.id,
         phoneNumber.id,
       );
+
+      // A completed prior attempt ("sent" or terminally "failed") is a
+      // genuine duplicate — nothing to do. But a row that's still
+      // "pending"/unsent means the prior attempt committed its persistence
+      // transaction and never finished sending — it may be racing us right
+      // now, or it may already be stranded by a crash. Either way, "assume
+      // it already sent" was the CRITICAL bug: race to claim and finish it
+      // instead. claimDispatch's lease makes this safe even if the winner
+      // of the original race is mid-send at this exact moment.
+      const existing = await prisma.message.findUnique({
+        where: { dispatchId },
+      });
+      if (existing && existing.status === "pending" && !existing.wamid) {
+        await claimAndSendOnce(
+          existing.id,
+          existing.content,
+          business,
+          phoneNumber,
+          from,
+          conversationId,
+        );
+      }
       return;
     }
     throw err;
   }
 
-  try {
-    const wamid = await sendFromNumber(
-      phoneNumber,
-      business.ownerId,
-      from,
-      reply,
-    );
-    await prisma.message.update({
-      where: { id: outboundMessage.id },
-      data: wamid ? { wamid, status: "sent" } : { status: "sent" },
-    });
-  } catch (err) {
-    await logEvent(
-      "error",
-      "whatsapp-send",
-      "sendMessage failed",
-      { error: describeError(err), conversationId },
-      business.id,
-      phoneNumber.id,
-    );
-    await prisma.message.update({
-      where: { id: outboundMessage.id },
-      data: { status: "failed" },
-    });
-  }
+  await claimAndSendOnce(
+    outboundMessage.id,
+    reply,
+    business,
+    phoneNumber,
+    from,
+    conversationId,
+  );
 }
 
 /**

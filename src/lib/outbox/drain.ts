@@ -1,4 +1,4 @@
-import { processWebhookPayload } from "../message-handler";
+import { processWebhookPayload, reapStrandedSends } from "../message-handler";
 import { sweepDueConversations } from "../reply-window-scheduler";
 import { claimBatch, complete, expireStale, fail } from "./repository";
 
@@ -115,6 +115,13 @@ export async function runDrain(
       });
     }
   } else {
+    // Stranded-send recovery only runs on the unscoped (scheduled/dev
+    // ticker) path, never inline — a stranded row by definition belongs to
+    // some earlier request that already returned, so recovering it can't
+    // improve this request's latency and shouldn't eat into its 12s budget.
+    // See message-handler.ts's reapStrandedSends for the crash window this
+    // closes.
+    await reapStrandedSends();
     await sweepDueConversations();
   }
 

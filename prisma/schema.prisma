@@ -126,19 +126,21 @@ model Conversation {
 }
 
 model Message {
-  id             String       @id @default(cuid())
-  conversationId String
-  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  role           String
-  content        String
-  mediaType      String       @default("text")
-  mediaUrl       String?
-  wamid          String?      @unique
-  sentBy         String       @default("bot") // "bot" | "human" | "customer"
-  status         String       @default("sent") // "sent" | "delivered" | "read" | "failed" | "pending" (bot replies start "pending" until sendFromNumber resolves — see message-handler.ts's sendAndPersistReply)
-  dispatchId     String?      @unique // deterministic send-intent key (sha256 of conversationId + batched message ids) set on bot replies; the unique constraint is the no-double-send guard when the inline path and the sweep race the same conversation — see reply-window-scheduler.ts
-  batchedAt      DateTime? // set by reply-window-scheduler.ts when this customer message is consumed into a batched flush — makes "pending" an explicit per-message marker instead of a createdAt-vs-lastBotMessage comparison, which can drop a message when an unrelated overlapping flush's bot reply lands with a later timestamp
-  createdAt      DateTime     @default(now())
+  id                 String       @id @default(cuid())
+  conversationId     String
+  conversation       Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  role               String
+  content            String
+  mediaType          String       @default("text")
+  mediaUrl           String?
+  wamid              String?      @unique
+  sentBy             String       @default("bot") // "bot" | "human" | "customer"
+  status             String       @default("sent") // "sent" | "delivered" | "read" | "failed" | "pending" (bot replies start "pending" until sendFromNumber resolves — see message-handler.ts's sendAndPersistReply)
+  dispatchId         String?      @unique // deterministic send-intent key (sha256 of conversationId + batched message ids) set on bot replies; the unique constraint is the no-double-send guard when the inline path and the sweep race the same conversation — see reply-window-scheduler.ts
+  batchedAt          DateTime? // set by reply-window-scheduler.ts when this customer message is consumed into a batched flush — makes "pending" an explicit per-message marker instead of a createdAt-vs-lastBotMessage comparison, which can drop a message when an unrelated overlapping flush's bot reply lands with a later timestamp
+  dispatchAttempts   Int          @default(0) // bounded retry counter for message-handler.ts's claimDispatch compare-and-set claim; incremented on every claim (fresh send, a P2002-conflict resume, or the periodic reaper) — mirrors WebhookEvent.maxAttempts's bounded-retry convention (outbox/repository.ts), stops a permanently-failing send from being reaped forever
+  dispatchLeaseUntil DateTime? // set by claimDispatch while a send attempt is in flight; same lease pattern as Conversation.flushLeaseUntil / WebhookEvent.leaseExpiresAt — makes claiming a "status: pending" row exclusive, so a live send, a racing P2002-conflict resume, and the periodic reaper (message-handler.ts's reapStrandedSends) can never call sendFromNumber for the same row twice; its natural expiry also doubles as backoff spacing between reap attempts
+  createdAt          DateTime     @default(now())
 
   @@index([conversationId, createdAt])
 }
