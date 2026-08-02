@@ -42,6 +42,7 @@ export default defineConfig({
         "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiJ9.test-anon-key",
       SUPABASE_SERVICE_ROLE_KEY:
         "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoic2VydmljZV9yb2xlIn0.test-service-role-key",
+      INTERNAL_DRAIN_TOKEN: "test-internal-drain-token",
     },
   },
 });

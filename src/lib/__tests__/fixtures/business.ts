@@ -1,4 +1,6 @@
-import type { Business, PhoneNumber } from "@prisma/client";
+import type { Business, PhoneNumber, WebhookEvent } from "@prisma/client";
+import { Prisma } from "@prisma/client";
+import { prisma } from "@/lib/db";
 import { TEST_PHONE_NUMBER_ID } from "./webhook-payload";
 
 /**
@@ -48,4 +50,53 @@ export function buildPhoneNumber(
     updatedAt: new Date(),
     ...overrides,
   };
+}
+
+/**
+ * Real-DB `WebhookEvent` row for `src/lib/outbox/repository.ts` tests.
+ * Every field is overridable — lease-expiry and claim-ordering tests need to
+ * write `nextRunAt`/`leaseExpiresAt`/`attempts`/`status` directly rather than
+ * only through `enqueue`/`claimBatch`.
+ */
+export async function createTestWebhookEvent(
+  overrides: Partial<{
+    payload: Prisma.InputJsonValue;
+    status: WebhookEvent["status"];
+    attempts: number;
+    maxAttempts: number;
+    nextRunAt: Date;
+    leaseExpiresAt: Date | null;
+    lockedBy: string | null;
+    lastError: string | null;
+  }> = {},
+): Promise<WebhookEvent> {
+  return prisma.webhookEvent.create({
+    data: {
+      payload: overrides.payload ?? { test: true },
+      ...(overrides.status !== undefined && { status: overrides.status }),
+      ...(overrides.attempts !== undefined && { attempts: overrides.attempts }),
+      ...(overrides.maxAttempts !== undefined && {
+        maxAttempts: overrides.maxAttempts,
+      }),
+      ...(overrides.nextRunAt !== undefined && {
+        nextRunAt: overrides.nextRunAt,
+      }),
+      ...(overrides.leaseExpiresAt !== undefined && {
+        leaseExpiresAt: overrides.leaseExpiresAt,
+      }),
+      ...(overrides.lockedBy !== undefined && { lockedBy: overrides.lockedBy }),
+      ...(overrides.lastError !== undefined && {
+        lastError: overrides.lastError,
+      }),
+    },
+  });
+}
+
+/**
+ * `WebhookEvent` has no FK to `Business`/`User`, so
+ * `cleanupOwnershipFixtures` (`ownership.ts:84-90`) does not cascade to it —
+ * tests that create rows via `createTestWebhookEvent` must clean up here.
+ */
+export async function cleanupWebhookEvents(ids: string[]): Promise<void> {
+  await prisma.webhookEvent.deleteMany({ where: { id: { in: ids } } });
 }
