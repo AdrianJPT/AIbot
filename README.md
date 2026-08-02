@@ -26,7 +26,7 @@ SUPABASE_SERVICE_ROLE_KEY=...
 APP_ENCRYPTION_KEY=base64_de_32_bytes
 ```
 
-`NEXT_PUBLIC_SITE_URL` debe ser el dominio público real de la app (el de Railway en prod). Los redirects de auth (`/auth/callback`, `/auth/logout`, middleware) lo usan en vez de la URL del request — detrás del proxy de Railway, `req.nextUrl.origin` resuelve a la dirección interna del contenedor, no al dominio público.
+`NEXT_PUBLIC_SITE_URL` debe ser el dominio público real de la app (el de Railway en prod). Los redirects de auth (`/auth/callback`, `/auth/logout`, el proxy) lo usan en vez de la URL del request — detrás del proxy de Railway, `req.nextUrl.origin` resuelve a la dirección interna del contenedor, no al dominio público.
 
 Cada **negocio** guarda su propio `phoneNumberId` y `whatsappToken` en la base de datos (panel **Negocios**).
 
@@ -157,7 +157,7 @@ Levanta el dev server por su cuenta (`webServer` en `playwright.config.ts`) y ne
 
 Supabase Auth por magic link. Los clientes se crean por invitación desde **Admin > Clientes** (`POST /api/admin/clients`), que envía el mail y precrea la fila `User`. Rutas involucradas: `/login`, `/auth/callback`, `/auth/logout`.
 
-`src/middleware.ts` refresca la cookie de sesión en cada request y redirige a `/login` todo lo no autenticado. Su `matcher` excluye únicamente `/login`, `/auth/*`, `/api/webhook`, `/api/health` y assets estáticos — el resto del panel y de la API queda cerrado por defecto.
+`src/proxy.ts` refresca la cookie de sesión en cada request y redirige a `/login` todo lo no autenticado. (Es la convención que Next 16 renombró desde `middleware`: mismo comportamiento, mismo `matcher`, archivo y export nuevos.) Su `matcher` excluye únicamente `/login`, `/auth/*`, `/api/webhook`, `/api/health` y assets estáticos — el resto del panel y de la API queda cerrado por defecto.
 
 ### Autorización
 
@@ -173,7 +173,7 @@ Las API keys de cada cliente se guardan cifradas con AES-256-GCM usando `APP_ENC
 
 ### Webhook
 
-`POST /api/webhook` queda fuera del middleware a propósito: lo llama Meta, no un usuario con sesión. Se valida con HMAC-SHA256 del body crudo contra `WHATSAPP_APP_SECRET`, comparado con `timingSafeEqual`. El `GET` de verificación compara `hub.verify_token` contra `WEBHOOK_VERIFY_TOKEN`.
+`POST /api/webhook` queda fuera del proxy a propósito: lo llama Meta, no un usuario con sesión. Se valida con HMAC-SHA256 del body crudo contra `WHATSAPP_APP_SECRET`, comparado con `timingSafeEqual`. El `GET` de verificación compara `hub.verify_token` contra `WEBHOOK_VERIFY_TOKEN`.
 
 ### Healthcheck
 

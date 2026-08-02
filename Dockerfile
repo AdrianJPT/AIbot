@@ -20,7 +20,7 @@ ARG NEXT_PUBLIC_SUPABASE_ANON_KEY
 ARG SUPABASE_SERVICE_ROLE_KEY
 ARG APP_ENCRYPTION_KEY
 # Next statically replaces NEXT_PUBLIC_* at build time, including in server
-# and middleware bundles. site-url.ts feeds middleware.ts and the auth routes,
+# and proxy bundles. site-url.ts feeds proxy.ts and the auth routes,
 # so building without this bakes `undefined` into those redirects and
 # `new URL("/login", undefined)` throws at runtime. Railway injected it
 # implicitly; Cloud Run passes build args explicitly, so declare it here.
