@@ -1,6 +1,6 @@
 import { defineConfig } from "vitest/config";
 import path from "node:path";
-import { TEST_DATABASE_URL } from "./vitest.global-setup";
+import { TEST_DATABASE_URL, TEST_WORKER_COUNT } from "./vitest.global-setup";
 
 export default defineConfig({
   resolve: {
@@ -19,14 +19,17 @@ export default defineConfig({
       "**/.claude/**",
       "**/e2e/**",
     ],
-    // Verifies the test database is up and applies migrations before any test
-    // runs. See docker-compose.test.yml / `npm run test:db:up`.
+    // Verifies the test database is up and migrates one schema per worker
+    // before any test runs. See docker-compose.test.yml / `npm run test:db:up`.
     globalSetup: "./vitest.global-setup.ts",
-    // Route tests hit a shared Postgres. Admin-scoped queries read across
-    // every owner, so fixtures created/deleted by a concurrently running
-    // test file race with them (Prisma: "Field business is required to
-    // return data, got null"). Run test files sequentially.
-    fileParallelism: false,
+    // Repoints each worker at its own schema before any PrismaClient is
+    // constructed. This is what makes the parallelism below safe.
+    setupFiles: ["./vitest.setup-worker.ts"],
+    // Files run in parallel, each against an isolated Postgres schema, so
+    // concurrent fixtures are invisible to one another. `maxWorkers` is
+    // pinned because globalSetup migrates exactly this many schemas.
+    fileParallelism: true,
+    maxWorkers: TEST_WORKER_COUNT,
     coverage: {
       provider: "v8",
     },
