@@ -22,10 +22,12 @@ export default defineConfig({
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
     env: {
-      // `src/lib/env.ts` fails fast without this and the suite is the thing
-      // that decides which origin it drives, so pin it here instead of
-      // depending on whatever a given developer has in `.env`.
+      // Everything `src/lib/env.ts` marks required that a developer's local
+      // `.env` may not carry. The suite decides which origin it drives, and
+      // the drain token is only ever used by the app talking to itself, so
+      // both are pinned here rather than depending on local setup.
       NEXT_PUBLIC_SITE_URL: BASE_URL,
+      INTERNAL_DRAIN_TOKEN: "test-internal-drain-token",
     },
   },
 });

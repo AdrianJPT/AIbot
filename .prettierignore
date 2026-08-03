@@ -1,6 +1,10 @@
 # `.claude/worktrees/*` holds throwaway checkouts with their own build
 # output — never reformat them.
 .claude
+# Local SDD tooling state. Ignored via a *global* gitignore, so git never
+# sees it but Prettier does — without this entry `format:check` fails for
+# anyone who has the tooling installed.
+.atl
 .next
 coverage
 node_modules

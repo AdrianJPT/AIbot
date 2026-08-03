@@ -206,7 +206,13 @@ describe("outbox/repository", () => {
         await clientA.$disconnect();
         await clientB.$disconnect();
       }
-    });
+      // Generous timeout on purpose: the two `new PrismaClient()` above each
+      // spawn their own query engine, and the suite now runs files in
+      // parallel (vitest.config.ts), so that startup competes for CPU with
+      // three other workers. The default 5s was calibrated for a serial run
+      // and times out here roughly once every 25 runs. Nothing about the
+      // assertions is timing-dependent — only the engine boot is.
+    }, 30_000);
   });
 });
 
