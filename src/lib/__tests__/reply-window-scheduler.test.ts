@@ -201,8 +201,17 @@ describe("sweepDueConversations", () => {
     expect(calledConversationId).toBe("conv_1");
     expect(calledContent).toContain("hola");
     expect(calledContent).toContain("quiero una reserva");
-    const parsed = JSON.parse(calledContent.slice(calledContent.indexOf("[")));
-    expect(parsed).toEqual([
+
+    // The batch payload is wrapped in the untrusted-content fence (see
+    // prompt.ts's renderUntrustedBlock), so the framing instruction stays
+    // outside it and the customer-authored array sits inside. Pull the array out
+    // by the fence markers rather than by the first "[", which now belongs to
+    // the opening marker itself.
+    const fence = calledContent.match(
+      /\[INICIO MENSAJES DEL CLIENTE ([0-9a-f]{16})\]\n([\s\S]*)\n\[FIN MENSAJES DEL CLIENTE \1\]/,
+    );
+    expect(fence).not.toBeNull();
+    expect(JSON.parse(fence![2])).toEqual([
       { message: "hola", n: 1, time: "2026-01-01T00:00:01.000Z" },
       { message: "quiero una reserva", n: 2, time: "2026-01-01T00:00:02.000Z" },
     ]);
