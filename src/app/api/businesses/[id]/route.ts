@@ -6,7 +6,10 @@ import { businessScope } from "@/lib/scope";
 import { ensureWhatsappCredential } from "@/lib/whatsapp";
 import { flattenBusinessPhoneNumber } from "@/lib/business-phone-compat";
 import { ownsCredentials } from "@/lib/credentials/usage";
-import { clampReplyWindowMs } from "@/lib/businesses/create";
+import {
+  clampReplyWindowMs,
+  normalizeKnowledgeDoc,
+} from "@/lib/businesses/create";
 
 // GET stays open to any authenticated caller (scoped by businessScope).
 export async function GET(
@@ -114,6 +117,11 @@ export async function PATCH(
           welcomeMessage: body.welcomeMessage,
         }),
         ...(body.businessInfo != null && { businessInfo: body.businessInfo }),
+        // `in` rather than `!= null`, so an explicit null or "" clears the
+        // document. `!= null` would make it impossible to turn back off.
+        ...("knowledgeDoc" in body && {
+          knowledgeDoc: normalizeKnowledgeDoc(body.knowledgeDoc),
+        }),
         ...("model" in body && { model: body.model || null }),
         ...("visionModel" in body && { visionModel: body.visionModel || null }),
         ...("audioModel" in body && { audioModel: body.audioModel || null }),

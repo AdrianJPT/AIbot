@@ -71,6 +71,7 @@ export function BusinessFormContainer({
       systemPrompt: fd.get("systemPrompt") as string,
       welcomeMessage: fd.get("welcomeMessage") as string,
       businessInfo,
+      knowledgeDoc: (fd.get("knowledgeDoc") as string) ?? "",
       // Empty means "inherit the admin default" — the API converts "" to
       // null, resolveModels() falls back to AppConfig at call time.
       model: fd.get("model") as string,

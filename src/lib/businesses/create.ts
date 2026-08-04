@@ -17,6 +17,44 @@ export function clampReplyWindowMs(value: unknown): number {
   return Math.max(0, Math.min(MAX_REPLY_WINDOW_MS, Math.trunc(n)));
 }
 
+/**
+ * Upper bound on the knowledge document, in characters — roughly 5k tokens.
+ *
+ * Characters rather than lines: one line can hold five words or five hundred, so
+ * a line count tells you nothing about what a call will cost. The document is
+ * admin-authored and therefore trusted, so this is not a security bound; it stops
+ * a pasted 300-page PDF from being billed on every single message.
+ */
+export const MAX_KNOWLEDGE_DOC_CHARS = 20_000;
+
+/**
+ * Normalizes a knowledge document to `string | null`.
+ *
+ * Whitespace-only input becomes null rather than an empty document, so clearing
+ * the textarea in the admin form genuinely turns the feature off instead of
+ * prepending an empty header block. Truncation here is a backstop: the form's
+ * `maxLength` shows the admin the limit before they hit it, in the same
+ * belt-and-braces arrangement as `replyWindowSeconds`'s min/max plus
+ * `clampReplyWindowMs`. Both server-side write paths go through this one helper.
+ */
+export function normalizeKnowledgeDoc(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  if (trimmed.length <= MAX_KNOWLEDGE_DOC_CHARS) return trimmed;
+
+  const cut = trimmed.slice(0, MAX_KNOWLEDGE_DOC_CHARS);
+  // `slice` counts UTF-16 code units, so the cap can land between the two halves
+  // of a surrogate pair — every emoji, and much of CJK's extended range. Keeping
+  // the orphaned high half would persist invalid UTF-16, and buildSystemPrompt
+  // interpolates the document verbatim, so it would travel all the way to the
+  // provider. Dropping it costs one character at a boundary the admin cannot see
+  // anyway.
+  const lastUnit = cut.charCodeAt(cut.length - 1);
+  const endsOnLoneHighSurrogate = lastUnit >= 0xd800 && lastUnit <= 0xdbff;
+  return endsOnLoneHighSurrogate ? cut.slice(0, -1) : cut;
+}
+
 export type CreateBusinessInput = {
   name: string;
   phoneNumberId?: string | null;
@@ -25,6 +63,7 @@ export type CreateBusinessInput = {
   systemPrompt: string;
   welcomeMessage: string;
   businessInfo?: unknown;
+  knowledgeDoc?: string | null;
   model?: string | null;
   visionModel?: string | null;
   audioModel?: string | null;
@@ -86,6 +125,7 @@ export async function createBusinessForOwner(
       systemPrompt: input.systemPrompt,
       welcomeMessage: input.welcomeMessage,
       businessInfo: input.businessInfo ?? {},
+      knowledgeDoc: normalizeKnowledgeDoc(input.knowledgeDoc),
       model: input.model || null,
       visionModel: input.visionModel || null,
       audioModel: input.audioModel || null,

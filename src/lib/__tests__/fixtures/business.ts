@@ -17,6 +17,7 @@ export function buildBusiness(overrides: Partial<Business> = {}): Business {
     systemPrompt: "You are a helpful assistant for {businessName}.",
     welcomeMessage: "Welcome to {businessName}",
     businessInfo: {},
+    knowledgeDoc: null,
     model: "gpt-4o-mini",
     visionModel: "gpt-4o-mini",
     audioModel: "whisper-1",
