@@ -9,6 +9,12 @@ import {
 } from "./message-handler";
 import { logEvent } from "./log";
 import { renderUntrustedBlock, sanitizeUntrusted } from "./prompt";
+import { callWithAiCredential, resolveModels } from "./ai/resolve";
+import {
+  readConversationSummary,
+  renderConversationSummary,
+  summarizeConversation,
+} from "./ai/summarize";
 
 /**
  * How long a conversation's dispatch claim (`flushLeaseUntil`) stays held
@@ -17,8 +23,25 @@ import { renderUntrustedBlock, sanitizeUntrusted } from "./prompt";
  * outbox's 90s lease (repository.ts): parsing already happened at ingest, so
  * a flush is only history load + AI call + send. 2x headroom over the
  * credential-chain failover worst case (~30s, see design §2).
+ *
+ * That "one AI call" is load-bearing, so keep it true. Summarization is a second
+ * AI call and it deliberately runs *outside* this lease, in flushDueConversation
+ * after the release — see the note there. Moving it back inside would silently
+ * invalidate this number, and a slow provider could then let the lease expire
+ * while the flush is still running, which is the concurrent double-flush the
+ * lease exists to prevent. If you ever add another awaited call to the flush
+ * path, either keep it outside the lease or raise this constant on purpose.
  */
 const FLUSH_LEASE_MS = 60_000;
+
+/**
+ * Most messages fed to the summarizer in one call.
+ *
+ * Only binds on a conversation's first summarization, which has no watermark to
+ * start from and would otherwise send its whole history at once. Afterwards the
+ * watermark keeps each transcript to whatever arrived since the last one.
+ */
+const MAX_SUMMARY_TRANSCRIPT_MESSAGES = 100;
 
 /**
  * Framing string prepended to the batched JSON payload so the model treats
@@ -104,9 +127,10 @@ async function flushDueConversation(
   });
   if (claim.count !== 1) return;
 
+  let sent: DueConversation | null = null;
   let threw = false;
   try {
-    await doFlush(conversation.id);
+    sent = await doFlush(conversation.id);
   } catch (err) {
     threw = true;
     throw err;
@@ -135,6 +159,32 @@ async function flushDueConversation(
       }
     }
   }
+
+  // Outside the lease, and after the reply is out. Both matter.
+  //
+  // FLUSH_LEASE_MS is 60s on the stated basis that a flush is history load + one
+  // AI call + send. Summarizing inside the lease would quietly make that false by
+  // adding a second AI call, and a slow provider could then let the lease expire
+  // while this flush is still genuinely running — which is exactly the concurrent
+  // double-flush the lease exists to prevent. Doing it after the release keeps the
+  // 60s justification honest.
+  //
+  // Awaited rather than fire-and-forget: the customer already has their reply, so
+  // there is no latency to save, and on a platform that can stop an instance once
+  // the request returns, awaiting is what guarantees the work happens at all.
+  if (sent) {
+    try {
+      await updateRollingSummary(sent.business, sent);
+    } catch (err) {
+      await logEvent(
+        "error",
+        "ai-summary",
+        "Rolling summary update failed after a successful reply",
+        { error: err instanceof Error ? err.message : String(err) },
+        sent.business.id,
+      );
+    }
+  }
 }
 
 /**
@@ -144,7 +194,9 @@ async function flushDueConversation(
  * only a genuinely unexpected failure should throw out of here, since a
  * throw leaves `pendingFlushAt` set for a retry (see flushDueConversation).
  */
-async function doFlush(conversationId: string): Promise<void> {
+async function doFlush(
+  conversationId: string,
+): Promise<DueConversation | null> {
   // Re-read fresh rather than trusting the row the sweep originally
   // queried — status may have changed to "handed_off" or the
   // business/number may have been deactivated in the time between the
@@ -153,9 +205,9 @@ async function doFlush(conversationId: string): Promise<void> {
     where: { id: conversationId },
     include: { business: true, phoneNumber: true },
   });
-  if (!fresh) return;
-  if (fresh.status === "handed_off") return;
-  if (!fresh.business.isActive || !fresh.phoneNumber.isActive) return;
+  if (!fresh) return null;
+  if (fresh.status === "handed_off") return null;
+  if (!fresh.business.isActive || !fresh.phoneNumber.isActive) return null;
 
   const { business, phoneNumber } = fresh;
 
@@ -180,7 +232,7 @@ async function doFlush(conversationId: string): Promise<void> {
     },
     orderBy: { createdAt: "asc" },
   });
-  if (pendingMessages.length === 0) return;
+  if (pendingMessages.length === 0) return null;
 
   const batchedIds = pendingMessages.map((m) => m.id);
   const dispatchId = computeDispatchId(fresh.id, batchedIds);
@@ -195,7 +247,7 @@ async function doFlush(conversationId: string): Promise<void> {
       dispatchId,
       batchedIds,
     );
-    return;
+    return null;
   }
 
   // Same per-conversation abuse throttle as the (now-removed) immediate-reply
@@ -204,7 +256,7 @@ async function doFlush(conversationId: string): Promise<void> {
   // marked batched) either way; only the AI call/reply is skipped.
   if (await isRateLimited(fresh.id, business.id)) {
     await markBatched(batchedIds);
-    return;
+    return null;
   }
 
   // BATCH_INSTRUCTION is our own framing and stays outside the fence; every
@@ -225,8 +277,8 @@ async function doFlush(conversationId: string): Promise<void> {
       ),
     );
 
-  const history = await loadHistoryBefore(
-    fresh.id,
+  const history = await loadHistoryFor(
+    fresh,
     business.maxHistoryMessages,
     pendingMessages[0].createdAt,
   );
@@ -239,7 +291,7 @@ async function doFlush(conversationId: string): Promise<void> {
   );
   if (reply === null) {
     await markBatched(batchedIds);
-    return;
+    return null;
   }
 
   await sendAndPersistReply(
@@ -251,6 +303,10 @@ async function doFlush(conversationId: string): Promise<void> {
     dispatchId,
     batchedIds,
   );
+
+  // Summarization deliberately does NOT happen here. It runs in
+  // flushDueConversation once the lease is released — see the note there.
+  return fresh;
 }
 
 /**
@@ -265,18 +321,162 @@ async function markBatched(messageIds: string[]): Promise<void> {
   });
 }
 
-async function loadHistoryBefore(
-  conversationId: string,
+/**
+ * Loads the history for one flush: the rolling summary, when there is one, plus
+ * the raw messages that came after it.
+ *
+ * Without a usable summary this is exactly the previous behaviour — the last
+ * `max` raw messages — which is also the fallback whenever `summaryEnabled` is
+ * off, the stored value fails re-validation, or no summary has been generated
+ * yet. Degrading to raw history is always correct, just more forgetful, so every
+ * failure path lands here rather than replying with less context.
+ *
+ * The `take: max` cap stays on the tail even with a summary present. The summary
+ * exists to remember facts older than the window, not to widen it.
+ */
+async function loadHistoryFor(
+  conversation: DueConversation,
   max: number,
   before: Date,
 ): Promise<ChatCompletionMessageParam[]> {
+  const summary = conversation.business.summaryEnabled
+    ? readConversationSummary(conversation)
+    : null;
+  const since = summary ? conversation.summarizedThroughAt : null;
+
   const rows = await prisma.message.findMany({
-    where: { conversationId, createdAt: { lt: before } },
+    where: {
+      conversationId: conversation.id,
+      createdAt: since ? { lt: before, gt: since } : { lt: before },
+    },
     orderBy: { createdAt: "desc" },
     take: max,
   });
-  return rows.reverse().map((m) => ({
+
+  const history: ChatCompletionMessageParam[] = rows.reverse().map((m) => ({
     role: m.role as "user" | "assistant",
     content: m.content,
   }));
+
+  if (!summary) return history;
+
+  // The summary is model-generated text derived from customer messages, so it is
+  // untrusted no matter how structured it is: it goes in the user role, inside
+  // the fence, exactly like a batched message. This is the vector the trust
+  // boundary was built for — a summary is replayed on every later flush, so an
+  // instruction that survived into it would otherwise get a fresh chance to be
+  // obeyed every single time.
+  history.unshift({
+    role: "user",
+    content: renderUntrustedBlock(
+      "RESUMEN DE LA CONVERSACIÓN",
+      renderConversationSummary(summary),
+    ),
+  });
+  return history;
+}
+
+/**
+ * Regenerates the rolling summary, if enough new messages have accumulated.
+ *
+ * Called after the reply has been sent, on purpose. The customer is not waiting
+ * on this, and the flush lease no longer matters here either: `sendAndPersistReply`
+ * has already claimed its `dispatchId`, so even if the lease expires mid-summary
+ * the unique constraint makes a second send impossible. That is what lets this be
+ * a plain `await` — the work is guaranteed to run rather than racing a container
+ * shutdown, and it still cannot delay or double a reply.
+ *
+ * Every failure is swallowed after logging. A conversation that misses a summary
+ * simply keeps using raw history, which is the same state it was in before.
+ */
+async function updateRollingSummary(
+  business: Business,
+  conversation: DueConversation,
+): Promise<void> {
+  if (!business.summaryEnabled) return;
+
+  const since = conversation.summarizedThroughAt;
+  // Oldest-first from the watermark, capped.
+  //
+  // Taking the NEWEST N instead would leave a hole, and this is the subtle part.
+  // Summarization runs after this flush's batch and its reply are persisted, so a
+  // newest-N window sits further forward in the table than the tail the reply was
+  // actually built from. The messages in between would then be in neither place:
+  // absent from this summary, and — once the watermark advances past them —
+  // excluded from every future raw tail as well. Silently unrecoverable.
+  //
+  // Oldest-first cannot leave a hole, because the watermark only ever advances
+  // over messages this transcript actually contained. A backlog is summarized
+  // incrementally across flushes rather than skipped once, which is slower to
+  // catch up and never loses anything.
+  const rows = await prisma.message.findMany({
+    where: {
+      conversationId: conversation.id,
+      ...(since ? { createdAt: { gt: since } } : {}),
+    },
+    orderBy: { createdAt: "asc" },
+    take: MAX_SUMMARY_TRANSCRIPT_MESSAGES,
+  });
+
+  // Clamped, because summaryEveryNMessages is an unconstrained Int: at 0 or
+  // negative the comparison below would never be true, so every single flush
+  // would pay for a summarization call — the exact opposite of a cadence.
+  const everyN = Math.max(1, business.summaryEveryNMessages);
+  if (rows.length === 0 || rows.length < everyN) return;
+
+  const transcript = rows
+    .map(
+      (m) =>
+        `${m.sentBy === "customer" ? "cliente" : "bot"}: ${sanitizeUntrusted(m.content)}`,
+    )
+    .join("\n");
+  // The newest message THIS transcript covered — not the newest in the table.
+  // That distinction is the whole no-hole guarantee.
+  const newestAt = rows[rows.length - 1].createdAt;
+
+  const { chatModel } = await resolveModels(business);
+  const summary = await callWithAiCredential(business, (client) =>
+    summarizeConversation(
+      client,
+      chatModel,
+      transcript,
+      readConversationSummary(conversation),
+    ),
+  );
+
+  if (!summary) {
+    await logEvent(
+      "warn",
+      "ai-summary",
+      "Summarization produced nothing usable, keeping raw history",
+      { conversationId: conversation.id, messages: rows.length },
+      business.id,
+    );
+    return;
+  }
+
+  // Monotonic compare-and-set. Two flushes can overlap, and the loser must not
+  // drag the watermark backwards — that would re-summarize messages already
+  // covered and, worse, make the tail query hide messages the older summary does
+  // not describe.
+  const moved = await prisma.conversation.updateMany({
+    where: {
+      id: conversation.id,
+      OR: [
+        { summarizedThroughAt: null },
+        { summarizedThroughAt: { lt: newestAt } },
+      ],
+    },
+    data: { summary, summarizedThroughAt: newestAt },
+  });
+
+  if (moved.count === 0) {
+    await logEvent(
+      "info",
+      "ai-summary",
+      "Discarded a stale summary: another flush had already advanced past it",
+      { conversationId: conversation.id, newestAt },
+      business.id,
+    );
+  }
 }
