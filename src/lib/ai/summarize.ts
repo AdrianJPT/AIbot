@@ -121,16 +121,41 @@ export function validateConversationSummary(
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
   const obj = raw as Record<string, unknown>;
 
-  const summary: ConversationSummary = {
-    customerName: cleanString(obj.customerName, CAPS.customerName),
-    preferences: cleanStringArray(obj.preferences, CAPS.preferences),
-    commitments: cleanStringArray(obj.commitments, CAPS.commitments),
-    openItems: cleanStringArray(obj.openItems, CAPS.openItems),
-    facts: cleanStringArray(obj.facts, CAPS.facts),
-    notes: cleanString(obj.notes, CAPS.notes),
-  };
+  // The try/catch is what makes the "never throws" promise above actually true.
+  // Reading a property can execute code: a value reaching here from stored JSONB
+  // rather than from JSON.parse could carry a throwing getter, and the callers
+  // are read paths in the middle of answering a customer.
+  try {
+    const summary: ConversationSummary = {
+      customerName: cleanString(obj.customerName, CAPS.customerName),
+      preferences: cleanStringArray(obj.preferences, CAPS.preferences),
+      commitments: cleanStringArray(obj.commitments, CAPS.commitments),
+      openItems: cleanStringArray(obj.openItems, CAPS.openItems),
+      facts: cleanStringArray(obj.facts, CAPS.facts),
+      notes: cleanString(obj.notes, CAPS.notes),
+    };
 
-  return isEmptySummary(summary) ? null : summary;
+    return isEmptySummary(summary) ? null : summary;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Reads a conversation's stored summary. **The only sanctioned way to get a
+ * `ConversationSummary` out of the database.**
+ *
+ * Prisma types the column as `Json`, so the type system cannot tell a well-formed
+ * summary from a row that predates a schema change, was written by hand, or was
+ * left behind by an older deploy. Routing every read through one named function
+ * makes re-validation something you have to actively bypass rather than something
+ * each caller has to remember — the same reasoning as the `SystemPrompt` brand in
+ * prompt.ts, one level less strict because Prisma hands back a plain `Json`.
+ */
+export function readConversationSummary(conversation: {
+  summary: unknown;
+}): ConversationSummary | null {
+  return validateConversationSummary(conversation.summary);
 }
 
 export function isEmptySummary(summary: ConversationSummary): boolean {
