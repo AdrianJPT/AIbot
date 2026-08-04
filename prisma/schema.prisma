@@ -143,6 +143,18 @@ model Message {
   createdAt          DateTime     @default(now())
 
   @@index([conversationId, createdAt])
+  // Serves both the flush-ceiling anchor lookup (message-handler.ts's
+  // findOldestUnbatchedAt) and doFlush's pendingMessages query
+  // (reply-window-scheduler.ts): both filter conversationId + sentBy +
+  // batchedAt IS NULL and order by createdAt, so leading with the three
+  // equality/null quals leaves createdAt pre-ordered and the anchor is a
+  // LIMIT 1 with no sort. [conversationId, createdAt] above cannot serve them —
+  // batchedAt is absent from it, so a forward scan skips every already-answered
+  // message in the conversation first, i.e. O(conversation length) on the
+  // webhook hot path. A partial index (WHERE "batchedAt" IS NULL) would be
+  // smaller, but Prisma 5.22 cannot express a predicate in @@index and raw SQL
+  // for it would show up as permanent `migrate diff` drift.
+  @@index([conversationId, sentBy, batchedAt, createdAt])
 }
 
 model Appointment {
