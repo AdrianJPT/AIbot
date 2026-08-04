@@ -3,6 +3,7 @@ import { ConversationThreadContainer } from "@/features/conversations/containers
 import { prisma } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
 import { conversationScope } from "@/lib/scope";
+import type { ConversationSummaryView } from "@/features/conversations/types";
 
 const MESSAGES_PAGE_SIZE = 50;
 
@@ -38,6 +39,13 @@ export default async function ConversationDetailPage({
         customerName: conversation.customerName,
         nickname: conversation.nickname,
         status: conversation.status,
+        // Prisma types the column as Json, so it is cast to the loose view shape
+        // rather than the server's validated ConversationSummary — the client
+        // cannot import that validator (it reaches node:crypto through
+        // prompt.ts), so SummaryPanel renders each field defensively instead.
+        summary: conversation.summary as ConversationSummaryView | null,
+        summarizedThroughAt:
+          conversation.summarizedThroughAt?.toISOString() ?? null,
         business: conversation.business,
       }}
       initialMessages={{
