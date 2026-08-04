@@ -13,6 +13,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { AppointmentsPanel } from "@/features/conversations/components/appointments-panel";
 import { HandoffToggle } from "@/features/conversations/components/handoff-toggle";
+import { SummaryPanel } from "@/features/conversations/components/summary-panel";
 import {
   MessageBubble,
   type RenderableMessage,
@@ -41,6 +42,8 @@ export function ConversationThread({
   onNicknameChange,
   onDelete,
   deleting,
+  onRegenerateSummary,
+  regeneratingSummary,
 }: {
   conversation: ConversationDetail;
   messages: RenderableMessage[];
@@ -56,6 +59,8 @@ export function ConversationThread({
   onNicknameChange: (nickname: string) => void;
   onDelete: () => void;
   deleting: boolean;
+  onRegenerateSummary: () => void;
+  regeneratingSummary: boolean;
 }) {
   const [editingName, setEditingName] = useState(false);
   const [nameDraft, setNameDraft] = useState("");
@@ -162,6 +167,12 @@ export function ConversationThread({
             {conversation.customerPhone} · {conversation.business.name}
           </div>
         </div>
+        <SummaryPanel
+          summary={conversation.summary}
+          summarizedThroughAt={conversation.summarizedThroughAt}
+          onRegenerate={onRegenerateSummary}
+          loading={regeneratingSummary}
+        />
         <AppointmentsPanel conversationId={conversation.id} />
         <a
           href={`/api/conversations/${conversation.id}/export`}

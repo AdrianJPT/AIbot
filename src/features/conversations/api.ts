@@ -56,6 +56,15 @@ export function setConversationNickname(id: string, nickname: string) {
   });
 }
 
+/**
+ * Clears the rolling summary and its watermark. The next flush past the cadence
+ * threshold rebuilds one from the raw messages, which is why the button that
+ * calls this reads "Regenerar" rather than "Borrar".
+ */
+export function clearConversationSummary(id: string) {
+  return request(`/api/conversations/${id}/summary`, { method: "DELETE" });
+}
+
 export function deleteConversation(id: string) {
   return request(`/api/conversations/${id}`, { method: "DELETE" });
 }

@@ -20,12 +20,33 @@ export type ConversationListItem = {
   lastMessage: ConversationMessage | null;
 };
 
+/**
+ * The stored rolling summary, as it arrives over JSON.
+ *
+ * Every field is optional here on purpose. The server validates and caps the
+ * summary on write (src/lib/ai/summarize.ts), but the column is Prisma `Json`, so
+ * a row can predate a schema change or have been written by hand. The client
+ * cannot reuse the server validator — it reaches `node:crypto` through
+ * `src/lib/prompt.ts` — so the display layer renders defensively instead of
+ * trusting a shape it cannot verify.
+ */
+export type ConversationSummaryView = {
+  customerName?: string | null;
+  preferences?: string[];
+  commitments?: string[];
+  openItems?: string[];
+  facts?: string[];
+  notes?: string | null;
+};
+
 export type ConversationDetail = {
   id: string;
   customerPhone: string;
   customerName: string | null;
   nickname: string | null;
   status: string;
+  summary: ConversationSummaryView | null;
+  summarizedThroughAt: string | null;
   business: { id: string; name: string };
 };
 

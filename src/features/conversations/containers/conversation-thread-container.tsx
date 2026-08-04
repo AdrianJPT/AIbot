@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { ConversationThread } from "@/features/conversations/components/conversation-thread";
 import type { RenderableMessage } from "@/features/conversations/components/message-bubble";
 import {
+  clearConversationSummary,
   deleteConversation,
   fetchMessages,
   markConversationRead,
@@ -36,6 +37,10 @@ export function ConversationThreadContainer({
   const queryClient = useQueryClient();
   const [status, setStatus] = useState(initialConversation.status);
   const [nickname, setNickname] = useState(initialConversation.nickname);
+  const [summary, setSummary] = useState(initialConversation.summary);
+  const [summarizedThroughAt, setSummarizedThroughAt] = useState(
+    initialConversation.summarizedThroughAt,
+  );
   const [pending, setPending] = useState<RenderableMessage[]>([]);
 
   useRealtimeMessages(initialConversation.id);
@@ -48,11 +53,19 @@ export function ConversationThreadContainer({
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setStatus(initialConversation.status);
     setNickname(initialConversation.nickname);
+    // The summary must reset with the rest, and this one is not cosmetic: it is
+    // another customer's remembered name, preferences and notes. Leaving it stale
+    // would show customer A's memory inside customer B's thread, which is the
+    // exact opposite of what this panel is for.
+    setSummary(initialConversation.summary);
+    setSummarizedThroughAt(initialConversation.summarizedThroughAt);
     setPending([]);
   }, [
     initialConversation.id,
     initialConversation.status,
     initialConversation.nickname,
+    initialConversation.summary,
+    initialConversation.summarizedThroughAt,
   ]);
 
   useEffect(() => {
@@ -113,6 +126,19 @@ export function ConversationThreadContainer({
       queryClient.invalidateQueries({ queryKey: conversationKeys.list() });
     },
     onError: () => toast.error("No se pudo actualizar el apodo"),
+  });
+
+  const summaryMutation = useMutation({
+    mutationFn: () => clearConversationSummary(initialConversation.id),
+    onSuccess: () => {
+      // Cleared locally too: the thread renders from `initialConversation`, which
+      // came from the server on navigation, so without this the panel would keep
+      // showing the summary it just discarded.
+      setSummary(null);
+      setSummarizedThroughAt(null);
+      toast.success("Resumen borrado, se regenera solo");
+    },
+    onError: () => toast.error("No se pudo borrar el resumen"),
   });
 
   const deleteMutation = useMutation({
@@ -187,7 +213,13 @@ export function ConversationThreadContainer({
 
   return (
     <ConversationThread
-      conversation={{ ...initialConversation, status, nickname }}
+      conversation={{
+        ...initialConversation,
+        status,
+        nickname,
+        summary,
+        summarizedThroughAt,
+      }}
       messages={messages}
       onLoadOlder={() => fetchNextPage()}
       hasMoreOlder={Boolean(hasNextPage)}
@@ -201,6 +233,8 @@ export function ConversationThreadContainer({
       onNicknameChange={(next) => nicknameMutation.mutate(next)}
       onDelete={() => deleteMutation.mutate()}
       deleting={deleteMutation.isPending}
+      onRegenerateSummary={() => summaryMutation.mutate()}
+      regeneratingSummary={summaryMutation.isPending}
     />
   );
 }
