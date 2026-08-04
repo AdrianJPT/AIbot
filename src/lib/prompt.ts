@@ -100,6 +100,29 @@ export function sanitizeUntrusted(text: string): string {
 }
 
 /**
+ * Truncates `text` to at most `maxChars` without splitting a surrogate pair.
+ *
+ * `slice` counts UTF-16 code units, so a cap landing between the two halves of an
+ * astral character — every emoji, much of CJK's extended range — keeps an
+ * orphaned high surrogate. That is invalid UTF-16: encoding it for the provider
+ * turns it into U+FFFD, and it corrupts the text silently rather than failing.
+ *
+ * This lives here, next to `sanitizeUntrusted`, because it is the same job —
+ * making text safe to hand onward — and because every place that caps
+ * customer-derived text needs the identical rule. It was originally fixed inline
+ * in `normalizeKnowledgeDoc` and then got re-introduced in the summarizer's field
+ * capping, which is the argument for having exactly one copy of it.
+ */
+export function truncateChars(text: string, maxChars: number): string {
+  if (text.length <= maxChars) return text;
+
+  const cut = text.slice(0, maxChars);
+  const lastUnit = cut.charCodeAt(cut.length - 1);
+  const endsOnLoneHighSurrogate = lastUnit >= 0xd800 && lastUnit <= 0xdbff;
+  return endsOnLoneHighSurrogate ? cut.slice(0, -1) : cut;
+}
+
+/**
  * Wraps untrusted text in a fence the text itself cannot close.
  *
  * The fence id is 64 bits of randomness generated per render, so a customer

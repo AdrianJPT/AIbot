@@ -32,6 +32,8 @@ model Business {
   visionModel        String? // null = inherit AppConfig.visionModel
   audioModel         String? // null = inherit AppConfig.audioModel
   maxHistoryMessages Int            @default(20)
+  summaryEnabled     Boolean        @default(true) // false = keep the raw last-N history only, no rolling summary (kill switch per business, no deploy needed) — see src/lib/ai/summarize.ts
+  summaryEveryNMessages Int         @default(10) // regenerate the rolling summary once this many messages have accumulated since summarizedThroughAt, not on every flush
   dailyAiLimit       Int            @default(1000)
   replyWindowMs      Int            @default(0) // 0 = disabled = immediate reply (today's behavior). >0 = debounce window in ms before batching pending customer messages into one AI call — see reply-window-scheduler.ts
   isActive           Boolean        @default(true)
@@ -115,6 +117,8 @@ model Conversation {
   unreadCount     Int           @default(0) // customer messages since admin last opened the thread
   pendingFlushAt  DateTime? // set (by message-handler.ts, always — not only when replyWindowMs > 0) when a customer message is awaiting dispatch; cleared (claimed) by reply-window-scheduler.ts when the window elapses
   flushLeaseUntil DateTime? // set by reply-window-scheduler.ts while a flush is in flight; prevents a crash between claim and send from orphaning pendingFlushAt forever — see reply-window-scheduler.ts's flushDueConversation
+  summary         Json? // a ConversationSummary (src/lib/ai/summarize.ts): a handful of capped fields, never free prose, so its cost is predictable and each field can be sanitized on its own. Prisma types this as Json, so READERS MUST re-run validateConversationSummary — a row can predate a schema change or have been written by hand, and the type system will not catch it.
+  summarizedThroughAt DateTime? // messages at or before this instant are represented by `summary`; everything after it is still loaded raw. Null = no summary yet.
   messages        Message[]
   appointments    Appointment[]
   createdAt       DateTime      @default(now())
