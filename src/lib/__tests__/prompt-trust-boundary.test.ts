@@ -136,7 +136,7 @@ describe("prompt trust boundary — system-role purity", () => {
         "hola",
         "gpt-4o-mini",
       ),
-    ).resolves.toBe("respuesta");
+    ).resolves.toMatchObject({ content: "respuesta" });
   });
 });
 

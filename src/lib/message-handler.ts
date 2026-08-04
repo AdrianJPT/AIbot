@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { Prisma, type Business, type PhoneNumber } from "@prisma/client";
 import type { ChatCompletionMessageParam } from "openai/resources/chat/completions";
 import { prisma } from "./db";
-import { generateResponse } from "./ai/generate";
+import { generateResponse, type AiUsage } from "./ai/generate";
 import { callWithAiCredential, resolveModels } from "./ai/resolve";
 import { buildSystemPrompt } from "./prompt";
 import {
@@ -689,6 +689,41 @@ export async function isRateLimited(
 }
 
 /**
+ * Records what one AI call actually cost.
+ *
+ * There was no token accounting anywhere before this: `generateResponse`
+ * received the provider's `usage` block and dropped it, so every question about
+ * history limits, prompt size, knowledge-document length or model choice could
+ * only be answered by guessing. `cachedPromptTokens` is the one to watch first —
+ * it stays 0 until a prompt's stable prefix crosses the provider's caching
+ * threshold, which is the difference between paying full price for the system
+ * prompt on every message and not.
+ *
+ * One `EventLog` row per AI call is a deliberate trade: at this scale that
+ * volume is nothing next to being able to answer "what are we spending, and is
+ * the prefix caching?" from data instead of intuition. Revisit if `EventLog`
+ * growth ever becomes the problem — the natural next step is a daily rollup,
+ * not less measurement.
+ *
+ * `usage` is null when the provider returned no usage block; that is logged too,
+ * because silence about cost is itself worth seeing.
+ */
+async function logAiUsage(
+  business: Business,
+  conversationId: string,
+  model: string,
+  usage: AiUsage | null,
+): Promise<void> {
+  await logEvent(
+    "info",
+    "ai-usage",
+    usage ? "AI call token usage" : "AI call returned no usage block",
+    { conversationId, model, ...(usage ?? {}) },
+    business.id,
+  );
+}
+
+/**
  * Resolves the bot's reply respecting the per-business daily AI-call budget
  * (`Business.dailyAiLimit`). The budget is counted as bot-authored Message
  * rows created since UTC midnight for the business — simplest option that
@@ -750,9 +785,13 @@ export async function resolveAiReply(
   try {
     const systemPrompt = buildSystemPrompt(business);
     const { chatModel } = await resolveModels(business);
-    return await callWithAiCredential(business, (client) =>
-      generateResponse(client, systemPrompt, history, content, chatModel),
+    const { content: reply, usage } = await callWithAiCredential(
+      business,
+      (client) =>
+        generateResponse(client, systemPrompt, history, content, chatModel),
     );
+    await logAiUsage(business, conversationId, chatModel, usage);
+    return reply;
   } catch (err) {
     await logEvent(
       "error",

@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { buildBusiness, buildPhoneNumber } from "./fixtures/business";
+import { buildAiReply } from "./fixtures/ai-reply";
 import { textMessagePayload } from "./fixtures/webhook-payload";
 
 const findFirstPhoneNumber = vi.fn();
@@ -86,6 +87,19 @@ async function runIngestThenSweep(payload: unknown): Promise<string[]> {
   return touched;
 }
 
+type LoggedRow = {
+  level: string;
+  source: string;
+  message: string;
+  detail?: Record<string, unknown>;
+  businessId?: string;
+};
+
+/** The EventLog rows logEvent persisted during this test, in order. */
+function loggedRows(): LoggedRow[] {
+  return eventLogCreate.mock.calls.map((call) => call[0].data as LoggedRow);
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   findFirstPhoneNumber.mockResolvedValue({ ...phoneNumber, business });
@@ -147,7 +161,7 @@ beforeEach(() => {
   messageUpdateMany.mockResolvedValue({ count: 1 });
   messageCount.mockResolvedValue(0);
   eventLogCreate.mockResolvedValue({});
-  generateResponse.mockResolvedValue("Respuesta generada");
+  generateResponse.mockResolvedValue(buildAiReply());
   resolveWhatsappToken.mockResolvedValue("test-token");
   sendFromNumber.mockResolvedValue(undefined);
 });
@@ -186,14 +200,97 @@ describe("error observability", () => {
 
     await expect(runIngestThenSweep(textMessagePayload)).resolves.toBeDefined();
 
-    expect(eventLogCreate).toHaveBeenCalledTimes(1);
-    expect(eventLogCreate.mock.calls[0][0].data).toMatchObject({
-      level: "error",
-      source: "whatsapp-send",
-    });
+    // Asserted by source rather than by call count: the AI call succeeded on
+    // this path, so it also logged its token usage, and this test is about the
+    // send failure. Coupling it to a total would make every future log a
+    // failure here.
+    const sendFailures = loggedRows().filter(
+      (row) => row.source === "whatsapp-send",
+    );
+    expect(sendFailures).toHaveLength(1);
+    expect(sendFailures[0]).toMatchObject({ level: "error" });
     expect(messageUpdate).toHaveBeenCalledWith({
       where: { id: "msg_out_1" },
       data: { status: "failed" },
     });
+  });
+});
+
+/**
+ * Token accounting is the whole point of these: before it existed
+ * `generateResponse` received the provider's `usage` block and dropped it, so
+ * there was no way to answer what a conversation actually costs. The mapping
+ * from the provider's snake_case shape into `AiUsage` is covered separately in
+ * ai-usage.test.ts — here `generateResponse` is mocked, so what is under test is
+ * that `resolveAiReply` persists what it was handed.
+ */
+describe("AI token-usage logging", () => {
+  it("logs an ai-usage row with the normalized token counts and the model", async () => {
+    generateResponse.mockResolvedValue(
+      buildAiReply({
+        usage: {
+          promptTokens: 812,
+          completionTokens: 64,
+          totalTokens: 876,
+          cachedPromptTokens: 768,
+        },
+      }),
+    );
+
+    await runIngestThenSweep(textMessagePayload);
+
+    const usageRows = loggedRows().filter((row) => row.source === "ai-usage");
+    expect(usageRows).toHaveLength(1);
+    expect(usageRows[0]).toMatchObject({
+      level: "info",
+      source: "ai-usage",
+      message: "AI call token usage",
+      businessId: business.id,
+      detail: {
+        conversationId: "conv_1",
+        model: "gpt-4o-mini",
+        promptTokens: 812,
+        completionTokens: 64,
+        totalTokens: 876,
+        // The number that answers "is the stable prefix being cached at all?"
+        cachedPromptTokens: 768,
+      },
+    });
+  });
+
+  it("still logs, and says so, when the provider returns no usage block", async () => {
+    generateResponse.mockResolvedValue(buildAiReply({ usage: null }));
+
+    await runIngestThenSweep(textMessagePayload);
+
+    const usageRows = loggedRows().filter((row) => row.source === "ai-usage");
+    expect(usageRows).toHaveLength(1);
+    expect(usageRows[0]).toMatchObject({
+      level: "info",
+      message: "AI call returned no usage block",
+      detail: { conversationId: "conv_1", model: "gpt-4o-mini" },
+    });
+    // Silence about cost is itself worth seeing, so no token fields are faked.
+    expect(usageRows[0].detail).not.toHaveProperty("totalTokens");
+  });
+
+  it("does not log usage when the AI call failed", async () => {
+    generateResponse.mockRejectedValue(new Error("OpenAI is down"));
+
+    await runIngestThenSweep(textMessagePayload);
+
+    expect(loggedRows().filter((row) => row.source === "ai-usage")).toEqual([]);
+  });
+
+  it("does not log usage when the daily budget short-circuits the AI call", async () => {
+    // dailyAiLimit reached: resolveAiReply returns the canned notice without
+    // ever reaching the provider, so there is no usage to record.
+    messageCount.mockResolvedValue(business.dailyAiLimit);
+    findFirstMessage.mockResolvedValue(null);
+
+    await runIngestThenSweep(textMessagePayload);
+
+    expect(generateResponse).not.toHaveBeenCalled();
+    expect(loggedRows().filter((row) => row.source === "ai-usage")).toEqual([]);
   });
 });
