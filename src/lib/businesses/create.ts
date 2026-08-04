@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { ensureWhatsappCredential } from "@/lib/whatsapp";
+import { truncateChars } from "@/lib/prompt";
 
 const MAX_REPLY_WINDOW_MS = 300_000;
 
@@ -41,18 +42,10 @@ export function normalizeKnowledgeDoc(value: unknown): string | null {
   if (typeof value !== "string") return null;
   const trimmed = value.trim();
   if (!trimmed) return null;
-  if (trimmed.length <= MAX_KNOWLEDGE_DOC_CHARS) return trimmed;
-
-  const cut = trimmed.slice(0, MAX_KNOWLEDGE_DOC_CHARS);
-  // `slice` counts UTF-16 code units, so the cap can land between the two halves
-  // of a surrogate pair — every emoji, and much of CJK's extended range. Keeping
-  // the orphaned high half would persist invalid UTF-16, and buildSystemPrompt
-  // interpolates the document verbatim, so it would travel all the way to the
-  // provider. Dropping it costs one character at a boundary the admin cannot see
-  // anyway.
-  const lastUnit = cut.charCodeAt(cut.length - 1);
-  const endsOnLoneHighSurrogate = lastUnit >= 0xd800 && lastUnit <= 0xdbff;
-  return endsOnLoneHighSurrogate ? cut.slice(0, -1) : cut;
+  // truncateChars, not slice: the cap must not split a surrogate pair, or the
+  // stored document carries invalid UTF-16 that buildSystemPrompt forwards
+  // verbatim to the provider.
+  return truncateChars(trimmed, MAX_KNOWLEDGE_DOC_CHARS);
 }
 
 export type CreateBusinessInput = {
