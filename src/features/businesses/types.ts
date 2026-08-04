@@ -27,6 +27,7 @@ export type BusinessDetail = {
   systemPrompt: string;
   welcomeMessage: string;
   businessInfo: unknown;
+  knowledgeDoc: string | null;
   model: string | null;
   visionModel: string | null;
   audioModel: string | null;
@@ -67,6 +68,7 @@ export type BusinessInput = {
   systemPrompt: string;
   welcomeMessage: string;
   businessInfo: unknown;
+  knowledgeDoc: string | null;
   model: string;
   visionModel: string;
   audioModel: string;

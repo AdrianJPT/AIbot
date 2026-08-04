@@ -118,15 +118,55 @@ export function renderUntrustedBlock(label: string, text: string): string {
   return `[INICIO ${label} ${id}]\n${sanitizeUntrusted(text)}\n[FIN ${label} ${id}]`;
 }
 
+/**
+ * Header for the knowledge document. Names it as reference material so the model
+ * reads it as facts to answer from rather than as instructions about how to
+ * behave — those stay in the admin-authored prompt that follows.
+ */
+const KNOWLEDGE_DOC_HEADER =
+  "Documento de referencia del negocio. Usalo como fuente de datos para " +
+  "responder; si algo no está acá, no lo inventes.\n\n";
+
+/**
+ * Renders the system prompt: knowledge document first, then the admin-authored
+ * prompt with its placeholders interpolated, then the constant trust-boundary
+ * rule.
+ *
+ * The document goes first because it is the largest block and it never changes
+ * per message, so it is the part a provider can cache. Prefix caching matches
+ * from the very start of the prompt, which has two consequences worth stating:
+ * the document must never have volatile content placed before it, and putting it
+ * ahead of the smaller instruction text means editing those instructions does not
+ * invalidate the cached document. It is also what pushes a short prompt over the
+ * provider's caching threshold at all — OpenAI only caches once the stable prefix
+ * reaches roughly 1024 tokens, which a bare `systemPrompt` rarely does.
+ *
+ * The document is interpolated *verbatim*: no `{placeholder}` substitution runs
+ * inside it, because a substitution is by definition something that can differ
+ * between calls, and one differing byte at the front costs the whole cached
+ * prefix.
+ *
+ * It belongs in the system role because only an authenticated admin can write it
+ * (`PATCH /api/businesses/[id]`), which is the same reason `systemPrompt` and
+ * `businessInfo` do. `businessInfo` is untouched and still interpolates as
+ * before: existing prompts contain `{businessInfo}`, and a null `knowledgeDoc`
+ * produces byte-identical output to before this change.
+ */
 export function buildSystemPrompt(business: Business): SystemPrompt {
   const info = business.businessInfo as Record<string, string>;
   const infoBlock = Object.entries(info)
     .map(([k, v]) => `- ${k}: ${v}`)
     .join("\n");
+
+  const doc = business.knowledgeDoc?.trim();
+  const docBlock = doc ? `${KNOWLEDGE_DOC_HEADER}${doc}\n\n---\n\n` : "";
+
   const rendered =
+    docBlock +
     business.systemPrompt
       .replace(/{businessName}/g, business.name)
-      .replace(/{businessInfo}/g, infoBlock) + UNTRUSTED_CONTENT_RULE;
+      .replace(/{businessInfo}/g, infoBlock) +
+    UNTRUSTED_CONTENT_RULE;
   // The one place a SystemPrompt is minted. Every input above comes from an
   // admin-authored column, never from a customer message.
   return rendered as SystemPrompt;

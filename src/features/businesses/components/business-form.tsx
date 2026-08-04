@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { MAX_KNOWLEDGE_DOC_CHARS } from "@/lib/businesses/create";
 import { Switch } from "@/components/ui/switch";
 import type {
   BusinessDetail,
@@ -210,6 +211,27 @@ export function BusinessFormFields({
           className="font-mono text-sm"
           defaultValue={infoStr}
         />
+      </div>
+
+      <div className="space-y-1.5">
+        <Label htmlFor="knowledgeDoc">Documento de conocimiento</Label>
+        <Textarea
+          id="knowledgeDoc"
+          name="knowledgeDoc"
+          rows={10}
+          maxLength={MAX_KNOWLEDGE_DOC_CHARS}
+          placeholder="Carta, horarios, políticas, preguntas frecuentes… vacío = no se usa"
+          defaultValue={business?.knowledgeDoc ?? ""}
+        />
+        <p className="text-xs text-muted-foreground">
+          Texto libre que el bot usa como fuente de datos para responder: carta,
+          precios, horarios, políticas de cancelación, preguntas frecuentes. Se
+          envía al principio de cada consulta y no cambia entre mensajes, así
+          que conviene que sea completo — a diferencia del historial, un
+          documento largo y estable puede resultar más barato por mensaje.
+          Máximo {MAX_KNOWLEDGE_DOC_CHARS.toLocaleString("es")} caracteres.
+          Vacío deja todo como está hoy.
+        </p>
       </div>
 
       <div className="flex gap-4">

@@ -27,6 +27,7 @@ model Business {
   systemPrompt       String
   welcomeMessage     String
   businessInfo       Json
+  knowledgeDoc       String? // admin-authored reference document (menu, hours, policies, FAQ) rendered FIRST in the system prompt and byte-stable across calls, so it is the part a provider can cache — see buildSystemPrompt in src/lib/prompt.ts. Null = businessInfo alone, exactly today's behavior.
   model              String? // null = inherit AppConfig.chatModel
   visionModel        String? // null = inherit AppConfig.visionModel
   audioModel         String? // null = inherit AppConfig.audioModel

@@ -87,6 +87,7 @@ export function InviteClientFormContainer({
         systemPrompt: fd.get("systemPrompt") as string,
         welcomeMessage: fd.get("welcomeMessage") as string,
         businessInfo,
+        knowledgeDoc: (fd.get("knowledgeDoc") as string) ?? "",
         model: fd.get("model") as string,
         visionModel: fd.get("visionModel") as string,
         audioModel: fd.get("audioModel") as string,
