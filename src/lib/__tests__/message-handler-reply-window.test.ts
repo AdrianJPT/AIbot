@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { buildBusiness, buildPhoneNumber } from "./fixtures/business";
+import { buildAiReply } from "./fixtures/ai-reply";
 import { textMessagePayload } from "./fixtures/webhook-payload";
 
 const findFirstPhoneNumber = vi.fn();
@@ -86,7 +87,7 @@ beforeEach(() => {
   messageFindMany.mockResolvedValue([]);
   messageUpdate.mockResolvedValue({});
   messageCount.mockResolvedValue(0);
-  generateResponse.mockResolvedValue("Respuesta generada");
+  generateResponse.mockResolvedValue(buildAiReply());
   resolveWhatsappToken.mockResolvedValue("test-token");
   sendFromNumber.mockResolvedValue("wamid.OUTBOUND_001");
 });

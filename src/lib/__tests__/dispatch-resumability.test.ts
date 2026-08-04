@@ -6,6 +6,7 @@ import {
   createTestUser,
 } from "@/lib/__tests__/fixtures/ownership";
 import { buildInboundTextPayload } from "@/lib/__tests__/fixtures/webhook-payload";
+import { buildAiReply } from "@/lib/__tests__/fixtures/ai-reply";
 
 /**
  * Real-Postgres tests for the properties resumable dispatch exists to
@@ -85,7 +86,7 @@ let wamidSeq = 0;
 
 beforeEach(() => {
   vi.clearAllMocks();
-  generateResponse.mockResolvedValue("Respuesta generada");
+  generateResponse.mockResolvedValue(buildAiReply());
   sendFromNumber.mockImplementation(() =>
     Promise.resolve(`wamid.OUTBOUND_TEST_${++wamidSeq}`),
   );
