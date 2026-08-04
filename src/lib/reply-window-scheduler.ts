@@ -8,6 +8,7 @@ import {
   sendAndPersistReply,
 } from "./message-handler";
 import { logEvent } from "./log";
+import { renderUntrustedBlock, sanitizeUntrusted } from "./prompt";
 
 /**
  * How long a conversation's dispatch claim (`flushLeaseUntil`) stays held
@@ -206,14 +207,22 @@ async function doFlush(conversationId: string): Promise<void> {
     return;
   }
 
+  // BATCH_INSTRUCTION is our own framing and stays outside the fence; every
+  // message body is customer-authored and goes inside it. Each `message` is
+  // sanitized before `JSON.stringify` rather than after, because sanitizing the
+  // serialized output would leave deceptive invisibles inside the JSON string
+  // values — see sanitizeUntrusted's doc comment.
   const batchedContent =
     BATCH_INSTRUCTION +
-    JSON.stringify(
-      pendingMessages.map((m, i) => ({
-        message: m.content,
-        n: i + 1,
-        time: m.createdAt.toISOString(),
-      })),
+    renderUntrustedBlock(
+      "MENSAJES DEL CLIENTE",
+      JSON.stringify(
+        pendingMessages.map((m, i) => ({
+          message: sanitizeUntrusted(m.content),
+          n: i + 1,
+          time: m.createdAt.toISOString(),
+        })),
+      ),
     );
 
   const history = await loadHistoryBefore(
