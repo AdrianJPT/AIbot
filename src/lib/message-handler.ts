@@ -31,6 +31,58 @@ const RATE_LIMIT_MAX_MESSAGES = 10;
 const DAILY_LIMIT_MESSAGE =
   "Estamos recibiendo muchos mensajes, en breve te responderemos.";
 
+/**
+ * Absolute cap on the debounce ceiling below, whatever `replyWindowMs` is set
+ * to. A business may legitimately configure a 300s window (the admin form's
+ * max), but no customer should wait five minutes for a first reply.
+ */
+const MAX_BATCH_AGE_CEILING_MS = 60_000;
+
+/**
+ * How long the oldest unanswered customer message may wait, at worst.
+ *
+ * Derived from `replyWindowMs` rather than configured separately, so a business
+ * that batches for 5s tolerates a 20s worst case while one that batches for 60s
+ * does not inherit a 4-minute one. Deliberately not a `Business` field: it is a
+ * safety bound on an existing setting, not a second knob for operators to tune.
+ */
+export function maxBatchAgeMs(replyWindowMs: number): number {
+  return Math.min(4 * replyWindowMs, MAX_BATCH_AGE_CEILING_MS);
+}
+
+/**
+ * Due time to write to `Conversation.pendingFlushAt` for the message just
+ * ingested.
+ *
+ * `replyWindowMs` is a debounce: every inbound message pushes the due time back
+ * so a burst of bubbles collapses into one reply. Left unbounded that debounce
+ * never resolves for a customer who keeps typing faster than the window — each
+ * message postpones the reply again, `pendingFlushAt` stays in the future
+ * forever, and the sweep never finds the conversation due. The reply is not
+ * late, it never happens.
+ *
+ * Clamping against the oldest message still awaiting an answer bounds that
+ * worst case: the reply may be late, but it always arrives. The clamp is
+ * ingest-side arithmetic only — it introduces no claim, lease, or idempotency
+ * primitive, and leaves `flushLeaseUntil` / `dispatchId` / `batchedAt`
+ * semantics untouched.
+ *
+ * `oldestUnbatchedAt` is null when nothing is waiting — a concurrent flush
+ * already claimed the batch, or the caller skipped the lookup because
+ * `replyWindowMs` is 0. Nothing can starve, so the plain debounce applies.
+ */
+export function computeFlushDueAt(
+  replyWindowMs: number,
+  oldestUnbatchedAt: Date | null,
+  now: number = Date.now(),
+): Date {
+  const debouncedAt = now + replyWindowMs;
+  if (replyWindowMs === 0 || !oldestUnbatchedAt) return new Date(debouncedAt);
+
+  const ceilingAt = oldestUnbatchedAt.getTime() + maxBatchAgeMs(replyWindowMs);
+  return new Date(Math.min(debouncedAt, ceilingAt));
+}
+
 type WaMessage = {
   from: string;
   id?: string;
@@ -211,12 +263,46 @@ async function handleOneMessage(
   // window elapses for businesses that batch. One reply path replaces the
   // old immediate/batched split; AI generation, rate limiting, and sending
   // all now live in the sweep, never inline.
+  // The anchor lookup is skipped for the default replyWindowMs = 0: with no
+  // debounce there is nothing to postpone and nothing to clamp, so the webhook
+  // hot path keeps exactly the query count it has today.
+  const oldestUnbatchedAt =
+    business.replyWindowMs === 0
+      ? null
+      : await findOldestUnbatchedAt(conversation.id);
+
   await prisma.conversation.update({
     where: { id: conversation.id },
-    data: { pendingFlushAt: new Date(Date.now() + business.replyWindowMs) },
+    data: {
+      pendingFlushAt: computeFlushDueAt(
+        business.replyWindowMs,
+        oldestUnbatchedAt,
+      ),
+    },
   });
 
   return conversation.id;
+}
+
+/**
+ * `createdAt` of the oldest customer message in this conversation still waiting
+ * for an answer, or null when none is. Runs after the current message has been
+ * persisted, so on the first message of a burst it is that message itself.
+ *
+ * Served by the `[conversationId, sentBy, batchedAt, createdAt]` index: the
+ * pre-existing `[conversationId, createdAt]` one cannot answer this cheaply,
+ * because `batchedAt IS NULL` is not part of it and a forward scan would skip
+ * every already-answered message in the conversation first.
+ */
+async function findOldestUnbatchedAt(
+  conversationId: string,
+): Promise<Date | null> {
+  const oldest = await prisma.message.findFirst({
+    where: { conversationId, sentBy: "customer", batchedAt: null },
+    orderBy: { createdAt: "asc" },
+    select: { createdAt: true },
+  });
+  return oldest?.createdAt ?? null;
 }
 
 /**
