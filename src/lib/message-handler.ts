@@ -98,6 +98,12 @@ type WaMessage = {
     list_reply?: { title: string; id?: string };
     button_reply?: { title: string; id?: string };
   };
+  /**
+   * Present when the customer replied to a specific earlier message. `id` is the
+   * wamid of that message — the only field worth keeping, since `from` is already
+   * known from the conversation.
+   */
+  context?: { id?: string; from?: string };
 };
 
 type WaStatus = {
@@ -251,11 +257,23 @@ async function handleOneMessage(
   });
 
   if (conversation.status === "handed_off") {
-    await persistCustomerMessage(conversation.id, parsed, wamid, customerName);
+    await persistCustomerMessage(
+      conversation.id,
+      parsed,
+      wamid,
+      customerName,
+      message.context?.id,
+    );
     return conversation.id;
   }
 
-  await persistCustomerMessage(conversation.id, parsed, wamid, customerName);
+  await persistCustomerMessage(
+    conversation.id,
+    parsed,
+    wamid,
+    customerName,
+    message.context?.id,
+  );
 
   // Ingest's job ends here: mark the conversation due for dispatch. The
   // sweep (reply-window-scheduler.ts) picks it up — immediately, for the
@@ -814,6 +832,7 @@ async function persistCustomerMessage(
   parsed: { content: string; mediaType: string },
   wamid: string | undefined,
   customerName: string | undefined,
+  quotedWamid: string | undefined,
 ): Promise<void> {
   await prisma.$transaction([
     prisma.message.create({
@@ -823,6 +842,7 @@ async function persistCustomerMessage(
         content: parsed.content,
         mediaType: parsed.mediaType,
         wamid,
+        quotedWamid,
         sentBy: "customer",
       },
     }),
