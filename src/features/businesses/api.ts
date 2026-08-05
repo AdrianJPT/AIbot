@@ -5,14 +5,10 @@ import type {
   PhoneNumberInput,
   PhoneNumberItem,
 } from "@/features/businesses/types";
+import { requestJson } from "@/lib/api-client";
 
-async function request<T>(url: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(url, init);
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new Error(body.error || "Error al guardar");
-  }
-  return res.json();
+function request<T>(url: string, init?: RequestInit): Promise<T> {
+  return requestJson<T>(url, init, "Error al guardar");
 }
 
 export function fetchCredentials(): Promise<CredentialOption[]> {

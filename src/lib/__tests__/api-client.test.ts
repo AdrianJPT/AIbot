@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { createAppointment } from "@/features/appointments/api";
+import { createBusiness } from "@/features/businesses/api";
 import { requestJson } from "@/lib/api-client";
 
 describe("requestJson", () => {
@@ -114,6 +116,68 @@ describe("requestJson", () => {
 
     await expect(
       requestJson("/api/businesses", undefined, "Error al guardar"),
+    ).rejects.toThrow("Error al guardar");
+  });
+});
+
+describe("feature API fallbacks", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("preserves the default fallback for appointment requests", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>().mockResolvedValue(
+        new Response(JSON.stringify({}), {
+          status: 500,
+        }),
+      ),
+    );
+
+    await expect(
+      createAppointment({
+        businessId: "business-1",
+        customerPhone: "+15551234567",
+        customerName: "Ada",
+        service: "Consultation",
+        date: "2026-08-06",
+        time: "15:00",
+        notes: null,
+      }),
+    ).rejects.toThrow("Error");
+  });
+
+  it("preserves the businesses custom fallback", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>().mockResolvedValue(
+        new Response(JSON.stringify({}), {
+          status: 500,
+        }),
+      ),
+    );
+
+    await expect(
+      createBusiness({
+        name: "Acme",
+        phoneNumberId: null,
+        displayPhone: null,
+        whatsappToken: "",
+        ownerId: "owner-1",
+        systemPrompt: "Be helpful",
+        welcomeMessage: "Welcome",
+        businessInfo: {},
+        knowledgeDoc: null,
+        model: "gpt-4.1-mini",
+        visionModel: "gpt-4.1-mini",
+        audioModel: "gpt-4o-mini-transcribe",
+        maxHistoryMessages: 20,
+        replyWindowMs: 5_000,
+        isActive: true,
+        aiCredentialId: null,
+        whatsappCredentialId: null,
+      }),
     ).rejects.toThrow("Error al guardar");
   });
 });

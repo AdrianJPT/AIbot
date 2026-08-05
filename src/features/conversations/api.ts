@@ -4,15 +4,7 @@ import type {
   ConversationMessage,
   MessagesPage,
 } from "@/features/conversations/types";
-
-async function request<T>(url: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(url, init);
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new Error(body.error || "Error");
-  }
-  return res.json();
-}
+import { requestJson } from "@/lib/api-client";
 
 export function fetchConversations(
   options: { q?: string; businessId?: string; phoneNumberId?: string } = {},
@@ -23,7 +15,7 @@ export function fetchConversations(
   if (businessId) params.set("businessId", businessId);
   if (phoneNumberId) params.set("phoneNumberId", phoneNumberId);
   const qs = params.toString();
-  return request(`/api/conversations${qs ? `?${qs}` : ""}`);
+  return requestJson(`/api/conversations${qs ? `?${qs}` : ""}`);
 }
 
 export function fetchMessages(
@@ -33,15 +25,15 @@ export function fetchMessages(
 ): Promise<MessagesPage> {
   const params = new URLSearchParams({ limit: String(limit) });
   if (cursor) params.set("cursor", cursor);
-  return request(`/api/conversations/${conversationId}/messages?${params}`);
+  return requestJson(`/api/conversations/${conversationId}/messages?${params}`);
 }
 
 export function markConversationRead(id: string) {
-  return request(`/api/conversations/${id}/read`, { method: "POST" });
+  return requestJson(`/api/conversations/${id}/read`, { method: "POST" });
 }
 
 export function setConversationStatus(id: string, status: string) {
-  return request(`/api/conversations/${id}/handoff`, {
+  return requestJson(`/api/conversations/${id}/handoff`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ status }),
@@ -49,7 +41,7 @@ export function setConversationStatus(id: string, status: string) {
 }
 
 export function setConversationNickname(id: string, nickname: string) {
-  return request(`/api/conversations/${id}`, {
+  return requestJson(`/api/conversations/${id}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ nickname }),
@@ -62,24 +54,24 @@ export function setConversationNickname(id: string, nickname: string) {
  * calls this reads "Regenerar" rather than "Borrar".
  */
 export function clearConversationSummary(id: string) {
-  return request(`/api/conversations/${id}/summary`, { method: "DELETE" });
+  return requestJson(`/api/conversations/${id}/summary`, { method: "DELETE" });
 }
 
 export function deleteConversation(id: string) {
-  return request(`/api/conversations/${id}`, { method: "DELETE" });
+  return requestJson(`/api/conversations/${id}`, { method: "DELETE" });
 }
 
 export function fetchConversationAppointments(
   id: string,
 ): Promise<ConversationAppointment[]> {
-  return request(`/api/conversations/${id}/appointments`);
+  return requestJson(`/api/conversations/${id}/appointments`);
 }
 
 export function sendManualMessage(
   id: string,
   text: string,
 ): Promise<ConversationMessage> {
-  return request(`/api/conversations/${id}/send`, {
+  return requestJson(`/api/conversations/${id}/send`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ text }),
