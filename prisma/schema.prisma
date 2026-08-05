@@ -35,7 +35,7 @@ model Business {
   summaryEnabled     Boolean        @default(true) // false = keep the raw last-N history only, no rolling summary (kill switch per business, no deploy needed) — see src/lib/ai/summarize.ts
   summaryEveryNMessages Int         @default(10) // regenerate the rolling summary once this many messages have accumulated since summarizedThroughAt, not on every flush
   dailyAiLimit       Int            @default(1000)
-  replyWindowMs      Int            @default(0) // 0 = disabled = immediate reply (today's behavior). >0 = debounce window in ms before batching pending customer messages into one AI call — see reply-window-scheduler.ts
+  replyWindowMs      Int            @default(5000) // 5s default debounce window for batching pending customer messages; 0 explicitly disables the wait — see reply-window-scheduler.ts
   isActive           Boolean        @default(true)
   ownerId            String
   owner              User           @relation(fields: [ownerId], references: [id])

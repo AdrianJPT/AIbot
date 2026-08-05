@@ -68,7 +68,11 @@ afterAll(async () => {
 async function setupBusiness(suffix: string) {
   const user = await createTestUser(`dispatch-${suffix}`);
   ownerIds.push(user.id);
-  const business = await createTestBusinessWithNumber(user.id, suffix);
+  // These tests exercise resumability immediately after ingest, not debounce
+  // timing, so opt out of the product's five-second default explicitly.
+  const business = await createTestBusinessWithNumber(user.id, suffix, {
+    replyWindowMs: 0,
+  });
   return { business, phoneNumber: business.phoneNumbers[0] };
 }
 

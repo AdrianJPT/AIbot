@@ -11,6 +11,7 @@ import type {
   BusinessDetail,
   CredentialOption,
 } from "@/features/businesses/types";
+import { DEFAULT_REPLY_WINDOW_MS } from "@/lib/businesses/reply-window";
 
 const MODEL_HINTS: Record<string, string> = {
   openai: "ej: gpt-4o-mini (chat/visión) · whisper-1 (audio)",
@@ -299,16 +300,17 @@ export function BusinessFormFields({
           type="number"
           min={0}
           max={300}
-          placeholder="vacío o 0 = responder al instante"
+          placeholder="5"
           defaultValue={
-            business?.replyWindowMs ? business.replyWindowMs / 1000 : ""
+            business
+              ? business.replyWindowMs / 1000
+              : DEFAULT_REPLY_WINDOW_MS / 1000
           }
         />
         <p className="text-xs text-muted-foreground">
-          Si el cliente manda varios mensajes seguidos, esperamos este tiempo
-          desde el último antes de responder, para juntarlos en una sola
-          respuesta en vez de contestar mensaje por mensaje. Vacío o 0 desactiva
-          la espera (responde al instante, como hoy).
+          El valor predeterminado es 5 segundos. Si el cliente manda varios
+          mensajes seguidos, esperamos este tiempo desde el último para
+          juntarlos en una sola respuesta. Usá 0 para responder al instante.
         </p>
       </div>
 
