@@ -139,6 +139,7 @@ model Message {
   mediaType          String       @default("text")
   mediaUrl           String?
   wamid              String?      @unique
+  quotedWamid        String? // WhatsApp `context.id`: the wamid this customer message replied to. Resolved by looking up Message.wamid, which needs no index of its own since that column is already @unique — but the lookup MUST also filter conversationId, because wamid is unique GLOBALLY and an unfiltered match would pull another business's message into this business's prompt. See doFlush in reply-window-scheduler.ts.
   sentBy             String       @default("bot") // "bot" | "human" | "customer"
   status             String       @default("sent") // "sent" | "delivered" | "read" | "failed" | "pending" (bot replies start "pending" until sendFromNumber resolves — see message-handler.ts's sendAndPersistReply)
   dispatchId         String?      @unique // deterministic send-intent key (sha256 of conversationId + batched message ids) set on bot replies; the unique constraint is the no-double-send guard when the inline path and the sweep race the same conversation — see reply-window-scheduler.ts

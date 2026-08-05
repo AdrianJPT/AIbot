@@ -8,7 +8,11 @@ import {
   sendAndPersistReply,
 } from "./message-handler";
 import { logEvent } from "./log";
-import { renderUntrustedBlock, sanitizeUntrusted } from "./prompt";
+import {
+  renderUntrustedBlock,
+  sanitizeUntrusted,
+  truncateChars,
+} from "./prompt";
 import { callWithAiCredential, resolveModels } from "./ai/resolve";
 import {
   readConversationSummary,
@@ -264,6 +268,8 @@ async function doFlush(
   // sanitized before `JSON.stringify` rather than after, because sanitizing the
   // serialized output would leave deceptive invisibles inside the JSON string
   // values — see sanitizeUntrusted's doc comment.
+  const quotes = await resolveQuotedMessages(fresh.id, pendingMessages);
+
   const batchedContent =
     BATCH_INSTRUCTION +
     renderUntrustedBlock(
@@ -273,6 +279,9 @@ async function doFlush(
           message: sanitizeUntrusted(m.content),
           n: i + 1,
           time: m.createdAt.toISOString(),
+          // Attributed inline rather than as a separate list, so the model cannot
+          // mismatch a quote to the wrong message in the batch.
+          ...(m.quotedWamid ? { quoted: quotes.get(m.quotedWamid) } : {}),
         })),
       ),
     );
@@ -319,6 +328,78 @@ async function markBatched(messageIds: string[]): Promise<void> {
     where: { id: { in: messageIds } },
     data: { batchedAt: new Date() },
   });
+}
+
+/**
+ * Longest quoted excerpt handed to the model.
+ *
+ * A quote is context for the reply, not the subject of it, so it does not need to
+ * be complete — and an uncapped one would let a single long message be replayed in
+ * full alongside every reply that references it.
+ */
+const MAX_QUOTED_TEXT_CHARS = 300;
+
+type QuotedRef =
+  | { available: true; author: "cliente" | "negocio"; text: string }
+  | { available: false };
+
+/**
+ * Resolves what each batched message was replying to.
+ *
+ * One query for the whole batch rather than one per message, and — the part that
+ * matters — **filtered by conversationId**. `Message.wamid` is unique GLOBALLY, so
+ * a lookup by wamid alone would happily return a row belonging to a different
+ * business, and a customer who guessed or observed another tenant's wamid could
+ * have its text rendered into this business's prompt. The conversation filter is
+ * the tenant boundary here, not a defensive nicety.
+ *
+ * An unresolvable quote — one that predates the `quotedWamid` column, points at a
+ * deleted message, or belongs to someone else — comes back `available: false`. The
+ * model is told the quote exists and could not be read, which is the honest
+ * answer; inferring a referent from position or recency would invent a
+ * conversation that never happened.
+ */
+async function resolveQuotedMessages(
+  conversationId: string,
+  pending: Array<{ quotedWamid: string | null }>,
+): Promise<Map<string, QuotedRef>> {
+  const wanted = [
+    ...new Set(
+      pending
+        .map((m) => m.quotedWamid)
+        .filter((id): id is string => Boolean(id)),
+    ),
+  ];
+  const resolved = new Map<string, QuotedRef>();
+  if (wanted.length === 0) return resolved;
+
+  const rows = await prisma.message.findMany({
+    where: { conversationId, wamid: { in: wanted } },
+    select: { wamid: true, content: true, sentBy: true },
+  });
+
+  for (const row of rows) {
+    if (!row.wamid) continue;
+    resolved.set(row.wamid, {
+      available: true,
+      author: row.sentBy === "customer" ? "cliente" : "negocio",
+      // Quoted text is customer- or bot-authored and travels into the prompt, so
+      // it gets the same treatment as a batched message body: sanitized, then
+      // capped through the shared surrogate-safe truncation.
+      text: truncateChars(
+        sanitizeUntrusted(row.content),
+        MAX_QUOTED_TEXT_CHARS,
+      ),
+    });
+  }
+
+  // Everything still missing is explicitly unavailable rather than absent, so the
+  // rendered payload always says whether a quote could be read.
+  for (const id of wanted) {
+    if (!resolved.has(id)) resolved.set(id, { available: false });
+  }
+
+  return resolved;
 }
 
 /**
