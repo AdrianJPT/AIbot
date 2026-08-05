@@ -29,22 +29,24 @@ steps:
       - --build-arg
       - NEXT_PUBLIC_SUPABASE_ANON_KEY=${_SUPABASE_ANON_KEY}
       - -t
-      - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_SERVICE}/app:${SHORT_SHA}
+      - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_SERVICE}/app:${BUILD_ID}
       - .
 
   - id: push
     name: gcr.io/cloud-builders/docker
     args:
       - push
-      - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_SERVICE}/app:${SHORT_SHA}
+      - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_SERVICE}/app:${BUILD_ID}
 
   # Runs against the live database before the new revision serves traffic, so
-  # the schema is always ahead of the code. Cloud Run has no preDeployCommand
-  # hook (unlike railway.json), which is why this lives here as its own step.
+  # the schema is always ahead of the code. The final image contains the
+  # lockfile-resolved Prisma CLI copied from the builder, so migrations need no
+  # package-manager resolution or network access.
   - id: migrate
-    name: ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_SERVICE}/app:${SHORT_SHA}
-    entrypoint: npx
-    args: [prisma, migrate, deploy]
+    name: ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_SERVICE}/app:${BUILD_ID}
+    dir: /app
+    entrypoint: /app/node_modules/.bin/prisma
+    args: [migrate, deploy]
     secretEnv: [DATABASE_URL, DIRECT_URL]
 
   - id: deploy
@@ -54,7 +56,7 @@ steps:
       - run
       - deploy
       - ${_SERVICE}
-      - --image=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_SERVICE}/app:${SHORT_SHA}
+      - --image=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_SERVICE}/app:${BUILD_ID}
       - --region=${_REGION}
       - --platform=managed
       - --allow-unauthenticated

@@ -51,6 +51,10 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!login|auth|api/webhook|api/health|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
+    // `api/internal` carries its own constant-time token check (see
+    // api/internal/drain/route.ts) and is called by an external scheduler that
+    // holds no Supabase session — routing it through this proxy answers 307
+    // to /login and the outbox never drains.
+    "/((?!login|auth|api/webhook|api/health|api/internal|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
   ],
 };
