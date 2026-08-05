@@ -11,6 +11,7 @@ import { BusinessFormFields } from "@/features/businesses/components/business-fo
 import { BusinessPicker } from "@/features/admin/components/business-picker";
 import { fetchCredentials } from "@/features/businesses/api";
 import { inviteClient } from "@/features/admin/api";
+import { replyWindowMsFromSeconds } from "@/lib/businesses/reply-window";
 
 type BusinessMode = "existing" | "new" | "none";
 
@@ -92,7 +93,7 @@ export function InviteClientFormContainer({
         visionModel: fd.get("visionModel") as string,
         audioModel: fd.get("audioModel") as string,
         maxHistoryMessages: Number(fd.get("maxHistoryMessages")) || 20,
-        replyWindowMs: (Number(fd.get("replyWindowSeconds")) || 0) * 1000,
+        replyWindowMs: replyWindowMsFromSeconds(fd.get("replyWindowSeconds")),
         isActive: fd.get("isActive") === "on",
         aiCredentialId: (fd.get("aiCredentialId") as string) || null,
         whatsappCredentialId:

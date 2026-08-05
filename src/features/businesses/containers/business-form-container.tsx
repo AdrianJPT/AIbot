@@ -13,6 +13,7 @@ import type {
   BusinessDetail,
   BusinessInput,
 } from "@/features/businesses/types";
+import { replyWindowMsFromSeconds } from "@/lib/businesses/reply-window";
 
 export function BusinessFormContainer({
   business,
@@ -79,7 +80,7 @@ export function BusinessFormContainer({
       audioModel: fd.get("audioModel") as string,
       maxHistoryMessages: Number(fd.get("maxHistoryMessages")) || 20,
       // UI collects seconds for readability; the DB column is ms.
-      replyWindowMs: (Number(fd.get("replyWindowSeconds")) || 0) * 1000,
+      replyWindowMs: replyWindowMsFromSeconds(fd.get("replyWindowSeconds")),
       isActive: fd.get("isActive") === "on",
       aiCredentialId: (fd.get("aiCredentialId") as string) || null,
       whatsappCredentialId: (fd.get("whatsappCredentialId") as string) || null,

@@ -34,9 +34,9 @@ export async function createTestBusiness(
 
 /**
  * Like `createTestBusiness`, but overridable on the fields real-DB dispatch
- * (reply-window-scheduler) tests need — `createTestBusiness` hardcodes
- * `replyWindowMs` away (schema default 0), which is exactly the knob a sweep
- * test needs to control debounce timing separately from immediate dispatch.
+ * (reply-window-scheduler) tests need. `createTestBusiness` follows the schema
+ * default (currently five seconds), while sweep tests often need to control
+ * debounce timing separately from immediate dispatch.
  */
 export async function createTestBusinessWithNumber(
   ownerId: string,

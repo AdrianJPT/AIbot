@@ -154,6 +154,27 @@ describe("GET/POST /api/businesses", () => {
       include: { phoneNumbers: true },
     });
     expect(stored?.phoneNumbers).toHaveLength(0);
+    expect(stored?.replyWindowMs).toBe(5_000);
+
+    await prisma.business.delete({ where: { id: created.id } });
+  });
+
+  it("POST preserves an explicit zero reply window", async () => {
+    getSessionUser.mockResolvedValueOnce(admin);
+    const { POST } = await import("../route");
+
+    const res = await POST(
+      buildRequest({
+        name: "Immediate Biz",
+        systemPrompt: "prompt",
+        welcomeMessage: "hola",
+        replyWindowMs: 0,
+      }),
+    );
+    const created = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(created.replyWindowMs).toBe(0);
 
     await prisma.business.delete({ where: { id: created.id } });
   });
