@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
 import { appointmentScope } from "@/lib/scope";
+import { isAppointmentStatus } from "@/lib/appointment-status";
+
+const isString = (v: unknown): v is string => typeof v === "string";
 
 export async function PATCH(
   req: NextRequest,
@@ -19,6 +22,23 @@ export async function PATCH(
     return NextResponse.json({ error: "No encontrado" }, { status: 404 });
 
   const body = await req.json();
+
+  if (
+    (body.customerName != null && !isString(body.customerName)) ||
+    (body.service != null && !isString(body.service)) ||
+    (body.date != null && !isString(body.date)) ||
+    (body.time != null && !isString(body.time)) ||
+    (body.notes !== undefined &&
+      body.notes !== null &&
+      !isString(body.notes))
+  ) {
+    return NextResponse.json({ error: "Datos inválidos" }, { status: 400 });
+  }
+
+  if (body.status != null && !isAppointmentStatus(body.status)) {
+    return NextResponse.json({ error: "status inválido" }, { status: 400 });
+  }
+
   try {
     const a = await prisma.appointment.update({
       where: { id },
