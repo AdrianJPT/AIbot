@@ -21,18 +21,22 @@ export function MobileNav({ user }: { user: SidebarUser }) {
   const [open, setOpen] = useState(false);
 
   return (
-    <header className="flex items-center justify-between border-b border-border bg-card px-4 py-3 md:hidden">
+    <header className="flex items-center justify-between border-b border-border bg-card px-4 pb-3 pt-[max(0.75rem,var(--safe-area-top))] md:hidden">
       <Sheet open={open} onOpenChange={setOpen}>
         <Button
           type="button"
           variant="ghost"
           size="icon"
+          className="h-11 w-11"
           aria-label="Abrir menú"
           onClick={() => setOpen(true)}
         >
           <Menu className="h-5 w-5" />
         </Button>
-        <SheetContent side="left" className="w-72 px-4 py-6">
+        <SheetContent
+          side="left"
+          className="w-[min(18rem,calc(100vw-2rem))] px-4 pb-[max(1.5rem,var(--safe-area-bottom))] pt-[max(1.5rem,var(--safe-area-top))]"
+        >
           <SheetTitle className="sr-only">Menú de navegación</SheetTitle>
           <SidebarNav user={user} onNavigate={() => setOpen(false)} />
         </SheetContent>

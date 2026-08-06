@@ -76,7 +76,7 @@ export function SidebarNav({
               href={l.href}
               onClick={onNavigate}
               className={cn(
-                "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                "flex min-h-11 items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors md:min-h-0",
                 active
                   ? "bg-accent text-accent-foreground"
                   : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
@@ -100,7 +100,7 @@ export function SidebarNav({
         <form action="/auth/logout" method="post">
           <button
             type="submit"
-            className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+            className="flex min-h-11 w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground md:min-h-0"
           >
             <LogOut className="h-4 w-4 shrink-0" />
             Cerrar sesión

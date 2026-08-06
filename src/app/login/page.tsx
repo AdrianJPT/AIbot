@@ -90,8 +90,8 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background p-6">
-      <div className="w-full max-w-sm rounded-lg border bg-card p-8 text-card-foreground shadow-sm">
+    <div className="flex min-h-dvh items-start justify-center bg-background p-4 sm:items-center sm:p-6">
+      <div className="w-full max-w-sm rounded-lg border bg-card p-4 text-card-foreground shadow-sm sm:p-8">
         <h1 className="mb-1 text-2xl font-bold">AIbot</h1>
         <p className="mb-6 text-muted-foreground">
           Iniciá sesión para continuar
