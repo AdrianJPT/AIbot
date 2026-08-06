@@ -1,4 +1,5 @@
 import type { EventFilters, EventsPage } from "@/features/events/types";
+import { requestJson } from "@/lib/api-client";
 
 export function fetchEvents(
   filters: EventFilters,
@@ -10,11 +11,5 @@ export function fetchEvents(
   if (filters.source) params.set("source", filters.source);
   if (cursor) params.set("cursor", cursor);
 
-  return fetch(`/api/events?${params}`).then(async (res) => {
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
-      throw new Error(body.error || "Error");
-    }
-    return res.json();
-  });
+  return requestJson<EventsPage>(`/api/events?${params}`);
 }

@@ -2,22 +2,14 @@ import type {
   AppointmentInput,
   BusinessOption,
 } from "@/features/appointments/types";
-
-async function request<T>(url: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(url, init);
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new Error(body.error || "Error");
-  }
-  return res.json();
-}
+import { requestJson } from "@/lib/api-client";
 
 export function fetchBusinessOptions(): Promise<BusinessOption[]> {
-  return request<BusinessOption[]>("/api/businesses");
+  return requestJson<BusinessOption[]>("/api/businesses");
 }
 
 export function createAppointment(payload: AppointmentInput) {
-  return request("/api/appointments", {
+  return requestJson("/api/appointments", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -25,7 +17,7 @@ export function createAppointment(payload: AppointmentInput) {
 }
 
 export function updateAppointmentStatus(id: string, status: string) {
-  return request(`/api/appointments/${id}`, {
+  return requestJson(`/api/appointments/${id}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ status }),
@@ -33,5 +25,5 @@ export function updateAppointmentStatus(id: string, status: string) {
 }
 
 export function deleteAppointment(id: string) {
-  return request(`/api/appointments/${id}`, { method: "DELETE" });
+  return requestJson(`/api/appointments/${id}`, { method: "DELETE" });
 }
