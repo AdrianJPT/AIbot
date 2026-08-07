@@ -6,5 +6,6 @@ dist/
 *.tsbuildinfo
 coverage/
 playwright-report/
+playwright/.auth/
 test-results/
 /playwright/.cache/

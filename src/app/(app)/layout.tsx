@@ -24,14 +24,16 @@ export default async function AppLayout({
 
   return (
     <QueryProvider>
-      <div className="flex min-h-screen">
+      <div className="flex h-dvh min-h-0 overflow-hidden">
         <AppSidebar user={sidebarUser} />
-        <div className="flex min-h-screen flex-1 flex-col">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           <MobileNav user={sidebarUser} />
           <div className="hidden justify-end border-b border-border px-6 py-3 md:flex">
             <ThemeToggle />
           </div>
-          <main className="flex-1 overflow-auto p-4 md:p-6">{children}</main>
+          <main className="min-h-0 min-w-0 flex-1 overflow-y-auto p-4 md:p-6">
+            {children}
+          </main>
         </div>
       </div>
       <Toaster />

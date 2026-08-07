@@ -24,6 +24,7 @@ export function ThemeToggle() {
       type="button"
       variant="ghost"
       size="icon"
+      className="h-11 w-11 md:h-10 md:w-10"
       aria-label={isDark ? "Cambiar a tema claro" : "Cambiar a tema oscuro"}
       onClick={() => setTheme(isDark ? "light" : "dark")}
     >

@@ -52,7 +52,7 @@ export default function RootLayout({
       <head>
         <script dangerouslySetInnerHTML={{ __html: noFlashScript }} />
       </head>
-      <body className="min-h-screen">
+      <body className="min-h-dvh">
         <ThemeProvider>{children}</ThemeProvider>
       </body>
     </html>
