@@ -22,21 +22,21 @@ export function PhoneNumberList({
           href={`/conversations?phoneNumberId=${p.id}&label=${encodeURIComponent(
             p.displayPhone || p.phoneNumberId,
           )}`}
-          className="flex items-center justify-between p-4 hover:bg-accent"
+          className="flex min-w-0 items-center justify-between gap-3 p-4 hover:bg-accent"
         >
-          <div>
+          <div className="min-w-0">
             <div className="font-medium">
               {p.displayPhone || p.phoneNumberId}
             </div>
-            <div className="font-mono text-xs text-muted-foreground">
+            <div className="break-all font-mono text-xs text-muted-foreground">
               {p.phoneNumberId}
             </div>
           </div>
           <span
             className={
               p.isActive
-                ? "text-xs text-green-600"
-                : "text-xs text-muted-foreground"
+                ? "shrink-0 text-xs text-green-600"
+                : "shrink-0 text-xs text-muted-foreground"
             }
           >
             {p.isActive ? "Activo" : "Inactivo"}

@@ -27,8 +27,56 @@ export function ClientsTable({ clients }: { clients: ClientListItem[] }) {
     );
   }
 
-  return (
-    <div className="overflow-x-auto rounded-lg border border-border">
+  return [
+    <ul key="mobile" aria-label="Clientes" className="space-y-3 md:hidden">
+      {clients.map((c) => (
+        <li
+          key={c.id}
+          className="space-y-3 rounded-lg border border-border p-4"
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <Link
+                href={`/admin/clients/${c.id}`}
+                className="flex min-h-11 items-center break-all font-semibold hover:underline"
+              >
+                {c.name || c.email}
+              </Link>
+              {c.name && (
+                <p className="break-all text-xs text-muted-foreground">
+                  {c.email}
+                </p>
+              )}
+            </div>
+            <Badge variant={c.role === "admin" ? "default" : "secondary"}>
+              {c.role}
+            </Badge>
+          </div>
+          <dl className="grid grid-cols-2 gap-2 text-sm">
+            <div>
+              <dt className="text-muted-foreground">Negocios</dt>
+              <dd>{c.businessesCount}</dd>
+            </div>
+            <div>
+              <dt className="text-muted-foreground">Activos</dt>
+              <dd>{c.activeBusinessesCount}</dd>
+            </div>
+            <div>
+              <dt className="text-muted-foreground">No leídos</dt>
+              <dd>{c.unreadCount}</dd>
+            </div>
+            <div>
+              <dt className="text-muted-foreground">Última actividad</dt>
+              <dd>{formatLastActivity(c.lastActivityAt)}</dd>
+            </div>
+          </dl>
+        </li>
+      ))}
+    </ul>,
+    <div
+      key="desktop"
+      className="hidden overflow-x-auto rounded-lg border border-border md:block"
+    >
       <Table>
         <TableHeader>
           <TableRow>
@@ -71,6 +119,6 @@ export function ClientsTable({ clients }: { clients: ClientListItem[] }) {
           ))}
         </TableBody>
       </Table>
-    </div>
-  );
+    </div>,
+  ];
 }
