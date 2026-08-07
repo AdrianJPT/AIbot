@@ -72,11 +72,22 @@ setup("provision and authenticate responsive roles", async ({ browser }) => {
       await page.goto("/login");
       await page.locator("#pw-email").fill(fixture.email);
       await page.locator("#pw-password").fill(password);
+      const authResponsePromise = page.waitForResponse(
+        (response) =>
+          response.url().includes("/auth/v1/token") &&
+          response.request().method() === "POST",
+      );
+      const authenticatedNavigationPromise = page.waitForURL(
+        (target) => target.pathname === "/",
+        { waitUntil: "domcontentloaded" },
+      );
       await page
         .getByRole("button", { name: "Iniciar sesión", exact: true })
         .last()
         .click();
-      await expect(page).toHaveURL(/\/$/);
+      const authResponse = await authResponsePromise;
+      expect(authResponse.ok()).toBe(true);
+      await authenticatedNavigationPromise;
       await page.context().storageState({ path: fixture.state });
       await page.close();
     }
