@@ -60,7 +60,7 @@ export function BusinessFormFields({
   const modelHint = MODEL_HINTS[aiProvider];
 
   return (
-    <div className="max-w-3xl space-y-4">
+    <div className="min-w-0 max-w-3xl space-y-4">
       {fixedOwnerLabel && (
         <div className="space-y-1.5">
           <Label>Cliente</Label>
@@ -235,8 +235,8 @@ export function BusinessFormFields({
         </p>
       </div>
 
-      <div className="flex gap-4">
-        <div className="flex-1 space-y-1.5">
+      <div className="flex flex-col gap-4 sm:flex-row">
+        <div className="min-w-0 flex-1 space-y-1.5">
           <Label htmlFor="model">Modelo (chat)</Label>
           <Input
             id="model"
@@ -245,7 +245,7 @@ export function BusinessFormFields({
             defaultValue={business?.model ?? ""}
           />
         </div>
-        <div className="flex-1 space-y-1.5">
+        <div className="min-w-0 flex-1 space-y-1.5">
           <Label htmlFor="visionModel">Modelo visión</Label>
           <Input
             id="visionModel"
@@ -254,7 +254,7 @@ export function BusinessFormFields({
             defaultValue={business?.visionModel ?? ""}
           />
         </div>
-        <div className="flex-1 space-y-1.5">
+        <div className="min-w-0 flex-1 space-y-1.5">
           <Label htmlFor="audioModel">Modelo audio</Label>
           <Input
             id="audioModel"
@@ -278,7 +278,7 @@ export function BusinessFormFields({
         <p className="-mt-2 text-xs text-muted-foreground">{modelHint}</p>
       )}
 
-      <div className="max-w-[200px] space-y-1.5">
+      <div className="w-full space-y-1.5 sm:max-w-[200px]">
         <Label htmlFor="maxHistoryMessages">Max historial</Label>
         <Input
           id="maxHistoryMessages"
@@ -290,7 +290,7 @@ export function BusinessFormFields({
         />
       </div>
 
-      <div className="max-w-[280px] space-y-1.5">
+      <div className="w-full space-y-1.5 sm:max-w-[280px]">
         <Label htmlFor="replyWindowSeconds">
           Ventana de espera antes de responder (segundos)
         </Label>
@@ -346,7 +346,7 @@ export function BusinessForm({
   currentOwnerId?: string;
 }) {
   return (
-    <form onSubmit={onSubmit} className="max-w-3xl space-y-4">
+    <form onSubmit={onSubmit} className="min-w-0 max-w-3xl space-y-4">
       <BusinessFormFields
         business={business}
         credentials={credentials}
@@ -354,7 +354,7 @@ export function BusinessForm({
         owners={owners}
         currentOwnerId={currentOwnerId}
       />
-      <Button type="submit" disabled={submitting}>
+      <Button type="submit" disabled={submitting} className="w-full sm:w-auto">
         {submitting ? "Guardando…" : "Guardar"}
       </Button>
     </form>

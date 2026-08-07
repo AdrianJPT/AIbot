@@ -103,8 +103,8 @@ export function InviteClientFormContainer({
   }
 
   return (
-    <form onSubmit={onSubmit} className="max-w-3xl space-y-6">
-      <div className="space-y-4 rounded-lg border p-4">
+    <form onSubmit={onSubmit} className="min-w-0 max-w-3xl space-y-6">
+      <div className="min-w-0 space-y-4 rounded-lg border p-4">
         <h2 className="font-medium">Cliente</h2>
         <div className="space-y-1.5">
           <Label htmlFor="clientName">Nombre</Label>
@@ -120,7 +120,7 @@ export function InviteClientFormContainer({
         </div>
       </div>
 
-      <div className="space-y-4 rounded-lg border p-4">
+      <div className="min-w-0 space-y-4 rounded-lg border p-4">
         <h2 className="font-medium">Negocio</h2>
         <div className="space-y-1.5">
           <Label htmlFor="businessMode">Qué negocio asignarle</Label>
@@ -162,7 +162,11 @@ export function InviteClientFormContainer({
         )}
       </div>
 
-      <Button type="submit" disabled={mutation.isPending}>
+      <Button
+        type="submit"
+        disabled={mutation.isPending}
+        className="w-full sm:w-auto"
+      >
         {mutation.isPending ? "Invitando…" : "Invitar cliente"}
       </Button>
     </form>

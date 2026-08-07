@@ -49,8 +49,94 @@ export function ClientBusinessesTable({
     );
   }
 
-  return (
-    <div className="overflow-x-auto rounded-lg border border-border">
+  return [
+    <ul
+      key="mobile"
+      aria-label="Negocios del cliente"
+      className="space-y-3 md:hidden"
+    >
+      {businesses.map((b) => (
+        <li
+          key={b.id}
+          className="space-y-3 rounded-lg border border-border p-4"
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <h2 className="break-words font-semibold">{b.name}</h2>
+              <p>{b.displayPhone || "Sin número visible"}</p>
+              <p className="break-all font-mono text-xs text-muted-foreground">
+                {b.phoneNumberId || "Sin ID técnico"}
+              </p>
+            </div>
+            <Badge variant={b.isActive ? "default" : "secondary"}>
+              {b.isActive ? "Activo" : "Inactivo"}
+            </Badge>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            {b.conversationsCount} conversaciones · {b.unreadCount} no leídos ·{" "}
+            {formatLastActivity(b.lastActivityAt)}
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <Link
+              href={`/conversations?businessId=${b.id}`}
+              className="inline-flex min-h-11 items-center px-2 text-primary hover:underline"
+            >
+              Ver conversaciones
+            </Link>
+            <Link
+              href={`/businesses/${b.id}/edit`}
+              className="inline-flex min-h-11 items-center px-2 text-primary hover:underline"
+            >
+              Editar
+            </Link>
+            <button
+              type="button"
+              className="min-h-11 px-2 text-primary hover:underline"
+              onClick={() =>
+                setAddingNumberFor(addingNumberFor === b.id ? null : b.id)
+              }
+            >
+              Agregar número
+            </button>
+            {onToggleActive && (
+              <Button
+                variant="secondary"
+                size="sm"
+                className="min-h-11"
+                disabled={busyId === b.id}
+                onClick={() => onToggleActive(b.id, !b.isActive)}
+              >
+                {b.isActive ? "Desactivar" : "Reactivar"}
+              </Button>
+            )}
+            {onUnassign && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="min-h-11 text-destructive hover:text-destructive"
+                disabled={unassigningId === b.id}
+                onClick={() => onUnassign(b.id)}
+              >
+                Quitar
+              </Button>
+            )}
+          </div>
+          {addingNumberFor === b.id && (
+            <AddPhoneNumberFormContainer
+              businessId={b.id}
+              onSuccess={() => {
+                setAddingNumberFor(null);
+                onPhoneNumberAdded?.();
+              }}
+            />
+          )}
+        </li>
+      ))}
+    </ul>,
+    <div
+      key="desktop"
+      className="hidden overflow-x-auto rounded-lg border border-border md:block"
+    >
       <Table>
         <TableHeader>
           <TableRow>
@@ -150,6 +236,6 @@ export function ClientBusinessesTable({
           ))}
         </TableBody>
       </Table>
-    </div>
-  );
+    </div>,
+  ];
 }

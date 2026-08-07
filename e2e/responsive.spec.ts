@@ -227,6 +227,104 @@ test("@desktop preserves the two-pane conversation view", async ({ page }) => {
   expect(await hasNoDocumentOverflow(page)).toBe(true);
 });
 
+test("@mobile presents business and admin collections as actionable cards", async ({
+  page,
+}) => {
+  await page.goto("/businesses");
+  const businesses = page.getByRole("list", { name: "Negocios" });
+  const business = businesses
+    .getByRole("listitem")
+    .filter({ hasText: "Responsive Business" });
+  await expect(business).toBeVisible();
+  await expect(page.getByRole("table")).toBeHidden();
+  await expectTouchTarget(business.getByRole("link", { name: "Ver números" }));
+  await expectTouchTarget(business.getByRole("link", { name: "Editar" }));
+  await business.getByRole("link", { name: "Ver números" }).click();
+  await expect(page).toHaveURL(/\/businesses\/responsive-business$/);
+  expect(await hasNoDocumentOverflow(page)).toBe(true);
+
+  await page.goto("/admin/clients");
+  const clients = page.getByRole("list", { name: "Clientes" });
+  await expect(clients).toBeVisible();
+  await clients
+    .getByRole("link", { name: "responsive-admin@aibot.invalid" })
+    .click();
+  const clientBusinesses = page.getByRole("list", {
+    name: "Negocios del cliente",
+  });
+  const assignedBusiness = clientBusinesses
+    .getByRole("listitem")
+    .filter({ hasText: "Responsive Business" });
+  await expect(assignedBusiness).toBeVisible();
+  for (const action of [
+    "Ver conversaciones",
+    "Editar",
+    "Agregar número",
+    "Desactivar",
+    "Quitar",
+  ]) {
+    await expectTouchTarget(
+      assignedBusiness.getByRole(
+        action === "Ver conversaciones" || action === "Editar"
+          ? "link"
+          : "button",
+        { name: action },
+      ),
+    );
+  }
+  expect(await hasNoDocumentOverflow(page)).toBe(true);
+
+  await page.goto("/admin/clients");
+  await page
+    .getByRole("link", { name: "responsive-client@aibot.invalid" })
+    .click();
+  await expect(
+    page.getByText("Este cliente todavía no tiene negocios."),
+  ).toBeVisible();
+});
+
+test("@mobile contains business and invite forms plus technical identifiers", async ({
+  page,
+}) => {
+  await page.goto("/businesses/responsive-business");
+  await expect(page.getByText("responsive-phone-number-meta")).toBeVisible();
+  expect(await hasNoDocumentOverflow(page)).toBe(true);
+
+  await page.goto("/businesses/responsive-business/edit");
+  for (const input of ["model", "visionModel", "audioModel"]) {
+    const box = await page.locator(`#${input}`).boundingBox();
+    expect(box).not.toBeNull();
+    expect(box!.x + box!.width).toBeLessThanOrEqual(page.viewportSize()!.width);
+  }
+  expect(await hasNoDocumentOverflow(page)).toBe(true);
+
+  await page.goto("/admin/clients/new");
+  await expectTouchTarget(
+    page.getByRole("button", { name: "Responsive Business" }),
+  );
+  await page.locator("#businessMode").selectOption("new");
+  await expect(page.locator("#systemPrompt")).toBeVisible();
+  expect(await hasNoDocumentOverflow(page)).toBe(true);
+});
+
+test("@desktop preserves business and admin tables", async ({ page }) => {
+  await page.goto("/businesses");
+  await expect(page.getByRole("table")).toBeVisible();
+  await expect(page.getByRole("list", { name: "Negocios" })).toBeHidden();
+
+  await page.goto("/admin/clients");
+  await expect(page.getByRole("table")).toBeVisible();
+  await expect(page.getByRole("list", { name: "Clientes" })).toBeHidden();
+  await page
+    .getByRole("link", { name: "responsive-admin@aibot.invalid" })
+    .click();
+  await expect(page.getByRole("table")).toBeVisible();
+  await expect(
+    page.getByRole("list", { name: "Negocios del cliente" }),
+  ).toBeHidden();
+  expect(await hasNoDocumentOverflow(page)).toBe(true);
+});
+
 test("@desktop keeps a tall dialog inside the viewport", async ({ page }) => {
   await page.goto("/admin/clients");
   await page
@@ -251,4 +349,11 @@ async function hasNoDocumentOverflow(page: import("@playwright/test").Page) {
       document.documentElement.scrollWidth <=
       document.documentElement.clientWidth,
   );
+}
+
+async function expectTouchTarget(locator: import("@playwright/test").Locator) {
+  const box = await locator.boundingBox();
+  expect(box).not.toBeNull();
+  expect(box!.width).toBeGreaterThanOrEqual(44);
+  expect(box!.height).toBeGreaterThanOrEqual(44);
 }

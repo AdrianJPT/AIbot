@@ -69,7 +69,7 @@ export function BusinessPicker({
                 disabled={disabled}
                 onClick={() => onSelect(b.id)}
                 className={cn(
-                  "w-full px-3 py-2 text-left text-sm hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50",
+                  "min-h-11 w-full break-words px-3 py-2 text-left text-sm hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50",
                   selectedId === b.id && "bg-accent font-medium",
                 )}
               >
