@@ -43,7 +43,7 @@ export default async function AppointmentsPage({
     <div>
       <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
         <h1 className="text-2xl font-bold">Citas</h1>
-        <Button asChild>
+        <Button asChild className="min-h-11">
           <Link href="/appointments/new">Nueva cita</Link>
         </Button>
       </div>
@@ -81,7 +81,11 @@ export default async function AppointmentsPage({
           defaultValue={date || ""}
           className="w-full min-w-0 sm:w-auto"
         />
-        <Button type="submit" variant="secondary" className="w-full sm:w-auto">
+        <Button
+          type="submit"
+          variant="secondary"
+          className="min-h-11 w-full sm:w-auto"
+        >
           Filtrar
         </Button>
       </form>

@@ -61,7 +61,11 @@ export function NewAppointmentForm({
         <Label htmlFor="notes">Notas</Label>
         <Textarea id="notes" name="notes" rows={3} />
       </div>
-      <Button type="submit" disabled={submitting} className="w-full sm:w-auto">
+      <Button
+        type="submit"
+        disabled={submitting}
+        className="min-h-11 w-full sm:w-auto"
+      >
         {submitting ? "Guardando…" : "Crear"}
       </Button>
     </form>
