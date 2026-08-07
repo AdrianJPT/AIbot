@@ -10,12 +10,16 @@ import { appointmentScope, businessScope } from "@/lib/scope";
 export default async function AppointmentsPage({
   searchParams,
 }: {
-  searchParams: { businessId?: string; status?: string; date?: string };
+  searchParams: Promise<{
+    businessId?: string;
+    status?: string;
+    date?: string;
+  }>;
 }) {
   const user = await getSessionUser();
   if (!user) redirect("/login");
 
-  const { businessId, status, date } = searchParams;
+  const { businessId, status, date } = await searchParams;
 
   const [list, businesses] = await Promise.all([
     prisma.appointment.findMany({
@@ -44,11 +48,14 @@ export default async function AppointmentsPage({
         </Button>
       </div>
 
-      <form className="mb-6 flex flex-wrap gap-3" method="get">
+      <form
+        className="mb-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap"
+        method="get"
+      >
         <select
           name="businessId"
           defaultValue={businessId || ""}
-          className="flex h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          className="flex h-10 w-full min-w-0 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 sm:w-auto"
         >
           <option value="">Todos los negocios</option>
           {businesses.map((b) => (
@@ -60,7 +67,7 @@ export default async function AppointmentsPage({
         <select
           name="status"
           defaultValue={status || ""}
-          className="flex h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          className="flex h-10 w-full min-w-0 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 sm:w-auto"
         >
           <option value="">Todos los estados</option>
           <option value="pending">pending</option>
@@ -72,9 +79,9 @@ export default async function AppointmentsPage({
           type="text"
           placeholder="Fecha exacta (ej. 2026-04-10)"
           defaultValue={date || ""}
-          className="w-auto"
+          className="w-full min-w-0 sm:w-auto"
         />
-        <Button type="submit" variant="secondary">
+        <Button type="submit" variant="secondary" className="w-full sm:w-auto">
           Filtrar
         </Button>
       </form>
