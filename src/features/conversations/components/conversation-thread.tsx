@@ -236,6 +236,8 @@ export function ConversationThread({
         <div
           ref={scrollRef}
           onScroll={handleScroll}
+          role="log"
+          aria-label="Mensajes de la conversación"
           className="h-full space-y-2 overflow-y-auto p-3 sm:p-4"
         >
           {loadingOlder && (

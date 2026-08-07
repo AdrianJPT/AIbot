@@ -135,16 +135,21 @@ setup("provision and authenticate responsive roles", async ({ browser }) => {
         status: "active",
       },
     });
-    await prisma.message.upsert({
-      where: { id: "responsive-message" },
-      create: {
-        id: "responsive-message",
+    await prisma.message.deleteMany({
+      where: { conversationId: RESPONSIVE_CONVERSATION_ID },
+    });
+    await prisma.message.createMany({
+      data: Array.from({ length: 24 }, (_, index) => ({
+        id: `responsive-message-${index}`,
         conversationId: RESPONSIVE_CONVERSATION_ID,
         role: "user",
-        content: "Responsive fixture message",
+        content:
+          index === 23
+            ? "Responsive latest message"
+            : `Responsive fixture message ${index + 1}`,
         sentBy: "customer",
-      },
-      update: { content: "Responsive fixture message" },
+        createdAt: new Date(Date.now() - (23 - index) * 60_000),
+      })),
     });
   } finally {
     await prisma.$disconnect();

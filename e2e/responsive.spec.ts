@@ -94,6 +94,18 @@ test.describe("authenticated responsive foundation", () => {
       height: 480,
     });
     await page.goto("/conversations");
+    const workspace = page.getByRole("region", {
+      name: "Espacio de conversaciones",
+    });
+    const [mainBox, workspaceBox] = await Promise.all([
+      page.getByRole("main").boundingBox(),
+      workspace.boundingBox(),
+    ]);
+    expect(mainBox).not.toBeNull();
+    expect(workspaceBox).not.toBeNull();
+    expect(
+      mainBox!.y + mainBox!.height - (workspaceBox!.y + workspaceBox!.height),
+    ).toBeLessThanOrEqual(16);
     expect(await hasNoDocumentOverflow(page)).toBe(true);
     await page.getByRole("link", { name: /Responsive Customer/ }).click();
 
@@ -106,8 +118,16 @@ test.describe("authenticated responsive foundation", () => {
     const composerBox = await composer.boundingBox();
     expect(composerBox).not.toBeNull();
     expect(composerBox!.y + composerBox!.height).toBeLessThanOrEqual(480);
+    const summaryAction = page.getByRole("button", {
+      name: "Memoria del cliente",
+    });
+    const appointmentsAction = page.getByRole("button", {
+      name: "Citas del cliente",
+    });
     for (const control of [
       back,
+      summaryAction,
+      appointmentsAction,
       page.getByRole("link", { name: "Descargar conversación (.txt)" }),
       page.getByRole("button", { name: "Archivar conversación" }),
       page.getByRole("button", { name: "Eliminar conversación" }),
@@ -117,6 +137,34 @@ test.describe("authenticated responsive foundation", () => {
       expect(box!.width).toBeGreaterThanOrEqual(44);
       expect(box!.height).toBeGreaterThanOrEqual(44);
     }
+    await summaryAction.click();
+    await expect(
+      page.getByRole("dialog", { name: "Memoria del cliente" }),
+    ).toBeVisible();
+    await page.keyboard.press("Escape");
+    await appointmentsAction.click();
+    await expect(page.getByRole("dialog", { name: "Citas" })).toBeVisible();
+    await page.keyboard.press("Escape");
+
+    const messageRegion = page.getByRole("log", {
+      name: "Mensajes de la conversación",
+    });
+    const scrollMetrics = await messageRegion.evaluate((element) => ({
+      clientHeight: element.clientHeight,
+      scrollHeight: element.scrollHeight,
+    }));
+    expect(scrollMetrics.scrollHeight).toBeGreaterThan(
+      scrollMetrics.clientHeight,
+    );
+    await messageRegion.evaluate((element) =>
+      element.scrollTo({ top: element.scrollHeight }),
+    );
+    await expect(
+      messageRegion.getByText("Responsive latest message"),
+    ).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollTop)).toBe(
+      0,
+    );
     const handoff = page.getByRole("switch", { name: "Bot activo" });
     await handoff.click();
     await expect(
