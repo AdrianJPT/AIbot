@@ -325,6 +325,74 @@ test("@desktop preserves business and admin tables", async ({ page }) => {
   expect(await hasNoDocumentOverflow(page)).toBe(true);
 });
 
+test("@mobile presents appointment cards with equivalent actions and empty state", async ({
+  page,
+}, testInfo) => {
+  await page.goto("/appointments");
+  const viewport = testInfo.project.name.endsWith("320") ? "320" : "390";
+  const appointments = page.getByRole("list", { name: "Citas" });
+  const appointment = appointments
+    .getByRole("listitem")
+    .filter({ hasText: `Responsive Customer ${viewport}` });
+  await expect(appointment).toContainText("pending");
+  await expect(page.getByRole("table")).toBeHidden();
+  for (const action of ["Confirmar", "Cancelar", "Borrar"]) {
+    await expectTouchTarget(appointment.getByRole("button", { name: action }));
+  }
+  await appointment.getByRole("button", { name: "Confirmar" }).click();
+  await expect(page.getByText("Cita actualizada")).toBeVisible();
+  await expect(appointment).toContainText("confirmed");
+  expect(await hasNoDocumentOverflow(page)).toBe(true);
+
+  await page.goto("/appointments?date=1900-01-01");
+  await expect(page.getByText("No hay citas.")).toBeVisible();
+});
+
+test("@mobile stacks appointment filters and new-appointment fields", async ({
+  page,
+}) => {
+  await page.goto("/appointments");
+  await expectSoftTouchTarget(
+    page.getByRole("link", { name: "Nueva cita" }),
+    "Nueva cita",
+  );
+  await expectSoftTouchTarget(
+    page.getByRole("button", { name: "Filtrar" }),
+    "Filtrar",
+  );
+  for (const field of [
+    page.locator('select[name="businessId"]'),
+    page.locator('select[name="status"]'),
+    page.locator('input[name="date"]'),
+    page.getByRole("button", { name: "Filtrar" }),
+  ]) {
+    const box = await field.boundingBox();
+    expect(box).not.toBeNull();
+    expect(box!.x + box!.width).toBeLessThanOrEqual(page.viewportSize()!.width);
+  }
+
+  await page.goto("/appointments/new");
+  const [formBox, dateBox, timeBox] = await Promise.all([
+    page.getByRole("form").boundingBox(),
+    page.locator("#date").boundingBox(),
+    page.locator("#time").boundingBox(),
+  ]);
+  expect(formBox).not.toBeNull();
+  expect(dateBox!.width).toBeGreaterThanOrEqual(formBox!.width - 2);
+  expect(timeBox!.width).toBeGreaterThanOrEqual(formBox!.width - 2);
+  await expectSoftTouchTarget(
+    page.getByRole("button", { name: "Crear" }),
+    "Crear",
+  );
+  expect(await hasNoDocumentOverflow(page)).toBe(true);
+});
+
+test("@desktop preserves the appointment table", async ({ page }) => {
+  await page.goto("/appointments");
+  await expect(page.getByRole("table")).toBeVisible();
+  await expect(page.getByRole("list", { name: "Citas" })).toBeHidden();
+});
+
 test("@desktop keeps a tall dialog inside the viewport", async ({ page }) => {
   await page.goto("/admin/clients");
   await page
@@ -356,4 +424,15 @@ async function expectTouchTarget(locator: import("@playwright/test").Locator) {
   expect(box).not.toBeNull();
   expect(box!.width).toBeGreaterThanOrEqual(44);
   expect(box!.height).toBeGreaterThanOrEqual(44);
+}
+
+async function expectSoftTouchTarget(
+  locator: import("@playwright/test").Locator,
+  label: string,
+) {
+  const box = await locator.boundingBox();
+  expect.soft(box, `${label} bounding box`).not.toBeNull();
+  if (!box) return;
+  expect.soft(box.width, `${label} width`).toBeGreaterThanOrEqual(44);
+  expect.soft(box.height, `${label} height`).toBeGreaterThanOrEqual(44);
 }

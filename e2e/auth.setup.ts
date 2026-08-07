@@ -151,6 +151,22 @@ setup("provision and authenticate responsive roles", async ({ browser }) => {
         createdAt: new Date(Date.now() - (23 - index) * 60_000),
       })),
     });
+    for (const viewport of ["320", "390"]) {
+      await prisma.appointment.upsert({
+        where: { id: `responsive-appointment-${viewport}` },
+        create: {
+          id: `responsive-appointment-${viewport}`,
+          businessId: "responsive-business",
+          conversationId: RESPONSIVE_CONVERSATION_ID,
+          customerPhone: `+51999000${viewport}`,
+          customerName: `Responsive Customer ${viewport}`,
+          service: "Responsive consultation",
+          date: "2026-08-20",
+          time: "10:30",
+        },
+        update: { status: "pending" },
+      });
+    }
   } finally {
     await prisma.$disconnect();
   }

@@ -14,7 +14,11 @@ export function NewAppointmentForm({
   onSubmit: (e: React.FormEvent<HTMLFormElement>) => void;
 }) {
   return (
-    <form onSubmit={onSubmit} className="max-w-lg space-y-4">
+    <form
+      aria-label="Nueva cita"
+      onSubmit={onSubmit}
+      className="min-w-0 max-w-lg space-y-4"
+    >
       <div className="space-y-1.5">
         <Label htmlFor="businessId">Negocio</Label>
         <select
@@ -43,12 +47,12 @@ export function NewAppointmentForm({
         <Label htmlFor="service">Servicio / motivo</Label>
         <Input id="service" name="service" required />
       </div>
-      <div className="flex gap-4">
-        <div className="flex-1 space-y-1.5">
+      <div className="flex flex-col gap-4 sm:flex-row">
+        <div className="min-w-0 flex-1 space-y-1.5">
           <Label htmlFor="date">Fecha</Label>
           <Input id="date" name="date" required placeholder="2026-04-15" />
         </div>
-        <div className="flex-1 space-y-1.5">
+        <div className="min-w-0 flex-1 space-y-1.5">
           <Label htmlFor="time">Hora</Label>
           <Input id="time" name="time" required placeholder="18:00" />
         </div>
@@ -57,7 +61,11 @@ export function NewAppointmentForm({
         <Label htmlFor="notes">Notas</Label>
         <Textarea id="notes" name="notes" rows={3} />
       </div>
-      <Button type="submit" disabled={submitting}>
+      <Button
+        type="submit"
+        disabled={submitting}
+        className="min-h-11 w-full sm:w-auto"
+      >
         {submitting ? "Guardando…" : "Crear"}
       </Button>
     </form>

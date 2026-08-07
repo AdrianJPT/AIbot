@@ -30,8 +30,84 @@ export function AppointmentTable({
     );
   }
 
-  return (
-    <div className="overflow-x-auto rounded-lg border border-border">
+  return [
+    <ul key="mobile" aria-label="Citas" className="space-y-3 md:hidden">
+      {appointments.map((a) => {
+        const busy = busyId === a.id;
+        return (
+          <li
+            key={a.id}
+            className="space-y-3 rounded-lg border border-border p-4"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="break-words font-medium">{a.customerName}</p>
+                <p className="break-words text-sm text-muted-foreground">
+                  {a.business.name}
+                </p>
+              </div>
+              <span className="shrink-0 text-sm">{a.status}</span>
+            </div>
+            <dl className="grid gap-2 text-sm">
+              <div>
+                <dt className="text-muted-foreground">Teléfono</dt>
+                <dd className="break-all font-mono">{a.customerPhone}</dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground">Servicio</dt>
+                <dd className="break-words">{a.service}</dd>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <dt className="text-muted-foreground">Fecha</dt>
+                  <dd>{a.date}</dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">Hora</dt>
+                  <dd>{a.time}</dd>
+                </div>
+              </div>
+            </dl>
+            <div className="grid grid-cols-2 gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                className="min-h-11"
+                disabled={busy}
+                onClick={() => onConfirm(a.id)}
+              >
+                Confirmar
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="min-h-11"
+                disabled={busy}
+                onClick={() => onCancel(a.id)}
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="destructive"
+                className="col-span-2 min-h-11"
+                disabled={busy}
+                onClick={() => onDelete(a.id)}
+              >
+                Borrar
+              </Button>
+            </div>
+          </li>
+        );
+      })}
+    </ul>,
+    <div
+      key="desktop"
+      className="hidden overflow-x-auto rounded-lg border border-border md:block"
+    >
       <Table className="min-w-[800px]">
         <TableHeader>
           <TableRow>
@@ -95,6 +171,6 @@ export function AppointmentTable({
           })}
         </TableBody>
       </Table>
-    </div>
-  );
+    </div>,
+  ];
 }
