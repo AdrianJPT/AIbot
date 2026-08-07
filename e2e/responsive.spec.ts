@@ -352,6 +352,14 @@ test("@mobile stacks appointment filters and new-appointment fields", async ({
   page,
 }) => {
   await page.goto("/appointments");
+  await expectSoftTouchTarget(
+    page.getByRole("link", { name: "Nueva cita" }),
+    "Nueva cita",
+  );
+  await expectSoftTouchTarget(
+    page.getByRole("button", { name: "Filtrar" }),
+    "Filtrar",
+  );
   for (const field of [
     page.locator('select[name="businessId"]'),
     page.locator('select[name="status"]'),
@@ -372,6 +380,10 @@ test("@mobile stacks appointment filters and new-appointment fields", async ({
   expect(formBox).not.toBeNull();
   expect(dateBox!.width).toBeGreaterThanOrEqual(formBox!.width - 2);
   expect(timeBox!.width).toBeGreaterThanOrEqual(formBox!.width - 2);
+  await expectSoftTouchTarget(
+    page.getByRole("button", { name: "Crear" }),
+    "Crear",
+  );
   expect(await hasNoDocumentOverflow(page)).toBe(true);
 });
 
@@ -412,4 +424,15 @@ async function expectTouchTarget(locator: import("@playwright/test").Locator) {
   expect(box).not.toBeNull();
   expect(box!.width).toBeGreaterThanOrEqual(44);
   expect(box!.height).toBeGreaterThanOrEqual(44);
+}
+
+async function expectSoftTouchTarget(
+  locator: import("@playwright/test").Locator,
+  label: string,
+) {
+  const box = await locator.boundingBox();
+  expect.soft(box, `${label} bounding box`).not.toBeNull();
+  if (!box) return;
+  expect.soft(box.width, `${label} width`).toBeGreaterThanOrEqual(44);
+  expect.soft(box.height, `${label} height`).toBeGreaterThanOrEqual(44);
 }
