@@ -28,19 +28,20 @@ export function MessageComposer({
   }
 
   return (
-    <div className="flex items-end gap-2 border-t border-border bg-background p-3">
+    <div className="flex min-w-0 items-end gap-2 border-t border-border bg-background p-2 sm:p-3">
       <Textarea
         value={text}
         onChange={(e) => setText(e.target.value)}
         onKeyDown={handleKeyDown}
         placeholder="Escribí un mensaje… (Enter para enviar, Shift+Enter salto de línea)"
-        className="min-h-[44px] flex-1 resize-none"
+        className="min-h-[44px] min-w-0 flex-1 resize-none"
         rows={1}
       />
       <Button
         type="button"
         onClick={submit}
         disabled={disabled || !text.trim()}
+        className="min-h-11 shrink-0"
       >
         Enviar
       </Button>

@@ -14,7 +14,7 @@ import type {
 } from "@/features/businesses/types";
 
 const SELECT_CLASSNAME =
-  "flex h-9 flex-1 rounded-md border border-input bg-background px-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50";
+  "flex h-9 min-w-0 flex-1 rounded-md border border-input bg-background px-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50";
 
 const TABS: Array<{ value: ConversationFilter; label: string }> = [
   { value: "all", label: "Todas" },
@@ -67,7 +67,7 @@ export function ConversationList({
   const showNumberFilter = !!businessId && !numberFilterLabel;
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full min-w-0 flex-col">
       <div className="space-y-3 border-b border-border p-3">
         <h1 className="px-1 text-lg font-bold">Conversaciones</h1>
         {numberFilterLabel && (
@@ -86,7 +86,7 @@ export function ConversationList({
           </p>
         )}
         {(showBusinessFilter || showNumberFilter) && (
-          <div className="flex gap-2">
+          <div className="flex flex-col gap-2 sm:flex-row">
             {showBusinessFilter && (
               <select
                 aria-label="Filtrar por negocio"
@@ -134,7 +134,11 @@ export function ConversationList({
         >
           <TabsList className="grid w-full grid-cols-4">
             {TABS.map((tab) => (
-              <TabsTrigger key={tab.value} value={tab.value}>
+              <TabsTrigger
+                key={tab.value}
+                value={tab.value}
+                className="min-w-0 px-1 text-xs sm:px-3 sm:text-sm"
+              >
                 {tab.label}
               </TabsTrigger>
             ))}

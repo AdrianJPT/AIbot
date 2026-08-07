@@ -18,6 +18,8 @@ const fixtures = [
   },
 ] as const;
 
+const RESPONSIVE_CONVERSATION_ID = "responsive-conversation";
+
 setup("provision and authenticate responsive roles", async ({ browser }) => {
   loadEnvConfig(process.cwd());
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -91,6 +93,64 @@ setup("provision and authenticate responsive roles", async ({ browser }) => {
       await page.context().storageState({ path: fixture.state });
       await page.close();
     }
+
+    const admin = await prisma.user.findUniqueOrThrow({
+      where: { email: fixtures[0].email },
+    });
+    await prisma.business.upsert({
+      where: { id: "responsive-business" },
+      create: {
+        id: "responsive-business",
+        name: "Responsive Business",
+        ownerId: admin.id,
+        systemPrompt: "Be helpful.",
+        welcomeMessage: "Welcome",
+        businessInfo: {},
+      },
+      update: { ownerId: admin.id },
+    });
+    await prisma.phoneNumber.upsert({
+      where: { id: "responsive-phone-number" },
+      create: {
+        id: "responsive-phone-number",
+        businessId: "responsive-business",
+        phoneNumberId: "responsive-phone-number-meta",
+        displayPhone: "+51 999 000 111",
+      },
+      update: { businessId: "responsive-business" },
+    });
+    await prisma.conversation.upsert({
+      where: { id: RESPONSIVE_CONVERSATION_ID },
+      create: {
+        id: RESPONSIVE_CONVERSATION_ID,
+        businessId: "responsive-business",
+        phoneNumberId: "responsive-phone-number",
+        customerPhone: "+51999000222",
+        customerName: "Responsive Customer",
+      },
+      update: {
+        businessId: "responsive-business",
+        phoneNumberId: "responsive-phone-number",
+        customerName: "Responsive Customer",
+        status: "active",
+      },
+    });
+    await prisma.message.deleteMany({
+      where: { conversationId: RESPONSIVE_CONVERSATION_ID },
+    });
+    await prisma.message.createMany({
+      data: Array.from({ length: 24 }, (_, index) => ({
+        id: `responsive-message-${index}`,
+        conversationId: RESPONSIVE_CONVERSATION_ID,
+        role: "user",
+        content:
+          index === 23
+            ? "Responsive latest message"
+            : `Responsive fixture message ${index + 1}`,
+        sentBy: "customer",
+        createdAt: new Date(Date.now() - (23 - index) * 60_000),
+      })),
+    });
   } finally {
     await prisma.$disconnect();
   }

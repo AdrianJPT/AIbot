@@ -21,6 +21,7 @@ export function HandoffToggle({
   onChange: (next: string) => void;
   loading: boolean;
 }) {
+  const switchId = "conversation-handoff";
   const [confirmOpen, setConfirmOpen] = useState(false);
   const isHuman = status === "handed_off";
 
@@ -36,11 +37,12 @@ export function HandoffToggle({
 
   return (
     <>
-      <div className="flex items-center gap-2">
-        <span className="text-sm font-medium">
+      <div className="flex min-h-11 items-center gap-2 px-1">
+        <label htmlFor={switchId} className="text-sm font-medium">
           {isHuman ? "Atención humana" : "Bot activo"}
-        </span>
+        </label>
         <Switch
+          id={switchId}
           checked={isHuman}
           disabled={loading}
           onCheckedChange={handleToggle}
