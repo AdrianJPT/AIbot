@@ -85,6 +85,52 @@ test.describe("authenticated responsive foundation", () => {
       ),
     ).toBe(true);
   });
+
+  test("@mobile moves from the conversation list to a usable compact thread and back", async ({
+    page,
+  }) => {
+    await page.setViewportSize({
+      width: page.viewportSize()!.width,
+      height: 480,
+    });
+    await page.goto("/conversations");
+    expect(await hasNoDocumentOverflow(page)).toBe(true);
+    await page.getByRole("link", { name: /Responsive Customer/ }).click();
+
+    await expect(page).toHaveURL(/\/conversations\/responsive-conversation$/);
+    const back = page.getByRole("link", { name: "Volver a conversaciones" });
+    await expect(back).toBeVisible();
+    const composer = page.getByPlaceholder(/Escribí un mensaje/);
+    await composer.focus();
+    await expect(composer).toBeFocused();
+    const composerBox = await composer.boundingBox();
+    expect(composerBox).not.toBeNull();
+    expect(composerBox!.y + composerBox!.height).toBeLessThanOrEqual(480);
+    for (const control of [
+      back,
+      page.getByRole("link", { name: "Descargar conversación (.txt)" }),
+      page.getByRole("button", { name: "Archivar conversación" }),
+      page.getByRole("button", { name: "Eliminar conversación" }),
+    ]) {
+      const box = await control.boundingBox();
+      expect(box).not.toBeNull();
+      expect(box!.width).toBeGreaterThanOrEqual(44);
+      expect(box!.height).toBeGreaterThanOrEqual(44);
+    }
+    const handoff = page.getByRole("switch", { name: "Bot activo" });
+    await handoff.click();
+    await expect(
+      page.getByRole("dialog", { name: /atención humana/ }),
+    ).toBeVisible();
+    await page.getByRole("button", { name: "Cancelar" }).click();
+    expect(await hasNoDocumentOverflow(page)).toBe(true);
+
+    await back.click();
+    await expect(page).toHaveURL(/\/conversations$/);
+    await expect(
+      page.getByRole("link", { name: /Responsive Customer/ }),
+    ).toBeVisible();
+  });
 });
 
 test("@client hides privileged navigation from a mobile client", async ({
@@ -118,6 +164,21 @@ test("@desktop keeps desktop navigation visible without overflow", async ({
   ).toBe(true);
 });
 
+test("@desktop preserves the two-pane conversation view", async ({ page }) => {
+  await page.goto("/conversations/responsive-conversation");
+
+  await expect(
+    page.getByRole("heading", { name: "Conversaciones" }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Responsive Customer", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "Volver a conversaciones" }),
+  ).toBeHidden();
+  expect(await hasNoDocumentOverflow(page)).toBe(true);
+});
+
 test("@desktop keeps a tall dialog inside the viewport", async ({ page }) => {
   await page.goto("/admin/clients");
   await page
@@ -135,3 +196,11 @@ test("@desktop keeps a tall dialog inside the viewport", async ({ page }) => {
   await close.scrollIntoViewIfNeeded();
   await expect(close).toBeVisible();
 });
+
+async function hasNoDocumentOverflow(page: import("@playwright/test").Page) {
+  return page.evaluate(
+    () =>
+      document.documentElement.scrollWidth <=
+      document.documentElement.clientWidth,
+  );
+}

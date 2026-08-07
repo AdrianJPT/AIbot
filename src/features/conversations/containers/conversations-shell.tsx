@@ -24,7 +24,7 @@ export function ConversationsShell({
   const isListOnly = pathname === "/conversations";
 
   return (
-    <div className="flex h-[calc(100vh-9rem)] overflow-hidden rounded-lg border border-border">
+    <div className="flex h-full min-h-0 w-full overflow-hidden rounded-lg border border-border">
       <div
         className={cn(
           "w-full flex-col md:flex md:w-[360px] md:shrink-0 md:border-r md:border-border",

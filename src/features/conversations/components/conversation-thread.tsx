@@ -128,16 +128,16 @@ export function ConversationThread({
   }
 
   return (
-    <div className="flex h-full flex-col">
-      <div className="flex items-center gap-3 border-b border-border p-3">
+    <div className="flex h-full min-h-0 min-w-0 flex-col">
+      <div className="flex flex-wrap items-center gap-1 border-b border-border p-2 sm:gap-2 sm:p-3">
         <Link
           href="/conversations"
-          className="text-muted-foreground hover:text-foreground md:hidden"
+          className="flex h-11 w-11 shrink-0 items-center justify-center text-muted-foreground hover:text-foreground md:hidden"
           aria-label="Volver a conversaciones"
         >
           <ArrowLeft className="h-5 w-5" />
         </Link>
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1 basis-[calc(100%-3rem)] md:basis-0">
           {editingName ? (
             <Input
               autoFocus
@@ -167,60 +167,62 @@ export function ConversationThread({
             {conversation.customerPhone} · {conversation.business.name}
           </div>
         </div>
-        <SummaryPanel
-          summary={conversation.summary}
-          summarizedThroughAt={conversation.summarizedThroughAt}
-          onRegenerate={onRegenerateSummary}
-          loading={regeneratingSummary}
-        />
-        <AppointmentsPanel conversationId={conversation.id} />
-        <a
-          href={`/api/conversations/${conversation.id}/export`}
-          download
-          className="text-muted-foreground hover:text-foreground"
-          title="Descargar conversación (.txt)"
-          aria-label="Descargar conversación (.txt)"
-        >
-          <Download className="h-4 w-4" />
-        </a>
-        <button
-          type="button"
-          onClick={() => onHandoffChange(isClosed ? "active" : "closed")}
-          className="text-muted-foreground hover:text-foreground"
-          title={isClosed ? "Reabrir conversación" : "Archivar conversación"}
-          aria-label={
-            isClosed ? "Reabrir conversación" : "Archivar conversación"
-          }
-        >
-          {isClosed ? (
-            <ArchiveRestore className="h-4 w-4" />
-          ) : (
-            <Archive className="h-4 w-4" />
-          )}
-        </button>
-        <button
-          type="button"
-          disabled={deleting}
-          onClick={() => {
-            if (
-              confirm(
-                "¿Eliminar esta conversación? Se borra todo su historial.",
-              )
-            ) {
-              onDelete();
+        <div className="flex w-full flex-wrap items-center gap-1 md:w-auto md:flex-nowrap">
+          <SummaryPanel
+            summary={conversation.summary}
+            summarizedThroughAt={conversation.summarizedThroughAt}
+            onRegenerate={onRegenerateSummary}
+            loading={regeneratingSummary}
+          />
+          <AppointmentsPanel conversationId={conversation.id} />
+          <a
+            href={`/api/conversations/${conversation.id}/export`}
+            download
+            className="flex h-11 w-11 items-center justify-center text-muted-foreground hover:text-foreground"
+            title="Descargar conversación (.txt)"
+            aria-label="Descargar conversación (.txt)"
+          >
+            <Download className="h-4 w-4" />
+          </a>
+          <button
+            type="button"
+            onClick={() => onHandoffChange(isClosed ? "active" : "closed")}
+            className="flex h-11 w-11 items-center justify-center text-muted-foreground hover:text-foreground"
+            title={isClosed ? "Reabrir conversación" : "Archivar conversación"}
+            aria-label={
+              isClosed ? "Reabrir conversación" : "Archivar conversación"
             }
-          }}
-          className="text-muted-foreground hover:text-destructive"
-          title="Eliminar conversación"
-          aria-label="Eliminar conversación"
-        >
-          <Trash2 className="h-4 w-4" />
-        </button>
-        <HandoffToggle
-          status={conversation.status}
-          onChange={onHandoffChange}
-          loading={handoffLoading}
-        />
+          >
+            {isClosed ? (
+              <ArchiveRestore className="h-4 w-4" />
+            ) : (
+              <Archive className="h-4 w-4" />
+            )}
+          </button>
+          <button
+            type="button"
+            disabled={deleting}
+            onClick={() => {
+              if (
+                confirm(
+                  "¿Eliminar esta conversación? Se borra todo su historial.",
+                )
+              ) {
+                onDelete();
+              }
+            }}
+            className="flex h-11 w-11 items-center justify-center text-muted-foreground hover:text-destructive"
+            title="Eliminar conversación"
+            aria-label="Eliminar conversación"
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+          <HandoffToggle
+            status={conversation.status}
+            onChange={onHandoffChange}
+            loading={handoffLoading}
+          />
+        </div>
       </div>
 
       {outsideWindow && (
@@ -234,7 +236,7 @@ export function ConversationThread({
         <div
           ref={scrollRef}
           onScroll={handleScroll}
-          className="h-full space-y-2 overflow-y-auto p-4"
+          className="h-full space-y-2 overflow-y-auto p-3 sm:p-4"
         >
           {loadingOlder && (
             <p className="text-center text-xs text-muted-foreground">

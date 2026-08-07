@@ -40,7 +40,7 @@ export function AppointmentsPanel({
       <SheetTrigger asChild>
         <button
           type="button"
-          className="flex items-center gap-1 text-muted-foreground hover:text-foreground"
+          className="flex h-11 w-11 items-center justify-center gap-1 text-muted-foreground hover:text-foreground"
           title="Citas del cliente"
           aria-label="Citas del cliente"
         >

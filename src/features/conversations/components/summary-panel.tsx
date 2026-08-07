@@ -76,7 +76,7 @@ export function SummaryPanel({
         <SheetTrigger asChild>
           <button
             type="button"
-            className="flex items-center gap-1 text-muted-foreground hover:text-foreground"
+            className="flex h-11 w-11 items-center justify-center gap-1 text-muted-foreground hover:text-foreground"
             title="Lo que el bot recuerda de este cliente"
             aria-label="Memoria del cliente"
           >
