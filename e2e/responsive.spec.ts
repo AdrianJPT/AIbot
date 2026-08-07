@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 test.describe("responsive foundation", () => {
-  test("keeps the login card usable at the narrowest viewport", async ({
+  test("@public keeps the login card usable at the narrowest viewport", async ({
     page,
   }) => {
     await page.setViewportSize({ width: 320, height: 568 });
@@ -22,7 +22,7 @@ test.describe("responsive foundation", () => {
     ).toBe(true);
   });
 
-  test("keeps the login card reachable with a short visible viewport", async ({
+  test("@public keeps the login card reachable with a short visible viewport", async ({
     page,
   }) => {
     await page.setViewportSize({ width: 320, height: 480 });
@@ -40,15 +40,11 @@ test.describe("responsive foundation", () => {
 });
 
 test.describe("authenticated responsive foundation", () => {
-  test.beforeEach(async ({ page }, testInfo) => {
-    test.skip(
-      !["responsive-320", "responsive-390"].includes(testInfo.project.name),
-      "Mobile authenticated projects own drawer coverage",
-    );
+  test.beforeEach(async ({ page }) => {
     await page.goto("/");
   });
 
-  test("opens a viewport-safe mobile menu with touch-sized controls", async ({
+  test("@mobile opens a viewport-safe menu with touch controls", async ({
     page,
   }) => {
     const viewport = page.viewportSize()!;
@@ -62,18 +58,20 @@ test.describe("authenticated responsive foundation", () => {
 
     await menuButton.click();
     const dialog = page.getByRole("dialog", { name: "Menú de navegación" });
+    await expect(dialog).toBeVisible();
+    await expect
+      .poll(async () => (await dialog.boundingBox())?.x ?? -1)
+      .toBeGreaterThanOrEqual(0);
     const dialogBox = await dialog.boundingBox();
     expect(dialogBox).not.toBeNull();
-    expect(dialogBox!.x).toBeGreaterThanOrEqual(0);
     expect(dialogBox!.height).toBeLessThanOrEqual(page.viewportSize()!.height);
 
     const logout = page.getByRole("button", { name: "Cerrar sesión" });
-    await expect(page.getByRole("link", { name: "Clientes" })).toBeVisible();
     await logout.scrollIntoViewIfNeeded();
     await expect(logout).toBeVisible();
   });
 
-  test("navigates from the drawer and closes the overlay", async ({ page }) => {
+  test("@mobile navigates from the drawer and closes it", async ({ page }) => {
     await page.getByRole("button", { name: "Abrir menú" }).click();
     await page.getByRole("link", { name: "Negocios" }).click();
 
@@ -89,16 +87,27 @@ test.describe("authenticated responsive foundation", () => {
   });
 });
 
-test("keeps desktop navigation visible without document overflow", async ({
+test("@client hides privileged navigation from a mobile client", async ({
   page,
-}, testInfo) => {
-  test.skip(
-    testInfo.project.name !== "responsive-desktop",
-    "Desktop authenticated project owns sidebar coverage",
+}) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Abrir menú" }).click();
+
+  await expect(page.getByRole("link", { name: "Negocios" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Clientes" })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "Configuración" })).toHaveCount(
+    0,
   );
+  await expect(page.getByRole("link", { name: "Eventos" })).toHaveCount(0);
+});
+
+test("@desktop keeps desktop navigation visible without overflow", async ({
+  page,
+}) => {
   await page.goto("/");
 
   await expect(page.getByRole("link", { name: "Negocios" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Clientes" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Abrir menú" })).toBeHidden();
   expect(
     await page.evaluate(
@@ -107,4 +116,22 @@ test("keeps desktop navigation visible without document overflow", async ({
         document.documentElement.clientWidth,
     ),
   ).toBe(true);
+});
+
+test("@desktop keeps a tall dialog inside the viewport", async ({ page }) => {
+  await page.goto("/admin/clients");
+  await page
+    .getByRole("link", { name: "responsive-client@aibot.invalid" })
+    .click();
+  await page.setViewportSize({ width: 320, height: 240 });
+  await page.getByRole("button", { name: "Asociar negocio" }).click();
+
+  const dialog = page.getByRole("dialog", { name: "Asociar negocio" });
+  const box = await dialog.boundingBox();
+  expect(box).not.toBeNull();
+  expect(box!.y).toBeGreaterThanOrEqual(0);
+  expect(box!.height).toBeLessThanOrEqual(240);
+  const close = page.getByRole("button", { name: "Close" });
+  await close.scrollIntoViewIfNeeded();
+  await expect(close).toBeVisible();
 });
