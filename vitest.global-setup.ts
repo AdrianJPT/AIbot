@@ -64,8 +64,34 @@ function isTestDbReachable(): Promise<boolean> {
  *
  * Prisma creates a missing schema on its own, and `migrate deploy` is
  * idempotent, so a warm container only pays a fast `_prisma_migrations`
- * check. The schemas are migrated in parallel so setup cost stays flat as
- * `TEST_WORKER_COUNT` grows.
+ * check.
+ *
+ * Every `CREATE INDEX CONCURRENTLY` migration in this repo (see
+ * `prisma/migrations/20260811*`) is one statement per `migration.sql` file —
+ * verified empirically that Prisma 5.22.0's `migrate deploy` wraps a
+ * migration.sql containing more than one statement in an explicit
+ * transaction, which `CONCURRENTLY` cannot run inside, regardless of whether
+ * the connection URL has a `?schema=` param. A single-statement file is not
+ * wrapped and applies cleanly here with no special-casing.
+ *
+ * The schemas are migrated SEQUENTIALLY, not in parallel, for the same
+ * `CONCURRENTLY` reason: Prisma serializes all `migrate deploy` invocations
+ * against one physical database behind a single database-wide advisory
+ * lock, regardless of target schema. `CREATE INDEX CONCURRENTLY` separately
+ * waits for every other in-progress transaction in the whole cluster to
+ * finish its current snapshot before it can complete. Run four workers'
+ * `migrate deploy` in parallel (`Promise.all`) once any of them contains a
+ * CONCURRENTLY migration, and you get a genuine deadlock: whichever worker
+ * holds the advisory lock and is mid-CONCURRENTLY-build waits on another
+ * worker's still-open (lock-blocked) transaction, while that worker waits on
+ * the lock the first one holds — Postgres detects the cycle and kills one
+ * side (`deadlock detected`, SQLSTATE 40P01). Reproduced empirically on a
+ * fresh container with all 4 workers racing; see the
+ * `sdd/conversation-list-scale/apply-progress` note in Engram for the full
+ * repro. Sequential application costs a little cold-start time (once per
+ * container lifecycle, not per test run) in exchange for correctness.
+ * Future `CONCURRENTLY` migrations MUST keep the one-statement-per-file
+ * convention above, or this setup fails the transaction-wrap way instead.
  */
 export default async function setup(): Promise<void> {
   if (!(await isTestDbReachable())) {
@@ -85,14 +111,12 @@ export default async function setup(): Promise<void> {
   const workerIds = Array.from({ length: TEST_WORKER_COUNT }, (_, i) => i + 1);
 
   try {
-    await Promise.all(
-      workerIds.map((id) => {
-        const url = workerDatabaseUrl(id);
-        return execFileAsync("npx", ["prisma", "migrate", "deploy"], {
-          env: { ...process.env, DATABASE_URL: url, DIRECT_URL: url },
-        });
-      }),
-    );
+    for (const id of workerIds) {
+      const url = workerDatabaseUrl(id);
+      await execFileAsync("npx", ["prisma", "migrate", "deploy"], {
+        env: { ...process.env, DATABASE_URL: url, DIRECT_URL: url },
+      });
+    }
   } catch {
     throw new Error(
       [

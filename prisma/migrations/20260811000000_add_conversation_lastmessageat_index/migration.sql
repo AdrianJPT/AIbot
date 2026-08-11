@@ -1,0 +1,22 @@
+-- Scale-safe conversation list loading, slice 1 (D1).
+--
+-- One `CREATE INDEX CONCURRENTLY` statement per migration file, on purpose:
+-- verified empirically against this repo's exact setup (Prisma 5.22.0,
+-- `prisma migrate deploy`, Postgres 16) that Prisma wraps a migration.sql
+-- containing MORE THAN ONE statement in an explicit transaction — which
+-- `CONCURRENTLY` cannot run inside, regardless of whether the connection URL
+-- has a `?schema=` param or not. A migration.sql with exactly one top-level
+-- statement is NOT wrapped and applies cleanly with a plain
+-- `prisma migrate deploy`, no `db execute` + `migrate resolve --applied`
+-- workaround needed. See the apply-progress note in Engram
+-- (`sdd/conversation-list-scale/apply-progress`) for the full repro,
+-- including the earlier (wrong) multi-statement attempt that failed with
+-- "CREATE INDEX CONCURRENTLY cannot run inside a transaction block".
+--
+-- `Conversation` is one of the two largest tables in this schema (see the
+-- design doc), so this is built CONCURRENTLY to avoid an ACCESS EXCLUSIVE
+-- lock on the webhook write path. Admin sort with no `businessId` qualifier
+-- — neither existing composite index ([businessId,lastMessageAt] /
+-- [phoneNumberId,lastMessageAt]) can serve an unqualified
+-- ORDER BY "lastMessageAt".
+CREATE INDEX CONCURRENTLY IF NOT EXISTS "Conversation_lastMessageAt_idx" ON "Conversation" ("lastMessageAt");

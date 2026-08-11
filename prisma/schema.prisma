@@ -128,6 +128,9 @@ model Conversation {
   @@index([businessId, lastMessageAt])
   @@index([phoneNumberId, lastMessageAt])
   @@index([pendingFlushAt])
+  @@index([createdAt]) // admin "conversations today" style queries have no businessId qualifier, so the composite indexes above can't serve them
+  @@index([lastMessageAt]) // bare index for admin's platform-wide sort — same reason as createdAt above; [businessId,lastMessageAt] can't serve an unqualified ORDER BY
+  @@index([status, lastMessageAt]) // admin status-tab filter+sort with no businessId qualifier; tenant-scoped status filtering is still served by [businessId,lastMessageAt] + a cheap residual filter
 }
 
 model Message {
@@ -161,6 +164,7 @@ model Message {
   // smaller, but Prisma 5.22 cannot express a predicate in @@index and raw SQL
   // for it would show up as permanent `migrate diff` drift.
   @@index([conversationId, sentBy, batchedAt, createdAt])
+  @@index([sentBy, createdAt]) // equality-then-range for the daily AI-reply budget check (message-handler.ts's resolveAiReply / alreadyNotifiedToday): bounds the scan to today's bot messages platform-wide before joining Conversation on businessId, which [businessId,lastMessageAt] on Conversation already covers
 }
 
 model Appointment {
