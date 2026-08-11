@@ -1,0 +1,15 @@
+-- Scale-safe conversation list loading, slice 1 (D4). Depends on
+-- `20260811000004_enable_pg_trgm_extension` having run first. See that
+-- file and `20260811000000_add_conversation_lastmessageat_index` for the
+-- one-statement-per-file rationale and the Supabase-privilege fallback
+-- instructions (`fallback-btree.sql`, this same folder).
+--
+-- `public.gin_trgm_ops` is schema-qualified rather than bare `gin_trgm_ops`:
+-- verified this repo's own test setup connects with a `?schema=<worker>`
+-- connection URL param, which sets Postgres's `search_path` to ONLY that
+-- schema (not `<worker>, public`), so an unqualified operator class name
+-- fails to resolve even though the extension (installed into `public` by
+-- the sibling migration) exists in the database. Qualifying it removes the
+-- dependency on search_path order entirely, which is more robust in
+-- production too.
+CREATE INDEX CONCURRENTLY IF NOT EXISTS "Conversation_customerName_trgm_idx" ON "Conversation" USING gin ("customerName" public.gin_trgm_ops);

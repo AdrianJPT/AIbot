@@ -1,0 +1,22 @@
+-- FALLBACK PATH for D4 (see design, `sdd/conversation-list-scale/design`),
+-- used ONLY if `20260811000004_enable_pg_trgm_extension/migration.sql`
+-- fails on the real Supabase project with an insufficient_privilege error
+-- on `CREATE EXTENSION pg_trgm`.
+--
+-- This is NOT picked up automatically by Prisma — `prisma migrate deploy`
+-- only ever reads a file literally named `migration.sql`. To use this
+-- fallback: replace THIS migration's `migration.sql` contents with the
+-- contents of this file (verbatim, same file name), and do the equivalent
+-- for the sibling `20260811000006_add_conversation_customerphone_trgm_index`
+-- (btree on `customerPhone` instead), then delete
+-- `20260811000004_enable_pg_trgm_extension` entirely (no extension needed
+-- for a plain btree index) before re-running `prisma migrate deploy`.
+--
+-- Semantics change if this path is taken: `text_pattern_ops` only supports
+-- prefix matching (`LIKE 'prefix%'` / Prisma `startsWith`), NOT the current
+-- mid-string ILIKE substring search. `src/app/api/conversations/route.ts`
+-- MUST switch its search filter from `contains` to `startsWith` in slice 2
+-- (PR 2) if this fallback is used — otherwise the query stops being
+-- index-served and falls back to a sequential scan again, defeating the
+-- point of this migration. Document the semantics change in that PR.
+CREATE INDEX CONCURRENTLY IF NOT EXISTS "Conversation_customerName_trgm_idx" ON "Conversation" ("customerName" text_pattern_ops);
