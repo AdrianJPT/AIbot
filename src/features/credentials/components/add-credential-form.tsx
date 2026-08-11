@@ -2,7 +2,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-const AI_PROVIDERS = ["openai", "openrouter", "google", "custom"];
+const AI_PROVIDERS = [
+  { value: "openai", label: "OpenAI" },
+  { value: "openrouter", label: "OpenRouter" },
+  { value: "google", label: "Google" },
+  { value: "opencode-zen", label: "OpenCode Zen" },
+  { value: "custom", label: "Custom" },
+];
 
 export function AddCredentialForm({
   kind,
@@ -57,8 +63,8 @@ export function AddCredentialForm({
               className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             >
               {AI_PROVIDERS.map((p) => (
-                <option key={p} value={p}>
-                  {p}
+                <option key={p.value} value={p.value}>
+                  {p.label}
                 </option>
               ))}
             </select>

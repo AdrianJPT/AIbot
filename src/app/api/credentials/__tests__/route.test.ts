@@ -193,6 +193,24 @@ describe("GET/POST /api/credentials", () => {
     expect(created.baseUrl).toBe("https://api.example.com/v1");
   });
 
+  it("POST creates an opencode-zen credential without requiring a baseUrl", async () => {
+    getSessionUser.mockResolvedValueOnce(admin);
+    const { POST } = await import("../route");
+
+    const res = await POST(
+      buildRequest({
+        kind: "ai",
+        provider: "opencode-zen",
+        label: "opencode-zen key",
+        key: "sk-opencodezen0000",
+      }),
+    );
+    const created = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(created.baseUrl).toBeNull();
+  });
+
   it("POST defaults the first ai credential for an owner to priority 0", async () => {
     const { POST } = await import("../route");
     const solo = await createTestUser("cred-solo-owner", "admin");

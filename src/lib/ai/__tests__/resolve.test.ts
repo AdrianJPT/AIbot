@@ -429,6 +429,42 @@ describe("callWithAiCredential — explicit pin (business.aiCredentialId set)", 
   });
 });
 
+describe("opencode-zen base URL resolution", () => {
+  it("resolves the registered default base URL when the credential has no baseUrl", async () => {
+    const credential = makeCredential({
+      id: "cred_opencode_zen_default",
+      provider: "opencode-zen",
+      baseUrl: null,
+      updatedAt: new Date("2026-03-01T00:00:00.000Z"),
+    });
+    credentialFindUnique.mockResolvedValue(credential);
+    const business = makeBusiness({ aiCredentialId: "cred_opencode_zen_default" });
+
+    await callWithAiCredential(business, vi.fn().mockResolvedValue("ok"));
+
+    expect(openAiCtor).toHaveBeenCalledWith(
+      expect.objectContaining({ baseURL: "https://opencode.ai/zen/v1" }),
+    );
+  });
+
+  it("uses the credential's explicit baseUrl override instead of the registered default", async () => {
+    const credential = makeCredential({
+      id: "cred_opencode_zen_override",
+      provider: "opencode-zen",
+      baseUrl: "https://custom.opencode.example/v1",
+      updatedAt: new Date("2026-03-02T00:00:00.000Z"),
+    });
+    credentialFindUnique.mockResolvedValue(credential);
+    const business = makeBusiness({ aiCredentialId: "cred_opencode_zen_override" });
+
+    await callWithAiCredential(business, vi.fn().mockResolvedValue("ok"));
+
+    expect(openAiCtor).toHaveBeenCalledWith(
+      expect.objectContaining({ baseURL: "https://custom.opencode.example/v1" }),
+    );
+  });
+});
+
 describe("callWithAiCredential — global fallback chain (no business.aiCredentialId)", () => {
   it("queries every active 'ai' credential system-wide (NOT scoped by business.ownerId), ordered by priority asc, createdAt asc", async () => {
     credentialFindMany.mockResolvedValue([makeCredential({ id: "cred_1" })]);

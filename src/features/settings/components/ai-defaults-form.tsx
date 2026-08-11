@@ -93,8 +93,10 @@ export function AiDefaultsForm({
       <p className="text-xs text-muted-foreground">
         Formato de modelo esperado según el proveedor de la credencial que
         termine sirviendo la respuesta: ej. gpt-4o-mini / whisper-1 (OpenAI),
-        gemini-2.0-flash (Google — sin audio por esta vía), o proveedor/modelo
-        (OpenRouter, ej. openai/gpt-4o-mini).
+        gemini-2.0-flash (Google — sin audio por esta vía), proveedor/modelo
+        (OpenRouter, ej. openai/gpt-4o-mini), o modelo directo de OpenCode
+        Zen (ej. grok-code — ilustrativo, confirmar en el catálogo del
+        proveedor; puede no servir audio por esta vía).
       </p>
 
       <Button type="submit" disabled={saving}>

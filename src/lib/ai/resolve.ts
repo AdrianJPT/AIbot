@@ -44,6 +44,7 @@ export async function resolveModels(
 const PROVIDER_BASE_URLS: Record<string, string> = {
   openrouter: "https://openrouter.ai/api/v1",
   google: "https://generativelanguage.googleapis.com/v1beta/openai/",
+  "opencode-zen": "https://opencode.ai/zen/v1",
 };
 
 const CLIENT_CACHE_MAX_ENTRIES = 50;
