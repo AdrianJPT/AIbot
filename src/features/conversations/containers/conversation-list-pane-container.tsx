@@ -2,13 +2,15 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { ConversationList } from "@/features/conversations/components/conversation-list";
 import { fetchConversations } from "@/features/conversations/api";
 import { fetchBusinesses, fetchPhoneNumbers } from "@/features/businesses/api";
 import { useRealtimeMessages } from "@/features/conversations/hooks/use-realtime-messages";
 import { conversationKeys } from "@/features/conversations/query-keys";
 import type { ConversationFilter } from "@/features/conversations/types";
+
+const PAGE_SIZE = 20;
 
 const STATUS_BY_FILTER: Record<ConversationFilter, string | null> = {
   all: null,
@@ -45,10 +47,6 @@ export function ConversationListPaneContainer() {
     initialPhoneNumberId,
   );
 
-  // Live-reorders the list and refreshes unread badges as Conversation rows
-  // change (new messages bump lastMessageAt/unreadCount server-side).
-  useRealtimeMessages();
-
   useEffect(() => {
     const timer = setTimeout(
       () => setDebouncedSearch(search.trim()),
@@ -70,38 +68,61 @@ export function ConversationListPaneContainer() {
     enabled: !!businessId,
   });
 
-  const { data: conversations = [], isLoading } = useQuery({
-    queryKey: [
-      ...conversationKeys.list(debouncedSearch),
-      businessId,
-      phoneNumberId,
-    ],
-    queryFn: () =>
-      fetchConversations({ q: debouncedSearch, businessId, phoneNumberId }),
-  });
+  const status = STATUS_BY_FILTER[filter];
 
-  const businessCount = useMemo(
-    () => new Set(conversations.map((c) => c.business.id)).size,
-    [conversations],
+  const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } =
+    useInfiniteQuery({
+      queryKey: conversationKeys.list({
+        search: debouncedSearch,
+        status,
+        businessId,
+        phoneNumberId,
+      }),
+      queryFn: ({ pageParam }) =>
+        fetchConversations({
+          q: debouncedSearch,
+          businessId,
+          phoneNumberId,
+          status,
+          cursor: pageParam as string | null,
+          limit: PAGE_SIZE,
+        }),
+      initialPageParam: null as string | null,
+      getNextPageParam: (lastPage) => lastPage.nextCursor,
+    });
+
+  // Live-reorders the list and refreshes unread badges as Conversation rows
+  // change (new messages bump lastMessageAt/unreadCount server-side). This
+  // container owns the `Conversation`-table realtime channel — passing
+  // `listScope` is what opens it (the thread container omits it so it never
+  // opens a duplicate). `scope` comes from the first loaded page; the
+  // channel opens once it's available, then stays scoped to it (or
+  // unfiltered for admins) for the life of this component.
+  useRealtimeMessages(undefined, data?.pages[0]?.scope);
+
+  const conversations = useMemo(
+    () => data?.pages.flatMap((page) => page.items) ?? [],
+    [data],
   );
 
-  const filtered = useMemo(() => {
-    const wantedStatus = STATUS_BY_FILTER[filter];
-    if (!wantedStatus) return conversations;
-    return conversations.filter((c) => c.status === wantedStatus);
-  }, [conversations, filter]);
+  // Server computes this only on the first page (no cursor) — see
+  // ConversationsPage.multiBusiness.
+  const showBusinessBadge = data?.pages[0]?.multiBusiness ?? false;
 
   return (
     <ConversationList
-      conversations={filtered}
+      conversations={conversations}
       activeId={activeId}
       search={search}
       onSearchChange={setSearch}
       filter={filter}
       onFilterChange={setFilter}
-      showBusinessBadge={businessCount > 1}
+      showBusinessBadge={showBusinessBadge}
       numberFilterLabel={numberFilterLabel}
       loading={isLoading}
+      hasMore={Boolean(hasNextPage)}
+      loadingMore={isFetchingNextPage}
+      onLoadMore={() => fetchNextPage()}
       businesses={businesses}
       businessId={businessId}
       onBusinessIdChange={(id) => {

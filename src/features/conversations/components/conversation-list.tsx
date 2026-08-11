@@ -13,6 +13,11 @@ import type {
   PhoneNumberItem,
 } from "@/features/businesses/types";
 
+// Mirrors ConversationThread's own scroll-trigger threshold (near the
+// opposite edge — bottom here, since older conversations page in on
+// scroll-down, not scroll-up like the message thread).
+const SCROLL_BOTTOM_THRESHOLD_PX = 120;
+
 const SELECT_CLASSNAME =
   "flex h-9 min-w-0 flex-1 rounded-md border border-input bg-background px-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50";
 
@@ -39,6 +44,9 @@ export function ConversationList({
   phoneNumbers,
   phoneNumberId,
   onPhoneNumberIdChange,
+  hasMore = false,
+  loadingMore = false,
+  onLoadMore,
 }: {
   conversations: ConversationListItem[];
   activeId?: string;
@@ -55,6 +63,13 @@ export function ConversationList({
   phoneNumbers: PhoneNumberItem[];
   phoneNumberId?: string;
   onPhoneNumberIdChange: (id: string | undefined) => void;
+  // Cursor pagination — page size 20, server-side (see
+  // ConversationsPage.nextCursor). `onLoadMore` is optional so this
+  // component still renders standalone (e.g. in a future test) without
+  // wiring up pagination.
+  hasMore?: boolean;
+  loadingMore?: boolean;
+  onLoadMore?: () => void;
 }) {
   // A single-business client sees a business with one entry — the filter
   // would be a no-op, so it's not worth the UI clutter (mirrors
@@ -146,7 +161,16 @@ export function ConversationList({
         </Tabs>
       </div>
 
-      <div className="flex-1 overflow-y-auto">
+      <div
+        className="flex-1 overflow-y-auto"
+        onScroll={(e) => {
+          if (!onLoadMore || !hasMore || loadingMore) return;
+          const el = e.currentTarget;
+          const distanceFromBottom =
+            el.scrollHeight - el.scrollTop - el.clientHeight;
+          if (distanceFromBottom < SCROLL_BOTTOM_THRESHOLD_PX) onLoadMore();
+        }}
+      >
         {loading ? (
           <p className="p-6 text-sm text-muted-foreground">Cargando…</p>
         ) : conversations.length === 0 ? (
@@ -154,14 +178,21 @@ export function ConversationList({
             No hay conversaciones que coincidan.
           </p>
         ) : (
-          conversations.map((conversation) => (
-            <ConversationListItemRow
-              key={conversation.id}
-              conversation={conversation}
-              active={conversation.id === activeId}
-              showBusinessBadge={showBusinessBadge}
-            />
-          ))
+          <>
+            {conversations.map((conversation) => (
+              <ConversationListItemRow
+                key={conversation.id}
+                conversation={conversation}
+                active={conversation.id === activeId}
+                showBusinessBadge={showBusinessBadge}
+              />
+            ))}
+            {loadingMore && (
+              <p className="p-3 text-center text-xs text-muted-foreground">
+                Cargando más…
+              </p>
+            )}
+          </>
         )}
       </div>
     </div>

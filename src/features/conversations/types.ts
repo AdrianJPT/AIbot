@@ -55,6 +55,19 @@ export type MessagesPage = {
   nextCursor: string | null;
 };
 
+/**
+ * Envelope returned by `GET /api/conversations` (breaking change from a
+ * bare array — pagination requires a `nextCursor`, and `multiBusiness`
+ * can no longer be derived client-side from a partial page).
+ */
+export type ConversationsPage = {
+  items: ConversationListItem[];
+  nextCursor: string | null;
+  // Only meaningful on the first page (no cursor); `false` on later pages.
+  multiBusiness: boolean;
+  scope: { admin: boolean; businessIds: string[] };
+};
+
 export type ConversationFilter = "all" | "bot" | "human" | "closed";
 
 export type ConversationAppointment = {

@@ -1,19 +1,29 @@
 import type {
   ConversationAppointment,
-  ConversationListItem,
   ConversationMessage,
+  ConversationsPage,
   MessagesPage,
 } from "@/features/conversations/types";
 import { requestJson } from "@/lib/api-client";
 
 export function fetchConversations(
-  options: { q?: string; businessId?: string; phoneNumberId?: string } = {},
-): Promise<ConversationListItem[]> {
-  const { q, businessId, phoneNumberId } = options;
+  options: {
+    q?: string;
+    businessId?: string;
+    phoneNumberId?: string;
+    status?: string | null;
+    cursor?: string | null;
+    limit?: number;
+  } = {},
+): Promise<ConversationsPage> {
+  const { q, businessId, phoneNumberId, status, cursor, limit } = options;
   const params = new URLSearchParams();
   if (q?.trim()) params.set("q", q.trim());
   if (businessId) params.set("businessId", businessId);
   if (phoneNumberId) params.set("phoneNumberId", phoneNumberId);
+  if (status) params.set("status", status);
+  if (cursor) params.set("cursor", cursor);
+  if (limit) params.set("limit", String(limit));
   const qs = params.toString();
   return requestJson(`/api/conversations${qs ? `?${qs}` : ""}`);
 }
