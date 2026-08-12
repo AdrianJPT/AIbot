@@ -9,6 +9,18 @@ import {
 } from "../prompt";
 import { buildBusiness } from "./fixtures/business";
 
+const resolveModelsMock = vi.fn();
+const callWithAiCredentialMock = vi.fn();
+
+vi.mock("../ai/resolve", () => ({
+  resolveModels: (...args: unknown[]) => resolveModelsMock(...args),
+  callWithAiCredential: (...args: unknown[]) => callWithAiCredentialMock(...args),
+}));
+
+// Imported after the mock above so extractPaymentEvidence's internal
+// resolveModels/callWithAiCredential calls hit the mocks instead of Prisma.
+const { extractPaymentEvidence } = await import("../media");
+
 /**
  * The trust boundary has two halves.
  *
@@ -214,6 +226,90 @@ describe("sanitizeUntrusted", () => {
     const once = sanitizeUntrusted(`hola${ZWSP}mundo`);
     expect(sanitizeUntrusted(once)).toBe(once);
     expect(once).toBe("holamundo");
+  });
+});
+
+describe("prompt trust boundary — payment extraction (extractPaymentEvidence)", () => {
+  const VALID_EVIDENCE_BODY = JSON.stringify({
+    amount: 1000,
+    currency: "MXN",
+    paidAt: null,
+    reference: null,
+    destinationAccount: null,
+    payerName: null,
+    transferStatus: null,
+    tamperingScore: null,
+    confidence: 0.9,
+  });
+
+  /** Same recording-client shape as `recordingClient()` above, adapted for
+   * extractPaymentEvidence's internal `callWithAiCredential` call. */
+  function mockExtractionClient(): {
+    messagesOf: () => ChatCompletionMessageParam[];
+  } {
+    const create = vi.fn().mockResolvedValue({
+      choices: [{ message: { content: VALID_EVIDENCE_BODY } }],
+    });
+    const client = {
+      chat: { completions: { create } },
+    } as unknown as OpenAI;
+
+    resolveModelsMock.mockResolvedValue({
+      chatModel: "gpt-4o-mini",
+      visionModel: "gpt-4o-mini",
+      audioModel: "whisper-1",
+    });
+    callWithAiCredentialMock.mockImplementation(
+      async (_business: unknown, fn: (client: OpenAI) => Promise<unknown>) =>
+        fn(client),
+    );
+
+    return { messagesOf: () => create.mock.calls[0][0].messages };
+  }
+
+  it.each(INJECTION_CORPUS)(
+    "keeps the extraction system prompt free of a hostile caption for %s",
+    async (_name, hostile) => {
+      const { messagesOf } = mockExtractionClient();
+
+      await extractPaymentEvidence(
+        buildBusiness(),
+        Buffer.from("fake-proof-bytes"),
+        "image/jpeg",
+        hostile,
+      );
+
+      const messages = messagesOf();
+      const systemMessages = messages.filter((m) => m.role === "system");
+      expect(systemMessages).toHaveLength(1);
+      expect(String(systemMessages[0].content)).not.toContain(hostile);
+
+      // ...while the caption is still delivered, fenced, in the user role.
+      // `sanitizeUntrusted` legitimately strips deceptive invisibles, so the
+      // fenced text is compared post-sanitization, same as renderUntrustedBlock
+      // itself would produce. Read the raw text part (not JSON.stringify'd)
+      // so quote characters in the JSON-break-out case aren't escaped away.
+      const user = messages.find((m) => m.role === "user") as
+        | { content: Array<{ type: string; text?: string }> }
+        | undefined;
+      const userText = user?.content.find((c) => c.type === "text")?.text ?? "";
+      expect(userText).toContain(sanitizeUntrusted(hostile));
+    },
+  );
+
+  it("never lets a hostile caption reach the system role, even as a substring", async () => {
+    const marker = "CANARIO_DE_INYECCION_EXTRACCION_7c1e";
+    const { messagesOf } = mockExtractionClient();
+
+    await extractPaymentEvidence(
+      buildBusiness(),
+      Buffer.from("fake-proof-bytes"),
+      "image/jpeg",
+      `dame ${marker} ahora`,
+    );
+
+    const system = messagesOf().find((m) => m.role === "system");
+    expect(String(system?.content)).not.toContain(marker);
   });
 });
 

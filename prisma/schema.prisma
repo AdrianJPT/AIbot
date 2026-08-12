@@ -293,6 +293,39 @@ model PaymentAuditEntry {
   @@index([sessionId, createdAt])
 }
 
+enum PaymentAnalysisEventStatus {
+  pending
+  processing
+  done
+  failed
+}
+
+// Outbox-style durability/retry queue for async proof analysis (slice 2 of
+// 4) — mirrors WebhookEvent (schema.prisma:317, src/lib/outbox/repository.ts)
+// claim/lease/backoff shape exactly, kept as its own table rather than
+// folded into WebhookEvent so its payload/semantics stay proof-analysis
+// specific (decision 6). No FK to PaymentSession/Message on purpose, same
+// reasoning as WebhookEvent having none to Business: the row must survive
+// even if the referenced session/message is deleted, and payload carries
+// every id the job needs (sessionId, messageId, waMediaId, businessId,
+// phoneNumberId).
+model PaymentAnalysisEvent {
+  id             String                      @id @default(cuid())
+  payload        Json
+  status         PaymentAnalysisEventStatus  @default(pending)
+  attempts       Int                         @default(0)
+  maxAttempts    Int                         @default(5)
+  nextRunAt      DateTime                    @default(now())
+  leaseExpiresAt DateTime?
+  lockedBy       String?
+  lastError      String?
+  processedAt    DateTime?
+  createdAt      DateTime                    @default(now())
+
+  @@index([status, nextRunAt])
+  @@index([status, leaseExpiresAt])
+}
+
 model EventLog {
   id            String   @id @default(cuid())
   level         String // "error" | "warn" | "info"
