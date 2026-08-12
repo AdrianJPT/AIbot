@@ -17,6 +17,7 @@ model User {
   role        String       @default("client") // "admin" | "client"
   businesses  Business[]
   credentials Credential[]
+  confirmedPayments PaymentSession[] @relation("PaymentSessionConfirmedBy")
   createdAt   DateTime     @default(now())
 }
 
@@ -37,12 +38,15 @@ model Business {
   dailyAiLimit       Int            @default(1000)
   replyWindowMs      Int            @default(5000) // 5s default debounce window for batching pending customer messages; 0 explicitly disables the wait — see reply-window-scheduler.ts
   isActive           Boolean        @default(true)
+  paymentsEnabled    Boolean        @default(false) // feature flag for the payment-verification engine (slice 1 of 4) — off leaves every new table inert, no code path references them yet; flipping it on is the whole rollback story, no destructive migration needed
   ownerId            String
   owner              User           @relation(fields: [ownerId], references: [id])
   aiCredentialId     String?
   phoneNumbers       PhoneNumber[]
   conversations      Conversation[]
   appointments       Appointment[]
+  catalogItems       CatalogItem[]
+  paymentSessions    PaymentSession[]
   createdAt          DateTime       @default(now())
 
   @@index([ownerId])
@@ -121,6 +125,7 @@ model Conversation {
   summarizedThroughAt DateTime? // messages at or before this instant are represented by `summary`; everything after it is still loaded raw. Null = no summary yet.
   messages        Message[]
   appointments    Appointment[]
+  paymentSessions PaymentSession[]
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 
@@ -150,6 +155,7 @@ model Message {
   dispatchAttempts   Int          @default(0) // bounded retry counter for message-handler.ts's claimDispatch compare-and-set claim; incremented on every claim (fresh send, a P2002-conflict resume, or the periodic reaper) — mirrors WebhookEvent.maxAttempts's bounded-retry convention (outbox/repository.ts), stops a permanently-failing send from being reaped forever
   dispatchLeaseUntil DateTime? // set by claimDispatch while a send attempt is in flight; same lease pattern as Conversation.flushLeaseUntil / WebhookEvent.leaseExpiresAt — makes claiming a "status: pending" row exclusive, so a live send, a racing P2002-conflict resume, and the periodic reaper (message-handler.ts's reapStrandedSends) can never call sendFromNumber for the same row twice; its natural expiry also doubles as backoff spacing between reap attempts
   createdAt          DateTime     @default(now())
+  paymentProofs      PaymentProof[]
 
   @@index([conversationId, createdAt])
   // Serves both the flush-ceiling anchor lookup (message-handler.ts's
@@ -181,6 +187,110 @@ model Appointment {
   status         String        @default("pending")
   notes          String?
   createdAt      DateTime      @default(now())
+}
+
+// Manually-seeded price list for the payment-verification engine (v1: no
+// sync API, see prisma/seed-catalog.ts). The verdict engine compares an
+// extracted amount against `price` to tell valid/partial/overpaid apart —
+// see src/lib/payments/verdict.ts and docs/payment-verification-engine.md
+// decision 5.
+model CatalogItem {
+  id             String           @id @default(cuid())
+  businessId     String
+  business       Business         @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  name           String
+  price          Int // minor units (e.g. cents) — never a float, see PaymentSession.expectedAmount
+  currency       String
+  isActive       Boolean          @default(true)
+  paymentSessions PaymentSession[]
+  createdAt      DateTime         @default(now())
+
+  @@index([businessId])
+}
+
+enum PaymentSessionStatus {
+  awaiting_proof
+  analyzing
+  customer_action
+  ready_to_confirm
+  confirmed
+  rejected
+  escalated
+  expired
+}
+
+// One customer's payment-verification thread for (at most) one purchase.
+// Status only ever changes through the exhaustive transition table in
+// src/lib/payments/state-machine.ts — see docs/payment-verification-engine.md
+// decision 3. Every transition also writes a PaymentAuditEntry.
+model PaymentSession {
+  id             String               @id @default(cuid())
+  businessId     String
+  business       Business             @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  conversationId String
+  conversation   Conversation         @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  customerPhone  String
+  catalogItemId  String?
+  catalogItem    CatalogItem?         @relation(fields: [catalogItemId], references: [id], onDelete: SetNull)
+  expectedAmount Int? // minor units — null when there is no catalog match yet
+  receivedAmount Int                  @default(0) // minor units, running total across proofs
+  status         PaymentSessionStatus @default(awaiting_proof)
+  statusReason   String? // e.g. "partial" | "overpaid" | "in_flight" | "third_party" | "autonomy_exhausted" — set alongside needs_attention/escalated transitions
+  autonomyRounds Int                  @default(3) // remaining AI<->customer correction rounds before forced escalation — see decision 7
+  confirmedById  String?
+  confirmedBy    User?                @relation("PaymentSessionConfirmedBy", fields: [confirmedById], references: [id])
+  confirmedAt    DateTime?
+  expiresAt      DateTime? // set in application code at creation time (now()+72h default) — not a Prisma default, see decision 3/9
+  proofs         PaymentProof[]
+  auditEntries   PaymentAuditEntry[]
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+
+  @@index([businessId, status])
+}
+
+enum PaymentVerdict {
+  valid
+  needs_attention
+  suspicious
+  invalid
+  duplicate
+}
+
+// One inbound proof (image or document) analyzed against a PaymentSession.
+// `extracted` is model output re-validated on every read (same contract as
+// Conversation.summary, schema.prisma:120) — never trust it directly.
+model PaymentProof {
+  id         String         @id @default(cuid())
+  sessionId  String
+  session    PaymentSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  messageId  String?
+  message    Message?       @relation(fields: [messageId], references: [id], onDelete: SetNull)
+  waMediaId  String? // WhatsApp media id at receipt time — expires ~30 days on Meta's CDN, so the media is persisted separately for later preview (decision 8)
+  extracted  Json // EvidenceAnalysis — readers MUST re-validate, see validateEvidenceAnalysis (slice 2)
+  verdict    PaymentVerdict
+  confidence Float // 0..1 overall extraction confidence
+  reference  String? // payer-provided transfer reference, used for duplicate detection per business
+  imageHash  String? // sha256 of the proof buffer, used for duplicate detection on identical re-sends
+  paidAt     DateTime? // extracted transfer timestamp, distinct from createdAt (receipt time)
+  createdAt  DateTime       @default(now())
+
+  @@index([sessionId])
+}
+
+// Append-only trail: every proof receipt, verdict, AI-to-customer message,
+// state transition, and owner action writes one row here (decision 3, spec
+// "Auditability" requirement).
+model PaymentAuditEntry {
+  id        String         @id @default(cuid())
+  sessionId String
+  session   PaymentSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  actor     String // "ai" | "human" | "system"
+  action    String // e.g. "transition:analyzing->ready_to_confirm", "proof:received", "owner:confirm"
+  detail    Json?
+  createdAt DateTime       @default(now())
+
+  @@index([sessionId, createdAt])
 }
 
 model EventLog {
