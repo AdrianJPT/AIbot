@@ -165,6 +165,12 @@ export async function processPaymentAnalysisEvent(
       sessionId: session.id,
       messageId: payload.messageId,
       waMediaId: payload.waMediaId,
+      // Persisted here — not just hashed and discarded — because Meta's CDN
+      // media id expires ~30 days and the owner inbox (slice 3) needs to
+      // preview the proof long after that. See PaymentProof.mediaData's
+      // schema comment and docs/payment-verification-engine.md decision 8.
+      mediaData: buffer,
+      mediaMimeType: mimeType,
       extracted: evidence as unknown as Prisma.InputJsonValue,
       verdict: verdictResult.verdict,
       confidence: evidence.confidence,
