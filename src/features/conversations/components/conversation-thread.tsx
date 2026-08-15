@@ -13,6 +13,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { AppointmentsPanel } from "@/features/conversations/components/appointments-panel";
 import { HandoffToggle } from "@/features/conversations/components/handoff-toggle";
+import { PaymentHandoffMarker } from "@/features/conversations/components/payment-handoff-marker";
 import { SummaryPanel } from "@/features/conversations/components/summary-panel";
 import {
   MessageBubble,
@@ -175,6 +176,7 @@ export function ConversationThread({
             loading={regeneratingSummary}
           />
           <AppointmentsPanel conversationId={conversation.id} />
+          {conversation.hasEscalatedPayment && <PaymentHandoffMarker />}
           <a
             href={`/api/conversations/${conversation.id}/export`}
             download
