@@ -9,3 +9,5 @@ playwright-report/
 playwright/.auth/
 test-results/
 /playwright/.cache/
+# Per-environment payment catalog bootstrap input (prisma/seed-catalog.ts)
+prisma/catalog.seed.json

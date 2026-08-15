@@ -27,6 +27,7 @@ export function buildBusiness(overrides: Partial<Business> = {}): Business {
     replyWindowMs: 0,
     dailyAiLimit: 1000,
     isActive: true,
+    paymentsEnabled: false,
     ownerId: "owner_1",
     aiCredentialId: null,
     createdAt: new Date(),
