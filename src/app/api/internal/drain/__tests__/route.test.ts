@@ -6,6 +6,11 @@ vi.mock("@/lib/outbox/drain", () => ({
   runDrain: (...args: unknown[]) => runDrain(...args),
 }));
 
+const runAnalysisDrain = vi.fn();
+vi.mock("@/lib/payments/analysis-job", () => ({
+  runAnalysisDrain: (...args: unknown[]) => runAnalysisDrain(...args),
+}));
+
 const TOKEN = "test-internal-drain-token";
 
 function buildRequest(method: string, token?: string | null): NextRequest {
@@ -29,6 +34,12 @@ describe("POST /api/internal/drain", () => {
       failed: 1,
       remaining: false,
     });
+    runAnalysisDrain.mockResolvedValue({
+      claimed: 1,
+      processed: 1,
+      failed: 0,
+      remaining: false,
+    });
   });
 
   afterAll(() => {
@@ -42,6 +53,7 @@ describe("POST /api/internal/drain", () => {
 
     expect(res.status).toBe(401);
     expect(runDrain).not.toHaveBeenCalled();
+    expect(runAnalysisDrain).not.toHaveBeenCalled();
   });
 
   it("returns 401 and does not drain when the token is invalid", async () => {
@@ -51,9 +63,10 @@ describe("POST /api/internal/drain", () => {
 
     expect(res.status).toBe(401);
     expect(runDrain).not.toHaveBeenCalled();
+    expect(runAnalysisDrain).not.toHaveBeenCalled();
   });
 
-  it("returns a summary and invokes runDrain when the token is valid", async () => {
+  it("returns a summary and invokes both the webhook and payment-analysis drains when the token is valid", async () => {
     const { POST } = await import("../route");
 
     const res = await POST(buildRequest("POST", TOKEN));
@@ -61,12 +74,17 @@ describe("POST /api/internal/drain", () => {
 
     expect(res.status).toBe(200);
     expect(runDrain).toHaveBeenCalledWith({ batchSize: 10, budgetMs: 50_000 });
+    expect(runAnalysisDrain).toHaveBeenCalledWith({
+      batchSize: 10,
+      budgetMs: 50_000,
+    });
     expect(body).toEqual({
       ok: true,
       claimed: 3,
       processed: 2,
       failed: 1,
       remaining: false,
+      payments: { claimed: 1, processed: 1, failed: 0, remaining: false },
     });
   });
 

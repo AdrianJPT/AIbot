@@ -6,6 +6,10 @@ export type ConversationMessage = {
   sentBy: string; // "bot" | "human" | "customer"
   status: string; // "sent" | "delivered" | "read" | "failed"
   createdAt: string;
+  // PaymentSession id when this message carries a PaymentProof
+  // (PaymentProof.messageId), null otherwise — tasks #568 PR4. Drives the
+  // inline payment card rendered by MessageBubble.
+  paymentSessionId?: string | null;
 };
 
 export type ConversationListItem = {
@@ -48,6 +52,9 @@ export type ConversationDetail = {
   summary: ConversationSummaryView | null;
   summarizedThroughAt: string | null;
   business: { id: string; name: string };
+  // Whether this conversation has a PaymentSession the AI escalated to the
+  // owner (tasks #568 PR4) — drives the "payments" handoff marker.
+  hasEscalatedPayment: boolean;
 };
 
 export type MessagesPage = {

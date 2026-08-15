@@ -43,11 +43,24 @@ export async function GET(
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     take: limit + 1,
     ...(cursor && { cursor: { id: cursor }, skip: 1 }),
+    include: {
+      // Only the sessionId is needed client-side — the chat card fetches
+      // full payment detail itself via GET /api/payments/[id] (tasks #568
+      // PR4). A message carries at most one proof in practice (messageId is
+      // set once at ingest time), so [0] is the relevant one.
+      paymentProofs: { select: { sessionId: true }, take: 1 },
+    },
   });
 
   const hasMore = messages.length > limit;
   const page = hasMore ? messages.slice(0, limit) : messages;
   const nextCursor = hasMore ? page[page.length - 1].id : null;
 
-  return NextResponse.json({ messages: page, nextCursor });
+  return NextResponse.json({
+    messages: page.map(({ paymentProofs, ...message }) => ({
+      ...message,
+      paymentSessionId: paymentProofs[0]?.sessionId ?? null,
+    })),
+    nextCursor,
+  });
 }

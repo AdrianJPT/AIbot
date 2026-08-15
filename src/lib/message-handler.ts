@@ -1,5 +1,10 @@
 import { createHash } from "node:crypto";
-import { Prisma, type Business, type PhoneNumber } from "@prisma/client";
+import {
+  Prisma,
+  type Business,
+  type Conversation,
+  type PhoneNumber,
+} from "@prisma/client";
 import type { ChatCompletionMessageParam } from "openai/resources/chat/completions";
 import { prisma } from "./db";
 import { generateResponse, type AiUsage } from "./ai/generate";
@@ -12,6 +17,7 @@ import {
 } from "./media";
 import { resolveWhatsappToken, sendFromNumber } from "./whatsapp";
 import { logEvent } from "./log";
+import { maybeEnqueuePaymentAnalysis } from "./payments/ingest";
 
 /**
  * Per-conversation abuse throttle: no Redis, single-replica Railway makes an
@@ -257,23 +263,25 @@ async function handleOneMessage(
   });
 
   if (conversation.status === "handed_off") {
-    await persistCustomerMessage(
+    const messageId = await persistCustomerMessage(
       conversation.id,
       parsed,
       wamid,
       customerName,
       message.context?.id,
     );
+    await maybeStartPaymentAnalysis(business, phoneNumber, conversation, messageId, parsed);
     return conversation.id;
   }
 
-  await persistCustomerMessage(
+  const messageId = await persistCustomerMessage(
     conversation.id,
     parsed,
     wamid,
     customerName,
     message.context?.id,
   );
+  await maybeStartPaymentAnalysis(business, phoneNumber, conversation, messageId, parsed);
 
   // Ingest's job ends here: mark the conversation due for dispatch. The
   // sweep (reply-window-scheduler.ts) picks it up — immediately, for the
@@ -833,8 +841,8 @@ async function persistCustomerMessage(
   wamid: string | undefined,
   customerName: string | undefined,
   quotedWamid: string | undefined,
-): Promise<void> {
-  await prisma.$transaction([
+): Promise<string> {
+  const [message] = await prisma.$transaction([
     prisma.message.create({
       data: {
         conversationId,
@@ -855,6 +863,36 @@ async function persistCustomerMessage(
       },
     }),
   ]);
+  return message.id;
+}
+
+/**
+ * Flag-gated hook into the payment-verification engine (decision 6, tasks
+ * #568 PR2 phase 3): image/document proofs only, and only once the message
+ * carrying them is durably persisted. Delegates entirely to
+ * payments/ingest.ts, which is itself an early-return no-op when
+ * `business.paymentsEnabled` is false — this wrapper's own guard
+ * (mediaType/waMediaId) exists so non-media messages never even call into
+ * the payments module.
+ */
+async function maybeStartPaymentAnalysis(
+  business: Business,
+  phoneNumber: PhoneNumber,
+  conversation: Conversation,
+  messageId: string,
+  parsed: { content: string; mediaType: string; waMediaId?: string },
+): Promise<void> {
+  if (!parsed.waMediaId) return;
+  if (parsed.mediaType !== "image" && parsed.mediaType !== "document") return;
+
+  await maybeEnqueuePaymentAnalysis(
+    business,
+    phoneNumber,
+    conversation,
+    messageId,
+    parsed.waMediaId,
+    parsed.mediaType,
+  );
 }
 
 function describeError(err: unknown): {
@@ -881,7 +919,15 @@ async function parseUserContent(
   business: Business,
   phoneNumber: PhoneNumber,
   message: WaMessage,
-): Promise<{ content: string; mediaType: string } | null> {
+): Promise<{
+  content: string;
+  mediaType: string;
+  /** WhatsApp media id, captured for image/document messages regardless of
+   * `business.paymentsEnabled` — cheap to carry, and it's what
+   * `maybeStartPaymentAnalysis` (below) needs to enqueue proof analysis
+   * without a second round-trip to the webhook payload. */
+  waMediaId?: string;
+} | null> {
   switch (message.type) {
     case "text":
       return {
@@ -905,6 +951,7 @@ async function parseUserContent(
         return {
           content: `[Imagen del cliente] ${desc}`,
           mediaType: "image",
+          waMediaId: id,
         };
       } catch (err) {
         await logEvent(
@@ -918,6 +965,7 @@ async function parseUserContent(
         return {
           content: "[Imagen del cliente — no se pudo procesar]",
           mediaType: "image",
+          waMediaId: id,
         };
       }
     }
@@ -954,8 +1002,20 @@ async function parseUserContent(
         mediaType: "location",
       };
     }
-    case "document":
-      return { content: "[Documento adjunto]", mediaType: "document" };
+    case "document": {
+      // The chat-facing content stays a static placeholder — documents are
+      // not downloaded/described here, same as before this change. Only the
+      // media id is now captured, so a `paymentsEnabled` business can
+      // analyze a PDF proof the same way it analyzes an image (spec
+      // "Document proofs are processed" scenario); the actual download
+      // happens later, in the analysis job (payments/analysis-job.ts), not
+      // inline in ingest.
+      return {
+        content: "[Documento adjunto]",
+        mediaType: "document",
+        waMediaId: message.document?.id,
+      };
+    }
     default:
       return null;
   }

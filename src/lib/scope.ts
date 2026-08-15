@@ -41,3 +41,14 @@ export function appointmentScope(
 ): Prisma.AppointmentWhereInput {
   return isAdmin(user) ? {} : { business: { ownerId: user.id } };
 }
+
+/**
+ * Same as `businessScope`, scoped through the `PaymentSession -> Business`
+ * relation — see docs/payment-verification-engine.md's "Tenant isolation"
+ * requirement and design decision 8.
+ */
+export function paymentSessionScope(
+  user: ScopedUser,
+): Prisma.PaymentSessionWhereInput {
+  return isAdmin(user) ? {} : { business: { ownerId: user.id } };
+}
