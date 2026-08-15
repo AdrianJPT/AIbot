@@ -9,21 +9,9 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { paymentMediaUrl } from "@/features/payments/api";
+import { PaymentDetailSheet } from "@/features/payments/components/payment-detail-sheet";
+import { VERDICT_LABELS, formatAmount } from "@/features/payments/lib/format";
 import type { PaymentInboxItem } from "@/features/payments/types";
-
-const VERDICT_LABELS: Record<string, string> = {
-  valid: "Válido",
-  needs_attention: "Atención",
-  suspicious: "Sospechoso",
-  invalid: "Inválido",
-  duplicate: "Duplicado",
-};
-
-function formatAmount(amount: number | null, currency: string | null): string {
-  if (amount === null) return "—";
-  const value = (amount / 100).toFixed(2);
-  return currency ? `${value} ${currency}` : value;
-}
 
 function VerdictBadge({ item }: { item: PaymentInboxItem }) {
   const verdict = item.latestProof?.verdict;
@@ -122,6 +110,7 @@ export function PaymentInbox({
                   Ver chat
                 </Link>
               </Button>
+              <PaymentDetailSheet sessionId={item.id} className="min-h-11" />
               {isPartial ? (
                 <Button
                   type="button"
@@ -223,6 +212,7 @@ export function PaymentInbox({
                         Ver chat
                       </Link>
                     </Button>
+                    <PaymentDetailSheet sessionId={item.id} />
                     {isPartial ? (
                       <Button
                         type="button"
