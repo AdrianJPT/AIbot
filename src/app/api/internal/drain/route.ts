@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { timingSafeEqual } from "node:crypto";
 import { runDrain } from "@/lib/outbox/drain";
+import { runAnalysisDrain } from "@/lib/payments/analysis-job";
 
 /**
  * Shared-secret auth, mirroring `webhook/route.ts`'s HMAC check: read both
@@ -23,8 +24,11 @@ function isAuthorized(req: NextRequest): boolean {
 /**
  * Authenticated safety-net drain — the scheduled replacement for the old
  * per-process `setInterval`. Not the primary reply path (the webhook awaits
- * an inline drain of its own event); this exists to retry rows a crashed or
- * timed-out inline attempt left behind.
+ * an inline drain of its own event, and `payments/ingest.ts` awaits its own
+ * inline `runAnalysisDrain` the same way); this exists to retry rows a
+ * crashed or timed-out inline attempt left behind, for both the webhook
+ * outbox and the payment-analysis outbox (decision 6, tasks #568 PR2 phase
+ * 2) — same shared-secret gate, one response with both summaries nested.
  *
  * POST only — GET (and every other method) gets Next's built-in 405 for
  * routes that don't export a handler for it. Keeps this out of caches and
@@ -35,6 +39,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const result = await runDrain({ batchSize: 10, budgetMs: 50_000 });
-  return NextResponse.json({ ok: true, ...result });
+  const [result, paymentsResult] = await Promise.all([
+    runDrain({ batchSize: 10, budgetMs: 50_000 }),
+    runAnalysisDrain({ batchSize: 10, budgetMs: 50_000 }),
+  ]);
+  return NextResponse.json({ ok: true, ...result, payments: paymentsResult });
 }

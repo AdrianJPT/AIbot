@@ -10,44 +10,44 @@ datasource db {
 }
 
 model User {
-  id          String       @id // Supabase auth.users.id (uuid)
-  email       String       @unique
-  name        String?
-  avatarUrl   String?
-  role        String       @default("client") // "admin" | "client"
-  businesses  Business[]
-  credentials Credential[]
+  id                String           @id // Supabase auth.users.id (uuid)
+  email             String           @unique
+  name              String?
+  avatarUrl         String?
+  role              String           @default("client") // "admin" | "client"
+  businesses        Business[]
+  credentials       Credential[]
   confirmedPayments PaymentSession[] @relation("PaymentSessionConfirmedBy")
-  createdAt   DateTime     @default(now())
+  createdAt         DateTime         @default(now())
 }
 
 model Business {
-  id                 String         @id @default(cuid())
-  name               String
-  wabaId             String?        @unique // Meta's WhatsApp Business Account id, informational
-  systemPrompt       String
-  welcomeMessage     String
-  businessInfo       Json
-  knowledgeDoc       String? // admin-authored reference document (menu, hours, policies, FAQ) rendered FIRST in the system prompt and byte-stable across calls, so it is the part a provider can cache — see buildSystemPrompt in src/lib/prompt.ts. Null = businessInfo alone, exactly today's behavior.
-  model              String? // null = inherit AppConfig.chatModel
-  visionModel        String? // null = inherit AppConfig.visionModel
-  audioModel         String? // null = inherit AppConfig.audioModel
-  maxHistoryMessages Int            @default(20)
-  summaryEnabled     Boolean        @default(true) // false = keep the raw last-N history only, no rolling summary (kill switch per business, no deploy needed) — see src/lib/ai/summarize.ts
-  summaryEveryNMessages Int         @default(10) // regenerate the rolling summary once this many messages have accumulated since summarizedThroughAt, not on every flush
-  dailyAiLimit       Int            @default(1000)
-  replyWindowMs      Int            @default(5000) // 5s default debounce window for batching pending customer messages; 0 explicitly disables the wait — see reply-window-scheduler.ts
-  isActive           Boolean        @default(true)
-  paymentsEnabled    Boolean        @default(false) // feature flag for the payment-verification engine (slice 1 of 4) — off leaves every new table inert, no code path references them yet; flipping it on is the whole rollback story, no destructive migration needed
-  ownerId            String
-  owner              User           @relation(fields: [ownerId], references: [id])
-  aiCredentialId     String?
-  phoneNumbers       PhoneNumber[]
-  conversations      Conversation[]
-  appointments       Appointment[]
-  catalogItems       CatalogItem[]
-  paymentSessions    PaymentSession[]
-  createdAt          DateTime       @default(now())
+  id                    String           @id @default(cuid())
+  name                  String
+  wabaId                String?          @unique // Meta's WhatsApp Business Account id, informational
+  systemPrompt          String
+  welcomeMessage        String
+  businessInfo          Json
+  knowledgeDoc          String? // admin-authored reference document (menu, hours, policies, FAQ) rendered FIRST in the system prompt and byte-stable across calls, so it is the part a provider can cache — see buildSystemPrompt in src/lib/prompt.ts. Null = businessInfo alone, exactly today's behavior.
+  model                 String? // null = inherit AppConfig.chatModel
+  visionModel           String? // null = inherit AppConfig.visionModel
+  audioModel            String? // null = inherit AppConfig.audioModel
+  maxHistoryMessages    Int              @default(20)
+  summaryEnabled        Boolean          @default(true) // false = keep the raw last-N history only, no rolling summary (kill switch per business, no deploy needed) — see src/lib/ai/summarize.ts
+  summaryEveryNMessages Int              @default(10) // regenerate the rolling summary once this many messages have accumulated since summarizedThroughAt, not on every flush
+  dailyAiLimit          Int              @default(1000)
+  replyWindowMs         Int              @default(5000) // 5s default debounce window for batching pending customer messages; 0 explicitly disables the wait — see reply-window-scheduler.ts
+  isActive              Boolean          @default(true)
+  paymentsEnabled       Boolean          @default(false) // feature flag for the payment-verification engine (slice 1 of 4) — off leaves every new table inert, no code path references them yet; flipping it on is the whole rollback story, no destructive migration needed
+  ownerId               String
+  owner                 User             @relation(fields: [ownerId], references: [id])
+  aiCredentialId        String?
+  phoneNumbers          PhoneNumber[]
+  conversations         Conversation[]
+  appointments          Appointment[]
+  catalogItems          CatalogItem[]
+  paymentSessions       PaymentSession[]
+  createdAt             DateTime         @default(now())
 
   @@index([ownerId])
 }
@@ -108,26 +108,26 @@ model Credential {
 }
 
 model Conversation {
-  id              String        @id @default(cuid())
-  businessId      String // denormalized copy of phoneNumber.businessId — kept so RLS policies and scope.ts stay a single-hop join; PhoneNumber.businessId is immutable so this can't drift
-  business        Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  phoneNumberId   String
-  phoneNumber     PhoneNumber   @relation(fields: [phoneNumberId], references: [id], onDelete: Cascade)
-  customerPhone   String
-  customerName    String? // WhatsApp profile name from webhook `contacts[0].profile.name` — overwritten on every inbound message, never edited by hand
-  nickname        String? // admin-set alias, takes display priority over customerName; webhook never touches this
-  status          String        @default("active")
-  lastMessageAt   DateTime      @default(now()) // denormalized for list ordering — bumped on every message insert
-  unreadCount     Int           @default(0) // customer messages since admin last opened the thread
-  pendingFlushAt  DateTime? // set (by message-handler.ts, always — not only when replyWindowMs > 0) when a customer message is awaiting dispatch; cleared (claimed) by reply-window-scheduler.ts when the window elapses
-  flushLeaseUntil DateTime? // set by reply-window-scheduler.ts while a flush is in flight; prevents a crash between claim and send from orphaning pendingFlushAt forever — see reply-window-scheduler.ts's flushDueConversation
-  summary         Json? // a ConversationSummary (src/lib/ai/summarize.ts): a handful of capped fields, never free prose, so its cost is predictable and each field can be sanitized on its own. Prisma types this as Json, so READERS MUST re-run validateConversationSummary — a row can predate a schema change or have been written by hand, and the type system will not catch it.
+  id                  String           @id @default(cuid())
+  businessId          String // denormalized copy of phoneNumber.businessId — kept so RLS policies and scope.ts stay a single-hop join; PhoneNumber.businessId is immutable so this can't drift
+  business            Business         @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  phoneNumberId       String
+  phoneNumber         PhoneNumber      @relation(fields: [phoneNumberId], references: [id], onDelete: Cascade)
+  customerPhone       String
+  customerName        String? // WhatsApp profile name from webhook `contacts[0].profile.name` — overwritten on every inbound message, never edited by hand
+  nickname            String? // admin-set alias, takes display priority over customerName; webhook never touches this
+  status              String           @default("active")
+  lastMessageAt       DateTime         @default(now()) // denormalized for list ordering — bumped on every message insert
+  unreadCount         Int              @default(0) // customer messages since admin last opened the thread
+  pendingFlushAt      DateTime? // set (by message-handler.ts, always — not only when replyWindowMs > 0) when a customer message is awaiting dispatch; cleared (claimed) by reply-window-scheduler.ts when the window elapses
+  flushLeaseUntil     DateTime? // set by reply-window-scheduler.ts while a flush is in flight; prevents a crash between claim and send from orphaning pendingFlushAt forever — see reply-window-scheduler.ts's flushDueConversation
+  summary             Json? // a ConversationSummary (src/lib/ai/summarize.ts): a handful of capped fields, never free prose, so its cost is predictable and each field can be sanitized on its own. Prisma types this as Json, so READERS MUST re-run validateConversationSummary — a row can predate a schema change or have been written by hand, and the type system will not catch it.
   summarizedThroughAt DateTime? // messages at or before this instant are represented by `summary`; everything after it is still loaded raw. Null = no summary yet.
-  messages        Message[]
-  appointments    Appointment[]
-  paymentSessions PaymentSession[]
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  messages            Message[]
+  appointments        Appointment[]
+  paymentSessions     PaymentSession[]
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
 
   @@unique([phoneNumberId, customerPhone])
   @@index([businessId, lastMessageAt])
@@ -139,22 +139,22 @@ model Conversation {
 }
 
 model Message {
-  id                 String       @id @default(cuid())
+  id                 String         @id @default(cuid())
   conversationId     String
-  conversation       Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  conversation       Conversation   @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   role               String
   content            String
-  mediaType          String       @default("text")
+  mediaType          String         @default("text")
   mediaUrl           String?
-  wamid              String?      @unique
+  wamid              String?        @unique
   quotedWamid        String? // WhatsApp `context.id`: the wamid this customer message replied to. Resolved by looking up Message.wamid, which needs no index of its own since that column is already @unique — but the lookup MUST also filter conversationId, because wamid is unique GLOBALLY and an unfiltered match would pull another business's message into this business's prompt. See doFlush in reply-window-scheduler.ts.
-  sentBy             String       @default("bot") // "bot" | "human" | "customer"
-  status             String       @default("sent") // "sent" | "delivered" | "read" | "failed" | "pending" (bot replies start "pending" until sendFromNumber resolves — see message-handler.ts's sendAndPersistReply)
-  dispatchId         String?      @unique // deterministic send-intent key (sha256 of conversationId + batched message ids) set on bot replies; the unique constraint is the no-double-send guard when the inline path and the sweep race the same conversation — see reply-window-scheduler.ts
+  sentBy             String         @default("bot") // "bot" | "human" | "customer"
+  status             String         @default("sent") // "sent" | "delivered" | "read" | "failed" | "pending" (bot replies start "pending" until sendFromNumber resolves — see message-handler.ts's sendAndPersistReply)
+  dispatchId         String?        @unique // deterministic send-intent key (sha256 of conversationId + batched message ids) set on bot replies; the unique constraint is the no-double-send guard when the inline path and the sweep race the same conversation — see reply-window-scheduler.ts
   batchedAt          DateTime? // set by reply-window-scheduler.ts when this customer message is consumed into a batched flush — makes "pending" an explicit per-message marker instead of a createdAt-vs-lastBotMessage comparison, which can drop a message when an unrelated overlapping flush's bot reply lands with a later timestamp
-  dispatchAttempts   Int          @default(0) // bounded retry counter for message-handler.ts's claimDispatch compare-and-set claim; incremented on every claim (fresh send, a P2002-conflict resume, or the periodic reaper) — mirrors WebhookEvent.maxAttempts's bounded-retry convention (outbox/repository.ts), stops a permanently-failing send from being reaped forever
+  dispatchAttempts   Int            @default(0) // bounded retry counter for message-handler.ts's claimDispatch compare-and-set claim; incremented on every claim (fresh send, a P2002-conflict resume, or the periodic reaper) — mirrors WebhookEvent.maxAttempts's bounded-retry convention (outbox/repository.ts), stops a permanently-failing send from being reaped forever
   dispatchLeaseUntil DateTime? // set by claimDispatch while a send attempt is in flight; same lease pattern as Conversation.flushLeaseUntil / WebhookEvent.leaseExpiresAt — makes claiming a "status: pending" row exclusive, so a live send, a racing P2002-conflict resume, and the periodic reaper (message-handler.ts's reapStrandedSends) can never call sendFromNumber for the same row twice; its natural expiry also doubles as backoff spacing between reap attempts
-  createdAt          DateTime     @default(now())
+  createdAt          DateTime       @default(now())
   paymentProofs      PaymentProof[]
 
   @@index([conversationId, createdAt])
@@ -195,15 +195,15 @@ model Appointment {
 // see src/lib/payments/verdict.ts and docs/payment-verification-engine.md
 // decision 5.
 model CatalogItem {
-  id             String           @id @default(cuid())
-  businessId     String
-  business       Business         @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  name           String
-  price          Int // minor units (e.g. cents) — never a float, see PaymentSession.expectedAmount
-  currency       String
-  isActive       Boolean          @default(true)
+  id              String           @id @default(cuid())
+  businessId      String
+  business        Business         @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  name            String
+  price           Int // minor units (e.g. cents) — never a float, see PaymentSession.expectedAmount
+  currency        String
+  isActive        Boolean          @default(true)
   paymentSessions PaymentSession[]
-  createdAt      DateTime         @default(now())
+  createdAt       DateTime         @default(now())
 
   @@index([businessId])
 }
@@ -261,19 +261,21 @@ enum PaymentVerdict {
 // `extracted` is model output re-validated on every read (same contract as
 // Conversation.summary, schema.prisma:120) — never trust it directly.
 model PaymentProof {
-  id         String         @id @default(cuid())
-  sessionId  String
-  session    PaymentSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  messageId  String?
-  message    Message?       @relation(fields: [messageId], references: [id], onDelete: SetNull)
-  waMediaId  String? // WhatsApp media id at receipt time — expires ~30 days on Meta's CDN, so the media is persisted separately for later preview (decision 8)
-  extracted  Json // EvidenceAnalysis — readers MUST re-validate, see validateEvidenceAnalysis (slice 2)
-  verdict    PaymentVerdict
-  confidence Float // 0..1 overall extraction confidence
-  reference  String? // payer-provided transfer reference, used for duplicate detection per business
-  imageHash  String? // sha256 of the proof buffer, used for duplicate detection on identical re-sends
-  paidAt     DateTime? // extracted transfer timestamp, distinct from createdAt (receipt time)
-  createdAt  DateTime       @default(now())
+  id            String         @id @default(cuid())
+  sessionId     String
+  session       PaymentSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  messageId     String?
+  message       Message?       @relation(fields: [messageId], references: [id], onDelete: SetNull)
+  waMediaId     String? // WhatsApp media id at receipt time — expires ~30 days on Meta's CDN, so the media is persisted separately for later preview (decision 8)
+  mediaData     Bytes? // raw proof bytes, persisted at analysis time (slice 3) because waMediaId expires ~30 days on Meta's CDN — see PaymentAnalysisEvent job. MVP storage: inline bytea column, no external object store exists in this repo yet (documented gap, see apply-progress).
+  mediaMimeType String? // mime type captured alongside mediaData, needed to serve the preview route with the right Content-Type
+  extracted     Json // EvidenceAnalysis — readers MUST re-validate, see validateEvidenceAnalysis (slice 2)
+  verdict       PaymentVerdict
+  confidence    Float // 0..1 overall extraction confidence
+  reference     String? // payer-provided transfer reference, used for duplicate detection per business
+  imageHash     String? // sha256 of the proof buffer, used for duplicate detection on identical re-sends
+  paidAt        DateTime? // extracted transfer timestamp, distinct from createdAt (receipt time)
+  createdAt     DateTime       @default(now())
 
   @@index([sessionId])
 }
@@ -291,6 +293,39 @@ model PaymentAuditEntry {
   createdAt DateTime       @default(now())
 
   @@index([sessionId, createdAt])
+}
+
+enum PaymentAnalysisEventStatus {
+  pending
+  processing
+  done
+  failed
+}
+
+// Outbox-style durability/retry queue for async proof analysis (slice 2 of
+// 4) — mirrors WebhookEvent (schema.prisma:317, src/lib/outbox/repository.ts)
+// claim/lease/backoff shape exactly, kept as its own table rather than
+// folded into WebhookEvent so its payload/semantics stay proof-analysis
+// specific (decision 6). No FK to PaymentSession/Message on purpose, same
+// reasoning as WebhookEvent having none to Business: the row must survive
+// even if the referenced session/message is deleted, and payload carries
+// every id the job needs (sessionId, messageId, waMediaId, businessId,
+// phoneNumberId).
+model PaymentAnalysisEvent {
+  id             String                     @id @default(cuid())
+  payload        Json
+  status         PaymentAnalysisEventStatus @default(pending)
+  attempts       Int                        @default(0)
+  maxAttempts    Int                        @default(5)
+  nextRunAt      DateTime                   @default(now())
+  leaseExpiresAt DateTime?
+  lockedBy       String?
+  lastError      String?
+  processedAt    DateTime?
+  createdAt      DateTime                   @default(now())
+
+  @@index([status, nextRunAt])
+  @@index([status, leaseExpiresAt])
 }
 
 model EventLog {

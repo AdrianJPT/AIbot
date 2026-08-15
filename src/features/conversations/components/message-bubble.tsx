@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { MEDIA_ICON } from "@/features/conversations/lib/format";
+import { PaymentCardContainer } from "@/features/payments/containers/payment-card-container";
 import type { ConversationMessage } from "@/features/conversations/types";
 
 export type RenderableMessage = ConversationMessage & {
@@ -120,6 +121,12 @@ export function MessageBubble({
             )
           )}
         </div>
+
+        {message.paymentSessionId && (
+          <div className="mt-2">
+            <PaymentCardContainer sessionId={message.paymentSessionId} />
+          </div>
+        )}
       </div>
     </div>
   );

@@ -1,4 +1,5 @@
 import { notFound, redirect } from "next/navigation";
+import { PaymentSessionStatus } from "@prisma/client";
 import { ConversationThreadContainer } from "@/features/conversations/containers/conversation-thread-container";
 import { prisma } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
@@ -26,10 +27,21 @@ export default async function ConversationDetailPage({
     where: { conversationId: id },
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     take: MESSAGES_PAGE_SIZE + 1,
+    include: {
+      paymentProofs: { select: { sessionId: true }, take: 1 },
+    },
   });
   const hasMore = page.length > MESSAGES_PAGE_SIZE;
   const messages = hasMore ? page.slice(0, MESSAGES_PAGE_SIZE) : page;
   const nextCursor = hasMore ? messages[messages.length - 1].id : null;
+
+  // "payments" handoff marker (design decision 7, tasks #568 PR4) — surfaces
+  // when this conversation has a PaymentSession the AI escalated to the
+  // owner, reusing HandoffToggle's visual pattern in the thread header.
+  const escalatedPayment = await prisma.paymentSession.findFirst({
+    where: { conversationId: id, status: PaymentSessionStatus.escalated },
+    select: { id: true },
+  });
 
   return (
     <ConversationThreadContainer
@@ -47,6 +59,7 @@ export default async function ConversationDetailPage({
         summarizedThroughAt:
           conversation.summarizedThroughAt?.toISOString() ?? null,
         business: conversation.business,
+        hasEscalatedPayment: escalatedPayment !== null,
       }}
       initialMessages={{
         messages: messages.map((m) => ({
@@ -57,6 +70,7 @@ export default async function ConversationDetailPage({
           sentBy: m.sentBy,
           status: m.status,
           createdAt: m.createdAt.toISOString(),
+          paymentSessionId: m.paymentProofs[0]?.sessionId ?? null,
         })),
         nextCursor,
       }}

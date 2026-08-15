@@ -41,7 +41,11 @@ export async function createTestBusiness(
 export async function createTestBusinessWithNumber(
   ownerId: string,
   suffix: string,
-  overrides: Partial<{ replyWindowMs: number; isActive: boolean }> = {},
+  overrides: Partial<{
+    replyWindowMs: number;
+    isActive: boolean;
+    paymentsEnabled: boolean;
+  }> = {},
 ): Promise<Business & { phoneNumbers: PhoneNumber[] }> {
   return prisma.business.create({
     data: {
@@ -55,6 +59,9 @@ export async function createTestBusinessWithNumber(
       }),
       ...(overrides.isActive !== undefined && {
         isActive: overrides.isActive,
+      }),
+      ...(overrides.paymentsEnabled !== undefined && {
+        paymentsEnabled: overrides.paymentsEnabled,
       }),
       phoneNumbers: {
         create: { phoneNumberId: `test-phone-${suffix}-${randomUUID()}` },

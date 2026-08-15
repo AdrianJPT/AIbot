@@ -6,6 +6,7 @@ import {
   AlertCircle,
   Building2,
   Calendar,
+  CreditCard,
   KeyRound,
   LayoutDashboard,
   LogOut,
@@ -25,6 +26,7 @@ const links = [
   },
   { href: "/businesses", label: "Negocios", icon: Building2, adminOnly: false },
   { href: "/appointments", label: "Citas", icon: Calendar, adminOnly: false },
+  { href: "/payments", label: "Pagos", icon: CreditCard, adminOnly: false },
   { href: "/admin/clients", label: "Clientes", icon: Users, adminOnly: true },
   {
     href: "/settings/credentials",

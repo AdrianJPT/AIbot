@@ -85,6 +85,102 @@ export function buildInboundTextPayload(opts: {
   };
 }
 
+/**
+ * Parameterized image-message payload for real-DB tests — same rationale as
+ * `buildInboundTextPayload` above (per-test phoneNumberId/from/wamid,
+ * instead of the fixed `imageMessagePayload` fixture below).
+ */
+export function buildInboundImagePayload(opts: {
+  phoneNumberId: string;
+  from: string;
+  wamid: string;
+  mediaId: string;
+  mimeType?: string;
+}) {
+  return {
+    object: "whatsapp_business_account",
+    entry: [
+      {
+        id: "WHATSAPP_BUSINESS_ACCOUNT_ID",
+        changes: [
+          {
+            value: {
+              messaging_product: "whatsapp",
+              metadata: {
+                display_phone_number: TEST_DISPLAY_PHONE_NUMBER,
+                phone_number_id: opts.phoneNumberId,
+              },
+              contacts: [
+                { profile: { name: "Cliente de Prueba" }, wa_id: opts.from },
+              ],
+              messages: [
+                {
+                  from: opts.from,
+                  id: opts.wamid,
+                  timestamp: `${Math.floor(Date.now() / 1000)}`,
+                  type: "image",
+                  image: {
+                    id: opts.mediaId,
+                    mime_type: opts.mimeType ?? "image/jpeg",
+                    sha256: "test-sha",
+                  },
+                },
+              ],
+            },
+            field: "messages",
+          },
+        ],
+      },
+    ],
+  };
+}
+
+/** Same as `buildInboundImagePayload`, for a `document` message. */
+export function buildInboundDocumentPayload(opts: {
+  phoneNumberId: string;
+  from: string;
+  wamid: string;
+  mediaId: string;
+  mimeType?: string;
+}) {
+  return {
+    object: "whatsapp_business_account",
+    entry: [
+      {
+        id: "WHATSAPP_BUSINESS_ACCOUNT_ID",
+        changes: [
+          {
+            value: {
+              messaging_product: "whatsapp",
+              metadata: {
+                display_phone_number: TEST_DISPLAY_PHONE_NUMBER,
+                phone_number_id: opts.phoneNumberId,
+              },
+              contacts: [
+                { profile: { name: "Cliente de Prueba" }, wa_id: opts.from },
+              ],
+              messages: [
+                {
+                  from: opts.from,
+                  id: opts.wamid,
+                  timestamp: `${Math.floor(Date.now() / 1000)}`,
+                  type: "document",
+                  document: {
+                    id: opts.mediaId,
+                    filename: "comprobante.pdf",
+                    mime_type: opts.mimeType ?? "application/pdf",
+                  },
+                },
+              ],
+            },
+            field: "messages",
+          },
+        ],
+      },
+    ],
+  };
+}
+
 export const textMessagePayload = buildPayload([
   {
     from: TEST_CUSTOMER_PHONE,
