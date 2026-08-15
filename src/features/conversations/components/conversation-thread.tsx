@@ -10,6 +10,15 @@ import {
   Download,
   Trash2,
 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { AppointmentsPanel } from "@/features/conversations/components/appointments-panel";
 import { HandoffToggle } from "@/features/conversations/components/handoff-toggle";
@@ -67,6 +76,7 @@ export function ConversationThread({
   const scrollRef = useRef<HTMLDivElement>(null);
   const [isNearBottom, setIsNearBottom] = useState(true);
   const [showNewPill, setShowNewPill] = useState(false);
+  const [archiveConfirmOpen, setArchiveConfirmOpen] = useState(false);
   const prevCount = useRef(messages.length);
 
   useEffect(() => {
@@ -186,7 +196,11 @@ export function ConversationThread({
           </a>
           <button
             type="button"
-            onClick={() => onHandoffChange(isClosed ? "active" : "closed")}
+            onClick={() =>
+              isClosed
+                ? onHandoffChange("active")
+                : setArchiveConfirmOpen(true)
+            }
             className="flex h-11 w-11 items-center justify-center text-muted-foreground hover:text-foreground"
             title={isClosed ? "Reabrir conversación" : "Archivar conversación"}
             aria-label={
@@ -260,6 +274,34 @@ export function ConversationThread({
       </div>
 
       <MessageComposer onSend={onSend} disabled={sending} />
+
+      <Dialog open={archiveConfirmOpen} onOpenChange={setArchiveConfirmOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>¿Archivar esta conversación?</DialogTitle>
+            <DialogDescription>
+              Se marcará como cerrada. Podés reabrirla en cualquier momento
+              desde el mismo botón.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setArchiveConfirmOpen(false)}
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={() => {
+                setArchiveConfirmOpen(false);
+                onHandoffChange("closed");
+              }}
+            >
+              Archivar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
