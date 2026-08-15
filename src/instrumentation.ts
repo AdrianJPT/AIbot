@@ -9,7 +9,7 @@ export async function register() {
   if (process.env.NEXT_RUNTIME === "nodejs") {
     await import("./lib/env");
 
-    // Production/Railway never boots a scheduler here — dispatch runs only
+    // Production/Cloud Run never boots a scheduler here — dispatch runs only
     // through the authenticated POST /api/internal/drain endpoint, invoked
     // externally (Cloud Scheduler/cron). A per-process setInterval here
     // would send at most one reply per instance and none on a scaled-to-zero

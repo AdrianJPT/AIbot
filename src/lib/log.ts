@@ -4,7 +4,7 @@ export type LogLevel = "error" | "warn" | "info";
 
 /**
  * Persists an event to the EventLog table and mirrors it to stdout/stderr
- * (Railway captures console output). Never throws — observability must not
+ * (Cloud Run captures console output as Cloud Logging entries). Never throws — observability must not
  * be able to take down the caller.
  */
 export async function logEvent(
