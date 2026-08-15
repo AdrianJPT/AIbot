@@ -26,7 +26,7 @@ SUPABASE_SERVICE_ROLE_KEY=...
 APP_ENCRYPTION_KEY=base64_de_32_bytes
 ```
 
-`NEXT_PUBLIC_SITE_URL` debe ser el dominio público real de la app (el de Railway en prod). Los redirects de auth (`/auth/callback`, `/auth/logout`, el proxy) lo usan en vez de la URL del request — detrás del proxy de Railway, `req.nextUrl.origin` resuelve a la dirección interna del contenedor, no al dominio público.
+`NEXT_PUBLIC_SITE_URL` debe ser el dominio público real de la app (el de Cloud Run en prod). Los redirects de auth (`/auth/callback`, `/auth/logout`, el proxy) lo usan en vez de la URL del request — detrás del proxy de Cloud Run, `req.nextUrl.origin` resuelve a la dirección interna del contenedor, no al dominio público.
 
 Cada **negocio** guarda su propio `phoneNumberId` y `whatsappToken` en la base de datos (panel **Negocios**).
 
@@ -134,7 +134,7 @@ npm test             # unit + integración (Vitest)
 npm run test:db:down # lo baja y borra el volumen
 ```
 
-`vitest.global-setup.ts` verifica que la base esté arriba antes de correr nada y le aplica las migraciones con `prisma migrate deploy` — el mismo comando que corre el deploy en Railway, así la suite valida las migraciones reales en vez de tomar el atajo de `db push`. Si el contenedor no está, la corrida falla con el comando exacto a ejecutar en vez de decenas de errores opacos de Prisma.
+`vitest.global-setup.ts` verifica que la base esté arriba antes de correr nada y le aplica las migraciones con `prisma migrate deploy` — el mismo comando que corre el deploy en Cloud Run (`cloudbuild.yaml`), así la suite valida las migraciones reales en vez de tomar el atajo de `db push`. Si el contenedor no está, la corrida falla con el comando exacto a ejecutar en vez de decenas de errores opacos de Prisma.
 
 El contenedor es descartable (vive en tmpfs). Si `migrate deploy` falla por drift, recrealo con `npm run test:db:down && npm run test:db:up`.
 
