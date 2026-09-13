@@ -1,4 +1,5 @@
-import { afterAll, describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it, vi } from "vitest";
+import { NextRequest } from "next/server";
 import { PrismaClient, WebhookEventStatus } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import {
@@ -12,6 +13,19 @@ import {
   expireStale,
   fail,
 } from "../repository";
+
+// Only mocked here so the "unverified signature" integration test below
+// doesn't also exercise the full drain/message-handler pipeline — that
+// pipeline is out of scope for this file, which otherwise hits real
+// Postgres directly through `../repository`, not through mocks.
+vi.mock("../drain", () => ({
+  runDrain: vi.fn().mockResolvedValue({
+    claimed: 0,
+    processed: 0,
+    failed: 0,
+    remaining: false,
+  }),
+}));
 
 const createdIds: string[] = [];
 
@@ -29,14 +43,47 @@ describe("outbox/repository", () => {
   });
 
   describe("enqueue", () => {
-    it("persists the raw payload as a pending row", async () => {
-      const payload = { entry: [{ id: "wa-entry-1" }] };
-      const event = await enqueue(payload);
+    it("enqueue persists rawPayload verbatim", async () => {
+      const rawBody = JSON.stringify({ entry: [{ id: "wa-entry-1" }] });
+      const event = await enqueue(rawBody);
       createdIds.push(event.id);
 
       expect(event.status).toBe(WebhookEventStatus.pending);
       expect(event.attempts).toBe(0);
-      expect(event.payload).toEqual(payload);
+      expect(event.rawPayload).toBe(rawBody);
+      expect(event.payload).toBeNull();
+    });
+
+    it("a malformed non-JSON verified body is durably enqueued with rawPayload set and remains undispatched", async () => {
+      const rawBody = "not json at all";
+      const event = await enqueue(rawBody);
+      createdIds.push(event.id);
+
+      expect(event.rawPayload).toBe(rawBody);
+      expect(event.payload).toBeNull();
+      expect(event.status).toBe(WebhookEventStatus.pending);
+    });
+  });
+
+  describe("POST /api/webhook (real DB durability boundary)", () => {
+    it("an unverified (bad signature) request writes zero WebhookEvent rows", async () => {
+      const { POST } = await import("@/app/api/webhook/route");
+      const rawBody = JSON.stringify({ marker: "repository-unverified-test" });
+      const req = new NextRequest("https://example.com/api/webhook", {
+        method: "POST",
+        body: rawBody,
+        headers: {
+          "content-type": "application/json",
+          "x-hub-signature-256": "sha256=deadbeef",
+        },
+      });
+
+      const before = await prisma.webhookEvent.count();
+      const res = await POST(req);
+      const after = await prisma.webhookEvent.count();
+
+      expect(res.status).toBe(401);
+      expect(after).toBe(before);
     });
   });
 

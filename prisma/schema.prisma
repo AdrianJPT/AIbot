@@ -386,7 +386,10 @@ enum WebhookEventStatus {
 // processWebhookPayload, after this row is already durable.
 model WebhookEvent {
   id             String             @id @default(cuid())
-  payload        Json
+  payload        Json? // nullable: kept for the drain's decode fallback until Unit 5's registry-based parsing lands; new rows persist through rawPayload instead (see below).
+  rawPayload     String? // the verified raw request body, persisted before any JSON.parse — this is the durability boundary now (see webhook/route.ts).
+  channel        String? // set once the inbound registry (Unit 5) discriminates the event; null/undiscriminated means legacy WhatsApp.
+  provider       String?
   status         WebhookEventStatus @default(pending)
   attempts       Int                @default(0)
   maxAttempts    Int                @default(5) // 5 retries with backoff (repository.ts's fail()). Safe only once dispatch itself is resumable — see message-handler.ts's ingest/dispatch split and reply-window-scheduler.ts's flush lease; raising this before that landed would have retried straight into the dropped-reply bug (wamid gate returns early, reply never generated).

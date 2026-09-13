@@ -156,6 +156,33 @@ describe("outbox/drain runDrain", () => {
     vi.restoreAllMocks();
   });
 
+  it("decodes payload from rawPayload when payload is null (raw-durability compatibility)", async () => {
+    claimBatch.mockResolvedValueOnce([
+      { id: "evt_6", payload: null, rawPayload: JSON.stringify({ a: 1 }) },
+    ]);
+    const { runDrain } = await import("../drain");
+
+    await runDrain({ eventId: "evt_6", budgetMs: 12_000 });
+
+    expect(processWebhookPayload).toHaveBeenCalledWith({ a: 1 });
+    expect(complete).toHaveBeenCalledWith("evt_6");
+    expect(fail).not.toHaveBeenCalled();
+  });
+
+  it("fails closed without crashing when rawPayload is malformed JSON", async () => {
+    claimBatch.mockResolvedValueOnce([
+      { id: "evt_7", payload: null, rawPayload: "not json" },
+    ]);
+    const { runDrain } = await import("../drain");
+
+    const result = await runDrain({ eventId: "evt_7", budgetMs: 12_000 });
+
+    expect(processWebhookPayload).not.toHaveBeenCalled();
+    expect(fail).toHaveBeenCalledWith("evt_7", expect.any(String));
+    expect(complete).not.toHaveBeenCalled();
+    expect(result.failed).toBe(1);
+  });
+
   it("scopes claimBatch to eventId and stops after one pass when given", async () => {
     claimBatch.mockResolvedValueOnce([{ id: "evt_5", payload: {} }]);
     const { runDrain } = await import("../drain");
