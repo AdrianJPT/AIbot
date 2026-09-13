@@ -22,9 +22,9 @@ model User {
 }
 
 model Business {
-  id                    String           @id @default(cuid())
+  id                    String              @id @default(cuid())
   name                  String
-  wabaId                String?          @unique // Meta's WhatsApp Business Account id, informational
+  wabaId                String?             @unique // Meta's WhatsApp Business Account id, informational
   systemPrompt          String
   welcomeMessage        String
   businessInfo          Json
@@ -32,22 +32,23 @@ model Business {
   model                 String? // null = inherit AppConfig.chatModel
   visionModel           String? // null = inherit AppConfig.visionModel
   audioModel            String? // null = inherit AppConfig.audioModel
-  maxHistoryMessages    Int              @default(20)
-  summaryEnabled        Boolean          @default(true) // false = keep the raw last-N history only, no rolling summary (kill switch per business, no deploy needed) — see src/lib/ai/summarize.ts
-  summaryEveryNMessages Int              @default(10) // regenerate the rolling summary once this many messages have accumulated since summarizedThroughAt, not on every flush
-  dailyAiLimit          Int              @default(1000)
-  replyWindowMs         Int              @default(5000) // 5s default debounce window for batching pending customer messages; 0 explicitly disables the wait — see reply-window-scheduler.ts
-  isActive              Boolean          @default(true)
-  paymentsEnabled       Boolean          @default(false) // feature flag for the payment-verification engine (slice 1 of 4) — off leaves every new table inert, no code path references them yet; flipping it on is the whole rollback story, no destructive migration needed
+  maxHistoryMessages    Int                 @default(20)
+  summaryEnabled        Boolean             @default(true) // false = keep the raw last-N history only, no rolling summary (kill switch per business, no deploy needed) — see src/lib/ai/summarize.ts
+  summaryEveryNMessages Int                 @default(10) // regenerate the rolling summary once this many messages have accumulated since summarizedThroughAt, not on every flush
+  dailyAiLimit          Int                 @default(1000)
+  replyWindowMs         Int                 @default(5000) // 5s default debounce window for batching pending customer messages; 0 explicitly disables the wait — see reply-window-scheduler.ts
+  isActive              Boolean             @default(true)
+  paymentsEnabled       Boolean             @default(false) // feature flag for the payment-verification engine (slice 1 of 4) — off leaves every new table inert, no code path references them yet; flipping it on is the whole rollback story, no destructive migration needed
   ownerId               String
-  owner                 User             @relation(fields: [ownerId], references: [id])
+  owner                 User                @relation(fields: [ownerId], references: [id])
   aiCredentialId        String?
   phoneNumbers          PhoneNumber[]
   conversations         Conversation[]
   appointments          Appointment[]
   catalogItems          CatalogItem[]
   paymentSessions       PaymentSession[]
-  createdAt             DateTime         @default(now())
+  channelConnections    ChannelConnection[]
+  createdAt             DateTime            @default(now())
 
   @@index([ownerId])
 }
@@ -62,11 +63,37 @@ model PhoneNumber {
   phoneNumberId        String         @unique // Meta's opaque technical id — webhook lookup key
   displayPhone         String? // human-readable "+<código país> <número>", shown as the item title
   whatsappCredentialId String?
+  channelConnectionId  String? // nullable compat pointer to the generalized ChannelConnection (channel-adapter-foundation PR2) — null until backfilled (PR3), plain id not an FK, same convention as whatsappCredentialId above
   isActive             Boolean        @default(true)
   conversations        Conversation[]
   createdAt            DateTime       @default(now())
   updatedAt            DateTime       @updatedAt
 
+  @@index([businessId])
+}
+
+// Tenant-owned provider connection identity (channel-adapter-foundation
+// design, "Connection identity" decision). `externalId` is the provider's
+// opaque identifier (WhatsApp: PhoneNumber.phoneNumberId); uniqueness is
+// scoped to (provider, externalId) so the same provider identity can never
+// be claimed by more than one business. `credentialId` is a plain
+// reference resolved by src/lib/channels/credentials.ts (PR7), not an FK —
+// same convention as PhoneNumber.whatsappCredentialId / AppConfig's
+// whatsappCredentialId, since the referenced credential may be owned by an
+// administrator rather than this business.
+model ChannelConnection {
+  id           String   @id @default(cuid())
+  businessId   String
+  business     Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  channel      String // "whatsapp" today — mirrors src/lib/channels/contracts.ts's Channel type
+  provider     String // "meta" today — mirrors src/lib/channels/contracts.ts's Provider type
+  externalId   String // provider's opaque identity, e.g. WhatsApp's phoneNumberId
+  credentialId String?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([provider, externalId])
   @@index([businessId])
 }
 
@@ -108,26 +135,28 @@ model Credential {
 }
 
 model Conversation {
-  id                  String           @id @default(cuid())
-  businessId          String // denormalized copy of phoneNumber.businessId — kept so RLS policies and scope.ts stay a single-hop join; PhoneNumber.businessId is immutable so this can't drift
-  business            Business         @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  phoneNumberId       String
-  phoneNumber         PhoneNumber      @relation(fields: [phoneNumberId], references: [id], onDelete: Cascade)
-  customerPhone       String
-  customerName        String? // WhatsApp profile name from webhook `contacts[0].profile.name` — overwritten on every inbound message, never edited by hand
-  nickname            String? // admin-set alias, takes display priority over customerName; webhook never touches this
-  status              String           @default("active")
-  lastMessageAt       DateTime         @default(now()) // denormalized for list ordering — bumped on every message insert
-  unreadCount         Int              @default(0) // customer messages since admin last opened the thread
-  pendingFlushAt      DateTime? // set (by message-handler.ts, always — not only when replyWindowMs > 0) when a customer message is awaiting dispatch; cleared (claimed) by reply-window-scheduler.ts when the window elapses
-  flushLeaseUntil     DateTime? // set by reply-window-scheduler.ts while a flush is in flight; prevents a crash between claim and send from orphaning pendingFlushAt forever — see reply-window-scheduler.ts's flushDueConversation
-  summary             Json? // a ConversationSummary (src/lib/ai/summarize.ts): a handful of capped fields, never free prose, so its cost is predictable and each field can be sanitized on its own. Prisma types this as Json, so READERS MUST re-run validateConversationSummary — a row can predate a schema change or have been written by hand, and the type system will not catch it.
-  summarizedThroughAt DateTime? // messages at or before this instant are represented by `summary`; everything after it is still loaded raw. Null = no summary yet.
-  messages            Message[]
-  appointments        Appointment[]
-  paymentSessions     PaymentSession[]
-  createdAt           DateTime         @default(now())
-  updatedAt           DateTime         @updatedAt
+  id                    String           @id @default(cuid())
+  businessId            String // denormalized copy of phoneNumber.businessId — kept so RLS policies and scope.ts stay a single-hop join; PhoneNumber.businessId is immutable so this can't drift
+  business              Business         @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  phoneNumberId         String
+  phoneNumber           PhoneNumber      @relation(fields: [phoneNumberId], references: [id], onDelete: Cascade)
+  customerPhone         String
+  customerName          String? // WhatsApp profile name from webhook `contacts[0].profile.name` — overwritten on every inbound message, never edited by hand
+  nickname              String? // admin-set alias, takes display priority over customerName; webhook never touches this
+  status                String           @default("active")
+  lastMessageAt         DateTime         @default(now()) // denormalized for list ordering — bumped on every message insert
+  unreadCount           Int              @default(0) // customer messages since admin last opened the thread
+  pendingFlushAt        DateTime? // set (by message-handler.ts, always — not only when replyWindowMs > 0) when a customer message is awaiting dispatch; cleared (claimed) by reply-window-scheduler.ts when the window elapses
+  flushLeaseUntil       DateTime? // set by reply-window-scheduler.ts while a flush is in flight; prevents a crash between claim and send from orphaning pendingFlushAt forever — see reply-window-scheduler.ts's flushDueConversation
+  summary               Json? // a ConversationSummary (src/lib/ai/summarize.ts): a handful of capped fields, never free prose, so its cost is predictable and each field can be sanitized on its own. Prisma types this as Json, so READERS MUST re-run validateConversationSummary — a row can predate a schema change or have been written by hand, and the type system will not catch it.
+  summarizedThroughAt   DateTime? // messages at or before this instant are represented by `summary`; everything after it is still loaded raw. Null = no summary yet.
+  channelConnectionId   String? // nullable compat pointer to the generalized ChannelConnection (channel-adapter-foundation PR2) — null until backfilled (PR3), plain id not an FK, same convention as PhoneNumber.channelConnectionId
+  externalParticipantId String? // provider-scoped customer identity (WhatsApp: customerPhone) generalized for non-WhatsApp channels — null until backfilled (PR3)
+  messages              Message[]
+  appointments          Appointment[]
+  paymentSessions       PaymentSession[]
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
 
   @@unique([phoneNumberId, customerPhone])
   @@index([businessId, lastMessageAt])

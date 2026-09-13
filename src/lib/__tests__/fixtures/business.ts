@@ -49,6 +49,7 @@ export function buildPhoneNumber(
     phoneNumberId: TEST_PHONE_NUMBER_ID,
     displayPhone: null,
     whatsappCredentialId: null,
+    channelConnectionId: null,
     isActive: true,
     createdAt: new Date(),
     updatedAt: new Date(),
