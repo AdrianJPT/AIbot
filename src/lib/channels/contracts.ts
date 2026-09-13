@@ -70,6 +70,10 @@ export type InboundMessage = EventContext & {
   kind: "message";
   from: string;
   content: ChannelContent;
+  /** Provider-reported sender display name (e.g. WhatsApp `contacts[].profile.name`), when present and matching. */
+  senderDisplayName?: string;
+  /** Identifier of a quoted/replied-to message (e.g. WhatsApp `message.context.id`), when present. */
+  quotedMessageId?: string;
 };
 
 /** A normalized delivery-status update for a previously sent message. */

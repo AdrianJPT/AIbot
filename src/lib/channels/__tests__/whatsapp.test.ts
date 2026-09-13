@@ -388,6 +388,148 @@ describe("channels/whatsapp base adapter", () => {
     ]);
   });
 
+  it("maps matching contact profile name to senderDisplayName and message context id to quotedMessageId", async () => {
+    const outcomes = await whatsappAdapter.normalize(
+      event({
+        contacts: [{ profile: { name: "Ana García" }, wa_id: "51999111222" }],
+        messages: [
+          {
+            id: "wamid.text_with_metadata",
+            from: "51999111222",
+            type: "text",
+            text: { body: "Hola" },
+            context: { id: "wamid.quoted_1" },
+          },
+        ],
+      }),
+      connection(),
+    );
+
+    expect(outcomes).toMatchObject([
+      {
+        kind: "message",
+        eventId: "wamid.text_with_metadata",
+        senderDisplayName: "Ana García",
+        quotedMessageId: "wamid.quoted_1",
+      },
+    ]);
+  });
+
+  it("omits senderDisplayName when contacts are absent, blank, malformed, or non-matching", async () => {
+    const noContacts = await whatsappAdapter.normalize(
+      event({
+        messages: [
+          {
+            id: "wamid.no_contacts",
+            from: "51999111222",
+            type: "text",
+            text: { body: "Hola" },
+          },
+        ],
+      }),
+      connection(),
+    );
+    const blankName = await whatsappAdapter.normalize(
+      event({
+        contacts: [{ profile: { name: "" }, wa_id: "51999111222" }],
+        messages: [
+          {
+            id: "wamid.blank_name",
+            from: "51999111222",
+            type: "text",
+            text: { body: "Hola" },
+          },
+        ],
+      }),
+      connection(),
+    );
+    const malformedProfile = await whatsappAdapter.normalize(
+      event({
+        contacts: [{ profile: "not-an-object", wa_id: "51999111222" }],
+        messages: [
+          {
+            id: "wamid.malformed_profile",
+            from: "51999111222",
+            type: "text",
+            text: { body: "Hola" },
+          },
+        ],
+      }),
+      connection(),
+    );
+    const nonMatchingContact = await whatsappAdapter.normalize(
+      event({
+        contacts: [{ profile: { name: "Someone Else" }, wa_id: "51999000000" }],
+        messages: [
+          {
+            id: "wamid.non_matching_contact",
+            from: "51999111222",
+            type: "text",
+            text: { body: "Hola" },
+          },
+        ],
+      }),
+      connection(),
+    );
+
+    for (const outcomes of [
+      noContacts,
+      blankName,
+      malformedProfile,
+      nonMatchingContact,
+    ]) {
+      expect(outcomes[0]).not.toHaveProperty("senderDisplayName");
+    }
+  });
+
+  it("omits quotedMessageId when context is absent, blank, or malformed", async () => {
+    const noContext = await whatsappAdapter.normalize(
+      event({
+        messages: [
+          {
+            id: "wamid.no_context",
+            from: "51999111222",
+            type: "text",
+            text: { body: "Hola" },
+          },
+        ],
+      }),
+      connection(),
+    );
+    const blankContextId = await whatsappAdapter.normalize(
+      event({
+        messages: [
+          {
+            id: "wamid.blank_context",
+            from: "51999111222",
+            type: "text",
+            text: { body: "Hola" },
+            context: { id: "" },
+          },
+        ],
+      }),
+      connection(),
+    );
+    const malformedContext = await whatsappAdapter.normalize(
+      event({
+        messages: [
+          {
+            id: "wamid.malformed_context",
+            from: "51999111222",
+            type: "text",
+            text: { body: "Hola" },
+            context: "not-an-object",
+          },
+        ],
+      }),
+      connection(),
+    );
+
+    for (const outcomes of [noContext, blankContextId, malformedContext]) {
+      expect(outcomes[0]).not.toHaveProperty("quotedMessageId");
+    }
+  });
+
   it("self-registers exactly the WhatsApp/Meta adapter", () => {
     expect(resolveAdapter("whatsapp", "meta", connection())).toBe(
       whatsappAdapter,

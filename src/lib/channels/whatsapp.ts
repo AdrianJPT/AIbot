@@ -1,8 +1,10 @@
 import type {
   ChannelAdapter,
   ChannelConnection,
+  ChannelContent,
   DeliveryState,
   IgnoredEvent,
+  InboundMessage,
   NormalizedEvent,
   RawChannelEvent,
 } from "./contracts";
@@ -59,6 +61,48 @@ function optionalString(value: unknown): string | undefined {
   return typeof value === "string" && value.length > 0 ? value : undefined;
 }
 
+/** Maps `contacts[].profile.name` to a display name, only for the contact matching `from`. */
+function senderDisplayName(
+  contacts: unknown,
+  from: string,
+): string | undefined {
+  if (!Array.isArray(contacts)) {
+    return undefined;
+  }
+
+  const match = contacts.find(
+    (contact) => isRecord(contact) && contact.wa_id === from,
+  );
+  return isRecord(match) && isRecord(match.profile)
+    ? optionalString(match.profile.name)
+    : undefined;
+}
+
+/** Maps `message.context.id` to a quoted-message identifier. */
+function quotedMessageId(message: RecordValue): string | undefined {
+  return isRecord(message.context)
+    ? optionalString(message.context.id)
+    : undefined;
+}
+
+function buildMessage(
+  connection: ChannelConnection,
+  message: RecordValue,
+  contacts: unknown,
+  content: ChannelContent,
+): InboundMessage {
+  const displayName = senderDisplayName(contacts, message.from as string);
+  const quotedId = quotedMessageId(message);
+  return {
+    kind: "message",
+    ...context(connection, message.id as string),
+    from: message.from as string,
+    content,
+    ...(displayName ? { senderDisplayName: displayName } : {}),
+    ...(quotedId ? { quotedMessageId: quotedId } : {}),
+  };
+}
+
 function interactiveTitle(message: RecordValue): string {
   const interactive = isRecord(message.interactive) ? message.interactive : {};
   const listTitle = isRecord(interactive.list_reply)
@@ -91,6 +135,7 @@ function values(raw: string): RecordValue[] {
 function normalizeMessage(
   message: unknown,
   connection: ChannelConnection,
+  contacts: unknown,
 ): NormalizedEvent {
   if (!isRecord(message) || typeof message.id !== "string") {
     return ignored(connection, "unknown", "unsupported_message");
@@ -114,21 +159,17 @@ function normalizeMessage(
     isRecord(message.text) &&
     typeof message.text.body === "string"
   ) {
-    return {
-      kind: "message",
-      ...context(connection, message.id),
-      from: message.from,
-      content: { kind: "text", text: message.text.body },
-    };
+    return buildMessage(connection, message, contacts, {
+      kind: "text",
+      text: message.text.body,
+    });
   }
 
   if (message.type === "interactive") {
-    return {
-      kind: "message",
-      ...context(connection, message.id),
-      from: message.from,
-      content: { kind: "text", text: interactiveTitle(message) },
-    };
+    return buildMessage(connection, message, contacts, {
+      kind: "text",
+      text: interactiveTitle(message),
+    });
   }
 
   if (message.type === "location") {
@@ -149,17 +190,12 @@ function normalizeMessage(
       longitude: location.longitude,
       ...(name ? { name } : {}),
     };
-    return {
-      kind: "message",
-      ...context(connection, message.id),
-      from: message.from,
-      content: {
-        kind: "text",
-        text: `El cliente envió su ubicación: ${location.latitude}, ${location.longitude}${name ? ` (${name})` : ""}`,
-        mediaType: "location",
-        location: locationContent,
-      },
-    };
+    return buildMessage(connection, message, contacts, {
+      kind: "text",
+      text: `El cliente envió su ubicación: ${location.latitude}, ${location.longitude}${name ? ` (${name})` : ""}`,
+      mediaType: "location",
+      location: locationContent,
+    });
   }
 
   if (
@@ -175,36 +211,26 @@ function normalizeMessage(
 
     const mimeType = optionalString(media.mime_type);
     const caption = optionalString(media.caption);
-    return {
-      kind: "message",
-      ...context(connection, message.id),
-      from: message.from,
-      content: {
-        kind: "media",
-        externalMediaId: id,
-        mediaType: message.type === "image" ? "image" : "audio",
-        ...(mimeType ? { mimeType } : {}),
-        ...(caption ? { caption } : {}),
-      },
-    };
+    return buildMessage(connection, message, contacts, {
+      kind: "media",
+      externalMediaId: id,
+      mediaType: message.type === "image" ? "image" : "audio",
+      ...(mimeType ? { mimeType } : {}),
+      ...(caption ? { caption } : {}),
+    });
   }
 
   if (message.type === "document") {
     const document = isRecord(message.document) ? message.document : {};
     const externalMediaId = optionalString(document.id);
     const filename = optionalString(document.filename);
-    return {
-      kind: "message",
-      ...context(connection, message.id),
-      from: message.from,
-      content: {
-        kind: "text",
-        text: "[Documento adjunto]",
-        mediaType: "document",
-        ...(externalMediaId ? { externalMediaId } : {}),
-        ...(filename ? { filename } : {}),
-      },
-    };
+    return buildMessage(connection, message, contacts, {
+      kind: "text",
+      text: "[Documento adjunto]",
+      mediaType: "document",
+      ...(externalMediaId ? { externalMediaId } : {}),
+      ...(filename ? { filename } : {}),
+    });
   }
 
   return ignored(connection, message.id, "unsupported_message");
@@ -234,7 +260,9 @@ export const whatsappAdapter: ChannelAdapter = {
   async normalize(raw: RawChannelEvent, connection: ChannelConnection) {
     const outcomes = values(raw.raw).flatMap((value) => {
       const messages = Array.isArray(value.messages)
-        ? value.messages.map((message) => normalizeMessage(message, connection))
+        ? value.messages.map((message) =>
+            normalizeMessage(message, connection, value.contacts),
+          )
         : [];
       const statuses = Array.isArray(value.statuses)
         ? value.statuses.map((status) => normalizeStatus(status, connection))
