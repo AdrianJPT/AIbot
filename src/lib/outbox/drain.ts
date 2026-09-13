@@ -87,7 +87,19 @@ export async function runDrain(
       }
 
       try {
-        const touched = await processWebhookPayload(event.payload);
+        // Raw-durability compatibility (Unit 4): the webhook route now
+        // persists the verified raw body to `rawPayload` and leaves
+        // `payload` null, moving JSON.parse out of the request path. Rows
+        // written before this change (or by any other future writer) still
+        // carry a pre-parsed `payload`, so that stays the first choice.
+        // Full registry-based decoding replaces this JSON.parse fallback in
+        // Unit 5 (src/lib/channels/inbound.ts); this is intentionally the
+        // minimal compatibility shim to keep this slice's suite green. A
+        // malformed `rawPayload` throws here and is caught by the same
+        // `fail()` path below — durably stored, never dispatched, never
+        // crashing the drain.
+        const payload = event.payload ?? JSON.parse(event.rawPayload ?? "null");
+        const touched = await processWebhookPayload(payload);
         for (const id of touched) touchedConversationIds.add(id);
         await complete(event.id);
         result.processed += 1;
