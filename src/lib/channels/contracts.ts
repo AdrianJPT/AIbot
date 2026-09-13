@@ -19,12 +19,25 @@ export type Provider = "meta";
 export type DeliveryState = "sent" | "delivered" | "read" | "failed";
 
 /**
- * Normalized message body. `text` covers plain text; `media` covers any
- * provider media reference an adapter resolved down to its external id.
+ * Normalized message body. Semantic media types preserve legacy WhatsApp
+ * behavior while keeping transport-specific field names out of the domain.
  */
 export type ChannelContent =
-  | { kind: "text"; text: string }
-  | { kind: "media"; externalMediaId: string; mimeType?: string; caption?: string };
+  | {
+      kind: "text";
+      text: string;
+      mediaType?: "text" | "location" | "document";
+      externalMediaId?: string;
+      filename?: string;
+      location?: { latitude: number; longitude: number; name?: string };
+    }
+  | {
+      kind: "media";
+      externalMediaId: string;
+      mediaType: "image" | "audio";
+      mimeType?: string;
+      caption?: string;
+    };
 
 /**
  * Tenant-owned connection identity a normalized event or outbound request is
