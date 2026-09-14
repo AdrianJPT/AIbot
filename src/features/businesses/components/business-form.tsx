@@ -12,6 +12,7 @@ import type {
   CredentialOption,
 } from "@/features/businesses/types";
 import { DEFAULT_REPLY_WINDOW_MS } from "@/lib/businesses/reply-window";
+import { ReplyDebounceCard } from "@/features/businesses/components/reply-debounce-card";
 
 const MODEL_HINTS: Record<string, string> = {
   openai: "ej: gpt-4o-mini (chat/visión) · whisper-1 (audio)",
@@ -290,29 +291,11 @@ export function BusinessFormFields({
         />
       </div>
 
-      <div className="w-full space-y-1.5 sm:max-w-[280px]">
-        <Label htmlFor="replyWindowSeconds">
-          Ventana de espera antes de responder (segundos)
-        </Label>
-        <Input
-          id="replyWindowSeconds"
-          name="replyWindowSeconds"
-          type="number"
-          min={0}
-          max={300}
-          placeholder="5"
-          defaultValue={
-            business
-              ? business.replyWindowMs / 1000
-              : DEFAULT_REPLY_WINDOW_MS / 1000
-          }
-        />
-        <p className="text-xs text-muted-foreground">
-          El valor predeterminado es 5 segundos. Si el cliente manda varios
-          mensajes seguidos, esperamos este tiempo desde el último para
-          juntarlos en una sola respuesta. Usá 0 para responder al instante.
-        </p>
-      </div>
+      <ReplyDebounceCard
+        replyWindowMs={
+          business ? business.replyWindowMs : DEFAULT_REPLY_WINDOW_MS
+        }
+      />
 
       <div className="flex items-center gap-2">
         <Switch
