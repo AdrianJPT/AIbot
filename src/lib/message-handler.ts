@@ -18,6 +18,13 @@ import {
 import { resolveWhatsappToken, sendFromNumber } from "./whatsapp";
 import { logEvent } from "./log";
 import { maybeEnqueuePaymentAnalysis } from "./payments/ingest";
+import { whatsappAdapter } from "./channels/whatsapp";
+import type {
+  ChannelConnection,
+  ChannelContent,
+  InboundMessage,
+  NormalizedEvent,
+} from "./channels/contracts";
 
 /**
  * Per-conversation abuse throttle: no Redis, single-replica Railway makes an
@@ -89,113 +96,82 @@ export function computeFlushDueAt(
   return new Date(Math.min(debouncedAt, ceilingAt));
 }
 
-type WaMessage = {
-  from: string;
-  id?: string;
-  type: string;
-  text?: { body: string };
-  image?: { id: string };
-  audio?: { id: string };
-  voice?: { id: string };
-  location?: { latitude: number; longitude: number; name?: string };
-  document?: { id: string; filename?: string };
-  interactive?: {
-    type: string;
-    list_reply?: { title: string; id?: string };
-    button_reply?: { title: string; id?: string };
-  };
-  /**
-   * Present when the customer replied to a specific earlier message. `id` is the
-   * wamid of that message — the only field worth keeping, since `from` is already
-   * known from the conversation.
-   */
-  context?: { id?: string; from?: string };
-};
-
-type WaStatus = {
-  id: string; // wamid of the outbound message this status refers to
-  status: string; // "sent" | "delivered" | "read" | "failed"
-  errors?: Array<{ message?: string; title?: string; code?: number }>;
-};
-
-/** Statuses this app persists on Message.status; anything else is ignored. */
-const KNOWN_STATUSES = new Set(["sent", "delivered", "read", "failed"]);
-
 /**
- * Ingests one webhook payload: verifies dedupe, persists inbound messages,
- * and marks their conversations due for dispatch. Performs zero AI calls and
- * zero WhatsApp sends — that is the entire point of the ingest/dispatch
- * split (see design §3). Returns the ids of conversations this payload
- * touched, so the caller (src/lib/outbox/drain.ts) can scope the dispatch
- * sweep to exactly the conversations that might now be due, instead of
- * sweeping every business's pending work inside a request Meta is timing.
+ * Re-resolves the full `Business`/`PhoneNumber` rows a normalized event's
+ * connection is scoped to. The registry-level `ChannelConnection` (see
+ * `channels/contracts.ts`) only carries identity fields — everything ingest
+ * needs beyond that (AI/reply-window settings, the send credential path)
+ * still lives on these Prisma rows. This lookup doubles as ingest's own
+ * fail-closed gate: an inactive/foreign/mismatched phone number or business
+ * yields zero domain dispatch here even if an earlier boundary (the inbound
+ * resolver, the registry) already accepted the event.
  */
-export async function processWebhookPayload(body: unknown): Promise<string[]> {
-  const entry = (body as { entry?: unknown[] })?.entry?.[0] as
-    { changes?: unknown[] } | undefined;
-  const change = entry?.changes?.[0] as
-    { value?: Record<string, unknown> } | undefined;
-  const value = change?.value;
-  if (!value) return [];
-
-  const metadata = value.metadata as { phone_number_id?: string } | undefined;
-  const metaPhoneNumberId = metadata?.phone_number_id;
-  if (!metaPhoneNumberId) return [];
-
+async function resolveBusinessContext(
+  connection: ChannelConnection,
+): Promise<{ business: Business; phoneNumber: PhoneNumber } | null> {
   const phoneNumber = await prisma.phoneNumber.findFirst({
     where: {
-      phoneNumberId: metaPhoneNumberId,
+      phoneNumberId: connection.externalId,
       isActive: true,
       business: { isActive: true },
     },
     include: { business: true },
   });
-  if (!phoneNumber) return [];
-
-  const { business } = phoneNumber;
-
-  const statuses = value.statuses as WaStatus[] | undefined;
-  if (statuses?.length) {
-    for (const status of statuses) {
-      await handleStatusUpdate(business.id, phoneNumber.id, status);
-    }
+  if (!phoneNumber || phoneNumber.businessId !== connection.businessId) {
+    return null;
   }
+  return { business: phoneNumber.business, phoneNumber };
+}
 
-  const messages = value.messages as WaMessage[] | undefined;
-  if (!messages?.length) return [];
-
-  const contacts = value.contacts as
-    Array<{ profile?: { name?: string }; wa_id?: string }> | undefined;
+/**
+ * Ingests one channel-neutral batch of normalized events for a single
+ * tenant-owned connection: verifies dedupe, persists inbound messages, and
+ * marks their conversations due for dispatch. Performs zero AI calls and
+ * zero WhatsApp sends — that is the entire point of the ingest/dispatch
+ * split (see design §3). Replaces the old WhatsApp-raw
+ * `processWebhookPayload` (design's Unit 5c): the drain
+ * (`src/lib/outbox/drain.ts`) now decodes and normalizes through the channel
+ * adapter registry before calling here, so this function never parses
+ * transport JSON itself. Returns the ids of conversations this batch
+ * touched, so the caller can scope the dispatch sweep to exactly the
+ * conversations that might now be due, instead of sweeping every business's
+ * pending work inside a request Meta is timing.
+ */
+export async function processNormalizedEvents(
+  connection: ChannelConnection,
+  events: NormalizedEvent[],
+): Promise<string[]> {
+  const context = await resolveBusinessContext(connection);
+  if (!context) return [];
+  const { business, phoneNumber } = context;
 
   const touchedConversationIds: string[] = [];
-  for (const message of messages) {
-    const customerName = contacts?.find((c) => c.wa_id === message.from)
-      ?.profile?.name;
-    const conversationId = await handleOneMessage(
-      business,
-      phoneNumber,
-      message,
-      customerName,
-    );
+  for (const event of events) {
+    if (event.kind === "status") {
+      await handleStatusUpdate(business.id, phoneNumber.id, event);
+      continue;
+    }
+    if (event.kind !== "message") continue;
+
+    const conversationId = await handleOneMessage(business, phoneNumber, event);
     if (conversationId) touchedConversationIds.push(conversationId);
   }
   return touchedConversationIds;
 }
 
 /**
- * Applies a WhatsApp delivery status update (`sent`/`delivered`/`read`/`failed`)
- * to the outbound Message row matching `wamid`. Unknown statuses (e.g.
- * `deleted`) are ignored. `failed` statuses are logged with their error detail.
+ * Applies a normalized delivery-status update (`sent`/`delivered`/`read`/`failed`)
+ * to the outbound Message row matching the adapter's `externalMessageId`. A
+ * status referencing an unknown message id is silently ignored, same as
+ * before.
  */
 async function handleStatusUpdate(
   businessId: string,
   phoneNumberId: string,
-  status: WaStatus,
+  status: Extract<NormalizedEvent, { kind: "status" }>,
 ): Promise<void> {
-  if (!status?.id || !KNOWN_STATUSES.has(status.status)) return;
-
   const message = await prisma.message.findFirst({
-    where: { wamid: status.id },
+    where: { wamid: status.externalMessageId },
   });
   if (!message) return;
 
@@ -209,7 +185,7 @@ async function handleStatusUpdate(
       "error",
       "whatsapp-send",
       "Message delivery failed",
-      { wamid: status.id, errors: status.errors, messageId: message.id },
+      { wamid: status.externalMessageId, messageId: message.id },
       businessId,
       phoneNumberId,
     );
@@ -217,33 +193,92 @@ async function handleStatusUpdate(
 }
 
 /**
- * Ingests exactly one inbound message: dedupe gate, content parsing,
- * conversation upsert, persistence — and nothing else. Cut here (not one
- * line further) so this function's scope matches the `Message.wamid`
- * @unique dedupe gate exactly: a retry that re-enters after a crash sees the
- * wamid already persisted and returns, with nothing un-sent left behind,
- * because nothing past persistence ever ran inline. See design §3.
+ * Legacy convenience entry point: ingests an already-decoded raw WhatsApp
+ * webhook payload through the same registry adapter + normalized pipeline
+ * `processNormalizedEvents` uses, instead of a second hand-rolled parser.
+ * The drain path (src/lib/outbox/drain.ts) never calls this anymore — it
+ * resolves through `channels/inbound.ts` (which also supports the
+ * `ChannelConnection` schema, unlike this phone-number-only lookup) and the
+ * registry directly. This wrapper only exists for callers that still hand
+ * ingest an already-parsed payload directly. See design's Unit 5c.
+ */
+export async function processWebhookPayload(body: unknown): Promise<string[]> {
+  const metaPhoneNumberId = phoneNumberIdFromPayload(body);
+  if (!metaPhoneNumberId) return [];
+
+  const phoneNumber = await prisma.phoneNumber.findFirst({
+    where: {
+      phoneNumberId: metaPhoneNumberId,
+      isActive: true,
+      business: { isActive: true },
+    },
+  });
+  if (!phoneNumber) return [];
+
+  const connection: ChannelConnection = {
+    id: `legacy:${phoneNumber.id}`,
+    businessId: phoneNumber.businessId,
+    channel: "whatsapp",
+    provider: "meta",
+    externalId: phoneNumber.phoneNumberId,
+    isActive: true,
+  };
+
+  const events = await whatsappAdapter.normalize(
+    {
+      channel: "whatsapp",
+      provider: "meta",
+      raw: JSON.stringify(body),
+      eventId: "inline",
+    },
+    connection,
+  );
+  return processNormalizedEvents(connection, events);
+}
+
+function phoneNumberIdFromPayload(body: unknown): string | undefined {
+  const entry = (body as { entry?: unknown[] })?.entry?.[0] as
+    { changes?: unknown[] } | undefined;
+  const change = entry?.changes?.[0] as
+    { value?: Record<string, unknown> } | undefined;
+  const metadata = change?.value?.metadata as
+    { phone_number_id?: string } | undefined;
+  return metadata?.phone_number_id;
+}
+
+/**
+ * Ingests exactly one normalized inbound message: dedupe gate, content
+ * parsing, conversation upsert, persistence — and nothing else. Cut here
+ * (not one line further) so this function's scope matches the
+ * `Message.wamid` @unique dedupe gate exactly: a retry that re-enters after
+ * a crash sees the wamid already persisted and returns, with nothing
+ * un-sent left behind, because nothing past persistence ever ran inline.
+ * See design §3.
  *
  * Returns the conversation id touched (so the caller can scope the dispatch
- * sweep), or undefined when nothing was persisted (missing `from`, dedupe
- * hit, or unparseable content).
+ * sweep), or undefined when nothing was persisted (dedupe hit, or
+ * unparseable content).
  */
 async function handleOneMessage(
   business: Business,
   phoneNumber: PhoneNumber,
-  message: WaMessage,
-  customerName?: string,
+  message: InboundMessage,
 ): Promise<string | undefined> {
-  const from = message.from;
-  if (!from) return undefined;
+  const {
+    from,
+    eventId: wamid,
+    senderDisplayName: customerName,
+    quotedMessageId: quotedWamid,
+  } = message;
 
-  const wamid = message.id;
-  if (wamid) {
-    const existing = await prisma.message.findFirst({ where: { wamid } });
-    if (existing) return undefined;
-  }
+  const existing = await prisma.message.findFirst({ where: { wamid } });
+  if (existing) return undefined;
 
-  const parsed = await parseUserContent(business, phoneNumber, message);
+  const parsed = await parseChannelContent(
+    business,
+    phoneNumber,
+    message.content,
+  );
   if (!parsed) return undefined;
 
   const conversation = await prisma.conversation.upsert({
@@ -268,9 +303,15 @@ async function handleOneMessage(
       parsed,
       wamid,
       customerName,
-      message.context?.id,
+      quotedWamid,
     );
-    await maybeStartPaymentAnalysis(business, phoneNumber, conversation, messageId, parsed);
+    await maybeStartPaymentAnalysis(
+      business,
+      phoneNumber,
+      conversation,
+      messageId,
+      parsed,
+    );
     return conversation.id;
   }
 
@@ -279,9 +320,15 @@ async function handleOneMessage(
     parsed,
     wamid,
     customerName,
-    message.context?.id,
+    quotedWamid,
   );
-  await maybeStartPaymentAnalysis(business, phoneNumber, conversation, messageId, parsed);
+  await maybeStartPaymentAnalysis(
+    business,
+    phoneNumber,
+    conversation,
+    messageId,
+    parsed,
+  );
 
   // Ingest's job ends here: mark the conversation due for dispatch. The
   // sweep (reply-window-scheduler.ts) picks it up — immediately, for the
@@ -915,108 +962,98 @@ function describeError(err: unknown): {
   return code ? { ...base, code } : base;
 }
 
-async function parseUserContent(
+/**
+ * Turns a normalized `ChannelContent` (see `channels/contracts.ts`) into the
+ * domain-persisted `{content, mediaType, waMediaId}` shape — the same shape
+ * and same strings the pre-registry `parseUserContent` produced from raw
+ * WhatsApp payload fields, now sourced from adapter-normalized content
+ * instead. Image/audio media is still downloaded and described/transcribed
+ * here (media fetching is Unit 6 for adapters — the adapter's own
+ * `fetchMedia` is deferred, so ingest keeps doing this inline via the
+ * existing WhatsApp-specific helpers). `waMediaId` is captured for
+ * image/document content regardless of `business.paymentsEnabled` — cheap to
+ * carry, and it's what `maybeStartPaymentAnalysis` (below) needs to enqueue
+ * proof analysis without a second round-trip to the raw payload.
+ */
+async function parseChannelContent(
   business: Business,
   phoneNumber: PhoneNumber,
-  message: WaMessage,
-): Promise<{
-  content: string;
-  mediaType: string;
-  /** WhatsApp media id, captured for image/document messages regardless of
-   * `business.paymentsEnabled` — cheap to carry, and it's what
-   * `maybeStartPaymentAnalysis` (below) needs to enqueue proof analysis
-   * without a second round-trip to the webhook payload. */
-  waMediaId?: string;
-} | null> {
-  switch (message.type) {
-    case "text":
-      return {
-        content: message.text?.body || "",
-        mediaType: "text",
-      };
-    case "interactive": {
-      const t =
-        message.interactive?.list_reply?.title ||
-        message.interactive?.button_reply?.title ||
-        "";
-      return { content: t || "[Interactivo sin texto]", mediaType: "text" };
-    }
-    case "image": {
-      const id = message.image?.id;
-      if (!id) return null;
-      try {
-        const token = await resolveWhatsappToken(phoneNumber, business.ownerId);
-        const { buffer, mimeType } = await downloadMediaBuffer(id, token);
-        const desc = await describeImageFromBuffer(business, buffer, mimeType);
-        return {
-          content: `[Imagen del cliente] ${desc}`,
-          mediaType: "image",
-          waMediaId: id,
-        };
-      } catch (err) {
-        await logEvent(
-          "error",
-          "ai",
-          "describeImageFromBuffer failed",
-          { error: describeError(err) },
-          business.id,
-          phoneNumber.id,
-        );
-        return {
-          content: "[Imagen del cliente — no se pudo procesar]",
-          mediaType: "image",
-          waMediaId: id,
-        };
-      }
-    }
-    case "audio":
-    case "voice": {
-      const id = message.audio?.id || message.voice?.id;
-      if (!id) return null;
-      try {
-        const token = await resolveWhatsappToken(phoneNumber, business.ownerId);
-        const { buffer } = await downloadMediaBuffer(id, token);
-        const text = await transcribeAudioBuffer(business, buffer);
-        return { content: `[Audio del cliente] ${text}`, mediaType: "audio" };
-      } catch (err) {
-        await logEvent(
-          "error",
-          "ai",
-          "transcribeAudioBuffer failed",
-          { error: describeError(err) },
-          business.id,
-          phoneNumber.id,
-        );
-        return {
-          content: "[Audio del cliente — no se pudo transcribir]",
-          mediaType: "audio",
-        };
-      }
-    }
-    case "location": {
-      const loc = message.location;
-      if (!loc) return null;
-      const name = loc.name ? ` (${loc.name})` : "";
-      return {
-        content: `El cliente envió su ubicación: ${loc.latitude}, ${loc.longitude}${name}`,
-        mediaType: "location",
-      };
-    }
-    case "document": {
-      // The chat-facing content stays a static placeholder — documents are
-      // not downloaded/described here, same as before this change. Only the
-      // media id is now captured, so a `paymentsEnabled` business can
-      // analyze a PDF proof the same way it analyzes an image (spec
-      // "Document proofs are processed" scenario); the actual download
-      // happens later, in the analysis job (payments/analysis-job.ts), not
-      // inline in ingest.
-      return {
-        content: "[Documento adjunto]",
-        mediaType: "document",
-        waMediaId: message.document?.id,
-      };
-    }
-    default:
-      return null;
+  content: ChannelContent,
+): Promise<{ content: string; mediaType: string; waMediaId?: string } | null> {
+  if (content.kind === "media") {
+    return content.mediaType === "image"
+      ? describeImageMedia(business, phoneNumber, content.externalMediaId)
+      : transcribeAudioMedia(business, phoneNumber, content.externalMediaId);
+  }
+
+  if (content.mediaType === "document") {
+    return {
+      content: content.text,
+      mediaType: "document",
+      waMediaId: content.externalMediaId,
+    };
+  }
+
+  // Plain text, interactive-reply text (mediaType omitted by the adapter),
+  // and location text (mediaType "location", already formatted by the
+  // adapter) all fall through here unchanged.
+  return { content: content.text, mediaType: content.mediaType ?? "text" };
+}
+
+async function describeImageMedia(
+  business: Business,
+  phoneNumber: PhoneNumber,
+  mediaId: string,
+): Promise<{ content: string; mediaType: string; waMediaId: string }> {
+  try {
+    const token = await resolveWhatsappToken(phoneNumber, business.ownerId);
+    const { buffer, mimeType } = await downloadMediaBuffer(mediaId, token);
+    const desc = await describeImageFromBuffer(business, buffer, mimeType);
+    return {
+      content: `[Imagen del cliente] ${desc}`,
+      mediaType: "image",
+      waMediaId: mediaId,
+    };
+  } catch (err) {
+    await logEvent(
+      "error",
+      "ai",
+      "describeImageFromBuffer failed",
+      { error: describeError(err) },
+      business.id,
+      phoneNumber.id,
+    );
+    return {
+      content: "[Imagen del cliente — no se pudo procesar]",
+      mediaType: "image",
+      waMediaId: mediaId,
+    };
+  }
+}
+
+/** Same as `describeImageMedia`, for inbound audio/voice transcription. */
+async function transcribeAudioMedia(
+  business: Business,
+  phoneNumber: PhoneNumber,
+  mediaId: string,
+): Promise<{ content: string; mediaType: string }> {
+  try {
+    const token = await resolveWhatsappToken(phoneNumber, business.ownerId);
+    const { buffer } = await downloadMediaBuffer(mediaId, token);
+    const text = await transcribeAudioBuffer(business, buffer);
+    return { content: `[Audio del cliente] ${text}`, mediaType: "audio" };
+  } catch (err) {
+    await logEvent(
+      "error",
+      "ai",
+      "transcribeAudioBuffer failed",
+      { error: describeError(err) },
+      business.id,
+      phoneNumber.id,
+    );
+    return {
+      content: "[Audio del cliente — no se pudo transcribir]",
+      mediaType: "audio",
+    };
   }
 }
