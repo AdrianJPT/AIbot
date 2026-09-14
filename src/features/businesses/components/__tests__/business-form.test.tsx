@@ -10,11 +10,12 @@ function renderReplyWindow(business?: BusinessDetail) {
 }
 
 describe("BusinessFormFields reply window", () => {
-  it("shows five seconds for a new business", () => {
+  it("renders the dedicated debounce card with five seconds for a new business", () => {
     const html = renderReplyWindow();
 
+    expect(html).toMatch(/name="replyWindowSeconds"[^>]*type="range"/);
     expect(html).toMatch(/name="replyWindowSeconds"[^>]*value="5"/);
-    expect(html).toContain("El valor predeterminado es 5 segundos");
+    expect(html).toContain("Demora antes de responder");
   });
 
   it("shows an existing explicit zero instead of replacing it with the default", () => {
