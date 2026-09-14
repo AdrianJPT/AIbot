@@ -10,16 +10,14 @@ import { prisma } from "./db";
 import { generateResponse, type AiUsage } from "./ai/generate";
 import { callWithAiCredential, resolveModels } from "./ai/resolve";
 import { buildSystemPrompt } from "./prompt";
-import {
-  describeImageFromBuffer,
-  downloadMediaBuffer,
-  transcribeAudioBuffer,
-} from "./media";
-import { resolveWhatsappToken, sendFromNumber } from "./whatsapp";
+import { describeImageFromBuffer, transcribeAudioBuffer } from "./media";
+import { sendFromNumber } from "./whatsapp";
 import { logEvent } from "./log";
 import { maybeEnqueuePaymentAnalysis } from "./payments/ingest";
 import { whatsappAdapter } from "./channels/whatsapp";
+import { fetchChannelMedia } from "./channels/media";
 import type {
+  Channel,
   ChannelConnection,
   ChannelContent,
   InboundMessage,
@@ -277,6 +275,7 @@ async function handleOneMessage(
   const parsed = await parseChannelContent(
     business,
     phoneNumber,
+    message.channel,
     message.content,
   );
   if (!parsed) return undefined;
@@ -968,22 +967,35 @@ function describeError(err: unknown): {
  * and same strings the pre-registry `parseUserContent` produced from raw
  * WhatsApp payload fields, now sourced from adapter-normalized content
  * instead. Image/audio media is still downloaded and described/transcribed
- * here (media fetching is Unit 6 for adapters — the adapter's own
- * `fetchMedia` is deferred, so ingest keeps doing this inline via the
- * existing WhatsApp-specific helpers). `waMediaId` is captured for
- * image/document content regardless of `business.paymentsEnabled` — cheap to
- * carry, and it's what `maybeStartPaymentAnalysis` (below) needs to enqueue
- * proof analysis without a second round-trip to the raw payload.
+ * here, through the channel-neutral `fetchChannelMedia` boundary
+ * (`channels/media.ts`) instead of calling WhatsApp-specific
+ * `resolveWhatsappToken`/`downloadMediaBuffer` directly (adapter-owned
+ * `fetchMedia` is still deferred, see `channels/whatsapp.ts`). `waMediaId`
+ * is captured for image/document content regardless of
+ * `business.paymentsEnabled` — cheap to carry, and it's what
+ * `maybeStartPaymentAnalysis` (below) needs to enqueue proof analysis
+ * without a second round-trip to the raw payload.
  */
 async function parseChannelContent(
   business: Business,
   phoneNumber: PhoneNumber,
+  channel: Channel,
   content: ChannelContent,
 ): Promise<{ content: string; mediaType: string; waMediaId?: string } | null> {
   if (content.kind === "media") {
     return content.mediaType === "image"
-      ? describeImageMedia(business, phoneNumber, content.externalMediaId)
-      : transcribeAudioMedia(business, phoneNumber, content.externalMediaId);
+      ? describeImageMedia(
+          business,
+          phoneNumber,
+          channel,
+          content.externalMediaId,
+        )
+      : transcribeAudioMedia(
+          business,
+          phoneNumber,
+          channel,
+          content.externalMediaId,
+        );
   }
 
   if (content.mediaType === "document") {
@@ -1003,11 +1015,16 @@ async function parseChannelContent(
 async function describeImageMedia(
   business: Business,
   phoneNumber: PhoneNumber,
+  channel: Channel,
   mediaId: string,
 ): Promise<{ content: string; mediaType: string; waMediaId: string }> {
   try {
-    const token = await resolveWhatsappToken(phoneNumber, business.ownerId);
-    const { buffer, mimeType } = await downloadMediaBuffer(mediaId, token);
+    const { buffer, mimeType } = await fetchChannelMedia(
+      channel,
+      phoneNumber,
+      business.ownerId,
+      mediaId,
+    );
     const desc = await describeImageFromBuffer(business, buffer, mimeType);
     return {
       content: `[Imagen del cliente] ${desc}`,
@@ -1035,11 +1052,16 @@ async function describeImageMedia(
 async function transcribeAudioMedia(
   business: Business,
   phoneNumber: PhoneNumber,
+  channel: Channel,
   mediaId: string,
 ): Promise<{ content: string; mediaType: string }> {
   try {
-    const token = await resolveWhatsappToken(phoneNumber, business.ownerId);
-    const { buffer } = await downloadMediaBuffer(mediaId, token);
+    const { buffer } = await fetchChannelMedia(
+      channel,
+      phoneNumber,
+      business.ownerId,
+      mediaId,
+    );
     const text = await transcribeAudioBuffer(business, buffer);
     return { content: `[Audio del cliente] ${text}`, mediaType: "audio" };
   } catch (err) {
