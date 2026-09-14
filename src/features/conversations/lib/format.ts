@@ -52,20 +52,6 @@ function isSameDay(a: Date, b: Date): boolean {
   );
 }
 
-const WHATSAPP_WINDOW_MS = 24 * 60 * 60 * 1000;
-
-/** True when the last customer message is older than WhatsApp's 24h window. */
-export function isOutsideWhatsAppWindow(
-  lastCustomerMessageAt: string | Date | null,
-): boolean {
-  if (!lastCustomerMessageAt) return false;
-  const d =
-    typeof lastCustomerMessageAt === "string"
-      ? new Date(lastCustomerMessageAt)
-      : lastCustomerMessageAt;
-  return Date.now() - d.getTime() > WHATSAPP_WINDOW_MS;
-}
-
 export const MEDIA_ICON: Record<string, string> = {
   image: "🖼",
   audio: "🎙",
