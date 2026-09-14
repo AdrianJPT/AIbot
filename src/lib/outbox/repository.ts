@@ -2,14 +2,16 @@ import { Prisma, WebhookEventStatus, type WebhookEvent } from "@prisma/client";
 import { prisma } from "../db";
 
 /**
- * Persists the raw payload as a `WebhookEvent` row before any
- * parsing/processing happens. This is the durability boundary: once this
- * resolves, the payload survives a crash even if nothing downstream ever
- * runs successfully.
+ * Persists the verified raw request body as a `WebhookEvent` row before any
+ * parsing happens. This is the durability boundary: once this resolves, the
+ * raw text survives a crash even if nothing downstream — including
+ * `JSON.parse` — ever runs successfully. `payload` stays null on new rows;
+ * registry-based parsing (Unit 5) populates it downstream instead of at
+ * enqueue time, so a malformed body is still durably retained here.
  */
-export async function enqueue(payload: unknown): Promise<WebhookEvent> {
+export async function enqueue(rawBody: string): Promise<WebhookEvent> {
   return prisma.webhookEvent.create({
-    data: { payload: payload as Prisma.InputJsonValue },
+    data: { rawPayload: rawBody },
   });
 }
 

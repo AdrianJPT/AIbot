@@ -1,5 +1,6 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type OpenAI from "openai";
+import type { PhoneNumber } from "@prisma/client";
 import type { ChatCompletionMessageParam } from "openai/resources/chat/completions";
 import { buildBusiness } from "./fixtures/business";
 
@@ -8,10 +9,32 @@ const callWithAiCredentialMock = vi.fn();
 
 vi.mock("../ai/resolve", () => ({
   resolveModels: (...args: unknown[]) => resolveModelsMock(...args),
-  callWithAiCredential: (...args: unknown[]) => callWithAiCredentialMock(...args),
+  callWithAiCredential: (...args: unknown[]) =>
+    callWithAiCredentialMock(...args),
+}));
+
+const downloadMediaBufferMock = vi.fn();
+vi.mock("../media", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../media")>();
+  return {
+    ...actual,
+    downloadMediaBuffer: (...args: unknown[]) =>
+      downloadMediaBufferMock(...args),
+  };
+});
+
+const resolveWhatsappTokenMock = vi.fn();
+vi.mock("../whatsapp", () => ({
+  resolveWhatsappToken: (...args: unknown[]) =>
+    resolveWhatsappTokenMock(...args),
 }));
 
 import { extractPaymentEvidence, validateEvidenceAnalysis } from "../media";
+import {
+  fetchChannelMedia,
+  MediaFetcherNotFoundError,
+  resolveMediaFetcher,
+} from "../channels/media";
 
 /**
  * Mirrors prompt-trust-boundary.test.ts's `recordingClient` helper, adapted
@@ -37,7 +60,8 @@ function mockAiResponse(body: string | null) {
   );
 
   return {
-    messages: (): ChatCompletionMessageParam[] => create.mock.calls[0][0].messages,
+    messages: (): ChatCompletionMessageParam[] =>
+      create.mock.calls[0][0].messages,
   };
 }
 
@@ -249,7 +273,9 @@ describe("extractPaymentEvidence", () => {
     );
 
     const user = messages().find((m) => m.role === "user");
-    expect(JSON.stringify(user?.content)).not.toContain("TEXTO DEL COMPROBANTE");
+    expect(JSON.stringify(user?.content)).not.toContain(
+      "TEXTO DEL COMPROBANTE",
+    );
   });
 
   it("returns null when the provider call throws", async () => {
@@ -267,5 +293,67 @@ describe("extractPaymentEvidence", () => {
     );
 
     expect(result).toBeNull();
+  });
+});
+
+/**
+ * Channel-neutral media delegation boundary (design's "Media authorization
+ * precedes fetch"). Callers resolve a fetcher by `Channel` instead of
+ * importing `resolveWhatsappToken`/`downloadMediaBuffer` directly — see
+ * `channels/media.ts`.
+ */
+describe("fetchChannelMedia", () => {
+  const phoneNumber = { id: "phone-1" } as PhoneNumber;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("authorizes before fetching, in order, for a registered channel", async () => {
+    const callOrder: string[] = [];
+    resolveWhatsappTokenMock.mockImplementation(async () => {
+      callOrder.push("authorize");
+      return "test-token";
+    });
+    downloadMediaBufferMock.mockImplementation(async () => {
+      callOrder.push("fetch");
+      return { buffer: Buffer.from("bytes"), mimeType: "image/jpeg" };
+    });
+
+    const result = await fetchChannelMedia(
+      "whatsapp",
+      phoneNumber,
+      "owner-1",
+      "media-id-1",
+    );
+
+    expect(callOrder).toEqual(["authorize", "fetch"]);
+    expect(resolveWhatsappTokenMock).toHaveBeenCalledWith(
+      phoneNumber,
+      "owner-1",
+    );
+    expect(downloadMediaBufferMock).toHaveBeenCalledWith(
+      "media-id-1",
+      "test-token",
+    );
+    expect(result).toEqual({
+      buffer: Buffer.from("bytes"),
+      mimeType: "image/jpeg",
+    });
+  });
+
+  it("never calls fetch when authorization rejects", async () => {
+    resolveWhatsappTokenMock.mockRejectedValue(new Error("no credential"));
+
+    await expect(
+      fetchChannelMedia("whatsapp", phoneNumber, "owner-1", "media-id-1"),
+    ).rejects.toThrow("no credential");
+    expect(downloadMediaBufferMock).not.toHaveBeenCalled();
+  });
+
+  it("fails closed for a channel with no registered media fetcher", () => {
+    expect(() => resolveMediaFetcher("sms" as never)).toThrow(
+      MediaFetcherNotFoundError,
+    );
   });
 });

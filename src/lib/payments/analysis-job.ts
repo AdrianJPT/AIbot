@@ -1,8 +1,12 @@
 import { createHash } from "node:crypto";
-import { PaymentSessionStatus, Prisma, type PaymentVerdict } from "@prisma/client";
+import {
+  PaymentSessionStatus,
+  Prisma,
+  type PaymentVerdict,
+} from "@prisma/client";
 import { prisma } from "../db";
-import { downloadMediaBuffer, extractPaymentEvidence } from "../media";
-import { resolveWhatsappToken } from "../whatsapp";
+import { extractPaymentEvidence } from "../media";
+import { fetchChannelMedia } from "../channels/media";
 import { sendAndPersistReply } from "../message-handler";
 import { logEvent } from "../log";
 import {
@@ -41,18 +45,19 @@ import {
  * `PaymentProof` write.
  */
 
-const CUSTOMER_ACTION_MESSAGES: Partial<Record<PaymentVerdictReason, string>> = {
-  missing_amount:
-    "No pudimos leer el comprobante que enviaste. ¿Podrías reenviarlo bien enfocado y completo?",
-  wrong_destination:
-    "El comprobante que enviaste no corresponde a nuestra cuenta. ¿Podrías revisar y enviarnos el comprobante correcto?",
-  tampering:
-    "No pudimos verificar ese comprobante. Un miembro de nuestro equipo lo va a revisar y te contactamos en breve.",
-  duplicate_reference:
-    "Ya habíamos registrado ese comprobante, no hace falta reenviarlo.",
-  duplicate_image:
-    "Ya habíamos registrado ese comprobante, no hace falta reenviarlo.",
-};
+const CUSTOMER_ACTION_MESSAGES: Partial<Record<PaymentVerdictReason, string>> =
+  {
+    missing_amount:
+      "No pudimos leer el comprobante que enviaste. ¿Podrías reenviarlo bien enfocado y completo?",
+    wrong_destination:
+      "El comprobante que enviaste no corresponde a nuestra cuenta. ¿Podrías revisar y enviarnos el comprobante correcto?",
+    tampering:
+      "No pudimos verificar ese comprobante. Un miembro de nuestro equipo lo va a revisar y te contactamos en breve.",
+    duplicate_reference:
+      "Ya habíamos registrado ese comprobante, no hace falta reenviarlo.",
+    duplicate_image:
+      "Ya habíamos registrado ese comprobante, no hace falta reenviarlo.",
+  };
 
 const DEFAULT_CUSTOMER_ACTION_MESSAGE =
   "No pudimos verificar el comprobante que enviaste. ¿Podrías reenviarlo?";
@@ -114,15 +119,25 @@ export async function processPaymentAnalysisEvent(
 
   const [business, phoneNumber, session] = await Promise.all([
     prisma.business.findUniqueOrThrow({ where: { id: payload.businessId } }),
-    prisma.phoneNumber.findUniqueOrThrow({ where: { id: payload.phoneNumberId } }),
+    prisma.phoneNumber.findUniqueOrThrow({
+      where: { id: payload.phoneNumberId },
+    }),
     prisma.paymentSession.findUniqueOrThrow({
       where: { id: payload.sessionId },
       include: { catalogItem: true, conversation: true },
     }),
   ]);
 
-  const token = await resolveWhatsappToken(phoneNumber, business.ownerId);
-  const { buffer, mimeType } = await downloadMediaBuffer(payload.waMediaId, token);
+  // Hardcoded to "whatsapp": `PaymentAnalysisPayload` carries no channel
+  // field yet (schema/routing generalization is Unit 7's `channels/
+  // credentials.ts` boundary, out of this unit's scope). WhatsApp is the
+  // only registered channel today either way.
+  const { buffer, mimeType } = await fetchChannelMedia(
+    "whatsapp",
+    phoneNumber,
+    business.ownerId,
+    payload.waMediaId,
+  );
   const imageHash = createHash("sha256").update(buffer).digest("hex");
 
   const extracted = await extractPaymentEvidence(business, buffer, mimeType);
@@ -194,7 +209,10 @@ export async function processPaymentAnalysisEvent(
     },
   });
 
-  let cursor = { status: session.status, autonomyRounds: session.autonomyRounds };
+  let cursor = {
+    status: session.status,
+    autonomyRounds: session.autonomyRounds,
+  };
   const auditDescriptors: TransitionAudit[] = [];
 
   const entryEvent = entryEventFor(session.status);
@@ -344,7 +362,12 @@ export async function runAnalysisDrain(
       break;
     }
 
-    const batch = await claimBatch(batchSize, LEASE_TTL_SECONDS, workerId, eventId);
+    const batch = await claimBatch(
+      batchSize,
+      LEASE_TTL_SECONDS,
+      workerId,
+      eventId,
+    );
     if (batch.length === 0) break;
     result.claimed += batch.length;
 

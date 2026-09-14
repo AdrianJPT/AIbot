@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { enqueue } from "@/lib/outbox/repository";
 import { runDrain } from "@/lib/outbox/drain";
-import { logEvent } from "@/lib/log";
 
 function isValidSignature(
   rawBody: string,
@@ -57,28 +56,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
   }
 
-  let body: unknown;
-  try {
-    body = JSON.parse(rawBody);
-  } catch (err) {
-    // HMAC already verified above, so this genuinely came from Meta — a
-    // malformed body that passed signature verification will never parse on
-    // redelivery either. Returning 400 here would make Meta retry forever;
-    // swallow, log, and return 200, matching today's behavior.
-    await logEvent(
-      "error",
-      "webhook",
-      "Malformed JSON body after signature verification",
-      { error: err instanceof Error ? err.message : String(err) },
-    );
-    return NextResponse.json({ ok: true });
-  }
-
-  // Durability boundary: once this resolves, the payload survives even if
-  // nothing below it ever runs. An INSERT failure here is left to throw —
-  // Next.js turns it into a 5xx so Meta redelivers, since nothing was
-  // persisted.
-  const event = await enqueue(body);
+  // Durability boundary: once this resolves, the raw verified body survives
+  // even if nothing below it ever runs — including JSON.parse, which no
+  // longer happens here. A malformed body that passed signature verification
+  // is still durably persisted for recovery (see design.md "Durable
+  // ingress"); parsing happens downstream against `rawPayload`. An INSERT
+  // failure here is left to throw — Next.js turns it into a 5xx so Meta
+  // redelivers, since nothing was persisted.
+  const event = await enqueue(rawBody);
 
   try {
     // Awaited so the reply goes out before the 200 when it can (matches

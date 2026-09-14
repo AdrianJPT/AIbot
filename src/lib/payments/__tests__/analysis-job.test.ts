@@ -14,21 +14,21 @@ import { resolveExpiresAt } from "../state-machine";
  * ingest's `PaymentSession` + a customer `Message` are seeded directly
  * (mirrors how `payments/ingest.ts` would have created them), then
  * `processPaymentAnalysisEvent` is called directly against the real test
- * Postgres — only the AI/WhatsApp boundary is mocked (media download +
- * extraction, `resolveWhatsappToken`, and `message-handler.ts`'s
- * `sendAndPersistReply`), same pattern as dispatch-resumability.test.ts.
+ * Postgres — only the AI/channel boundary is mocked (extraction, the
+ * channel-neutral `fetchChannelMedia` media delegation, and
+ * `message-handler.ts`'s `sendAndPersistReply`), same pattern as
+ * dispatch-resumability.test.ts.
  */
 
-const downloadMediaBuffer = vi.fn();
 const extractPaymentEvidence = vi.fn();
 vi.mock("../../media", () => ({
-  downloadMediaBuffer: (...args: unknown[]) => downloadMediaBuffer(...args),
-  extractPaymentEvidence: (...args: unknown[]) => extractPaymentEvidence(...args),
+  extractPaymentEvidence: (...args: unknown[]) =>
+    extractPaymentEvidence(...args),
 }));
 
-vi.mock("../../whatsapp", () => ({
-  resolveWhatsappToken: vi.fn().mockResolvedValue("test-token"),
-  sendFromNumber: vi.fn(),
+const fetchChannelMedia = vi.fn();
+vi.mock("../../channels/media", () => ({
+  fetchChannelMedia: (...args: unknown[]) => fetchChannelMedia(...args),
 }));
 
 const sendAndPersistReply = vi.fn().mockResolvedValue(undefined);
@@ -65,7 +65,7 @@ afterAll(async () => {
 beforeEach(() => {
   vi.clearAllMocks();
   sendAndPersistReply.mockResolvedValue(undefined);
-  downloadMediaBuffer.mockResolvedValue({
+  fetchChannelMedia.mockResolvedValue({
     buffer: Buffer.from("fake-proof-bytes"),
     mimeType: "image/jpeg",
   });
@@ -168,7 +168,10 @@ describe("processPaymentAnalysisEvent (real DB, mocked AI)", () => {
   });
 
   it("a partial-amount (needs_attention) verdict also lands in ready_to_confirm, flagged", async () => {
-    extractPaymentEvidence.mockResolvedValue({ ...VALID_EVIDENCE, amount: 5000 });
+    extractPaymentEvidence.mockResolvedValue({
+      ...VALID_EVIDENCE,
+      amount: 5000,
+    });
     const { business, phoneNumber, session, message } =
       await seedSessionAndMessage("partial-1", { expectedAmount: 15000 });
 
@@ -213,9 +216,26 @@ describe("processPaymentAnalysisEvent (real DB, mocked AI)", () => {
     expect(typeof content).toBe("string");
   });
 
+  it("delegates media authorization+fetch through the channel-neutral boundary", async () => {
+    extractPaymentEvidence.mockResolvedValue(VALID_EVIDENCE);
+    const { business, phoneNumber, session, message } =
+      await seedSessionAndMessage("delegation-1", { expectedAmount: 15000 });
+
+    await processPaymentAnalysisEvent(
+      payloadFor({ business, phoneNumber, session, message }),
+    );
+
+    expect(fetchChannelMedia).toHaveBeenCalledWith(
+      "whatsapp",
+      expect.objectContaining({ id: phoneNumber.id }),
+      business.ownerId,
+      "wamedia_test",
+    );
+  });
+
   it("processes a document proof (PDF) the same way as an image", async () => {
     extractPaymentEvidence.mockResolvedValue(VALID_EVIDENCE);
-    downloadMediaBuffer.mockResolvedValue({
+    fetchChannelMedia.mockResolvedValue({
       buffer: Buffer.from("%PDF-1.4 fake"),
       mimeType: "application/pdf",
     });
@@ -223,7 +243,13 @@ describe("processPaymentAnalysisEvent (real DB, mocked AI)", () => {
       await seedSessionAndMessage("document-1", { expectedAmount: 15000 });
 
     await processPaymentAnalysisEvent(
-      payloadFor({ business, phoneNumber, session, message, mediaType: "document" }),
+      payloadFor({
+        business,
+        phoneNumber,
+        session,
+        message,
+        mediaType: "document",
+      }),
     );
 
     const proof = await prisma.paymentProof.findFirstOrThrow({
@@ -276,14 +302,13 @@ describe("processPaymentAnalysisEvent (real DB, mocked AI)", () => {
     expect(reloadedSession.status).toBe(PaymentSessionStatus.ready_to_confirm);
 
     // The second, skipped call must not have re-downloaded or re-extracted.
-    expect(downloadMediaBuffer).toHaveBeenCalledTimes(1);
+    expect(fetchChannelMedia).toHaveBeenCalledTimes(1);
     expect(extractPaymentEvidence).toHaveBeenCalledTimes(1);
   });
 
   it("never counts a duplicate reference twice: a repeated reference verdicts as duplicate", async () => {
-    const { business, phoneNumber, session } = await seedSessionAndMessage(
-      "duplicate-1",
-    );
+    const { business, phoneNumber, session } =
+      await seedSessionAndMessage("duplicate-1");
     const conversation = await prisma.conversation.findUniqueOrThrow({
       where: { id: session.conversationId },
     });
@@ -395,7 +420,9 @@ describe("processPaymentAnalysisEvent (real DB, mocked AI)", () => {
         confidence: 0.2,
       });
       const { business, phoneNumber, session, message } =
-        await seedSessionAndMessage("low-confidence-1", { expectedAmount: 15000 });
+        await seedSessionAndMessage("low-confidence-1", {
+          expectedAmount: 15000,
+        });
 
       await processPaymentAnalysisEvent(
         payloadFor({ business, phoneNumber, session, message }),

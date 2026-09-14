@@ -1,6 +1,8 @@
-import { processWebhookPayload, reapStrandedSends } from "../message-handler";
+import { processNormalizedEvents, reapStrandedSends } from "../message-handler";
 import { sweepDueConversations } from "../reply-window-scheduler";
 import { claimBatch, complete, expireStale, fail } from "./repository";
+import { resolveInboundEvent } from "../channels/inbound";
+import type { RawChannelEvent } from "../channels/contracts";
 
 const DEFAULT_BATCH_SIZE = 10;
 const DEFAULT_BUDGET_MS = 50_000;
@@ -87,7 +89,38 @@ export async function runDrain(
       }
 
       try {
-        const touched = await processWebhookPayload(event.payload);
+        // Registry-based decoding (Unit 5c): the inbound resolver decodes
+        // this row's raw/legacy payload and resolves its tenant-owned
+        // connection (see src/lib/channels/inbound.ts) — raw-durability
+        // compatibility (Unit 4, `rawPayload` vs legacy `payload`) lives
+        // there now, not in this loop. A `null` result covers every
+        // fail-closed case (malformed JSON, unknown/mismatched
+        // channel/provider, missing/inactive/foreign connection): zero
+        // adapter/domain dispatch, durably retried like any other failure.
+        const resolved = await resolveInboundEvent(event);
+        if (!resolved) {
+          await fail(
+            event.id,
+            "unable to resolve a channel connection for this event",
+          );
+          result.failed += 1;
+          continue;
+        }
+
+        const rawEvent: RawChannelEvent = {
+          channel: resolved.connection.channel,
+          provider: resolved.connection.provider,
+          raw: resolved.raw,
+          eventId: event.id,
+        };
+        const normalized = await resolved.adapter.normalize(
+          rawEvent,
+          resolved.connection,
+        );
+        const touched = await processNormalizedEvents(
+          resolved.connection,
+          normalized,
+        );
         for (const id of touched) touchedConversationIds.add(id);
         await complete(event.id);
         result.processed += 1;
@@ -103,7 +136,7 @@ export async function runDrain(
   }
 
   // Dispatch is entirely event-driven now — nothing sends inline during
-  // ingest (see message-handler.ts's processWebhookPayload). The inline
+  // ingest (see message-handler.ts's processNormalizedEvents). The inline
   // webhook path scopes the sweep to exactly the conversations its own
   // payload touched (never other businesses' pending work, inside a request
   // Meta is timing); the scheduled/external drain sweeps unscoped, which is

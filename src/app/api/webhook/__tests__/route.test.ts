@@ -13,11 +13,6 @@ vi.mock("@/lib/outbox/drain", () => ({
   runDrain: (...args: unknown[]) => runDrain(...args),
 }));
 
-const logEvent = vi.fn();
-vi.mock("@/lib/log", () => ({
-  logEvent: (...args: unknown[]) => logEvent(...args),
-}));
-
 const APP_SECRET = "test-app-secret";
 
 function signBody(rawBody: string): string {
@@ -67,7 +62,29 @@ describe("POST /api/webhook", () => {
 
     expect(res.status).toBe(200);
     expect(enqueue).toHaveBeenCalledOnce();
-    expect(enqueue).toHaveBeenCalledWith(textMessagePayload);
+    expect(enqueue).toHaveBeenCalledWith(rawBody);
+    expect(runDrain).toHaveBeenCalledWith({
+      eventId: "evt_1",
+      budgetMs: 12_000,
+    });
+  });
+
+  it("a verified body is enqueued with rawPayload set and payload left null, before any JSON.parse", async () => {
+    // A body that is signature-valid but NOT valid JSON. If the route still
+    // called JSON.parse before enqueue (the old durability boundary), this
+    // would throw before enqueue ever runs. Enqueue receiving the raw string
+    // verbatim and the request still succeeding proves parsing moved out of
+    // the route entirely — the raw text is the durability boundary now, not
+    // a parsed `payload`.
+    const { POST } = await import("../route");
+    const rawBody = "not valid json, but signed";
+    const req = buildRequest(rawBody, signBody(rawBody));
+
+    const res = await POST(req);
+
+    expect(res.status).toBe(200);
+    expect(enqueue).toHaveBeenCalledOnce();
+    expect(enqueue).toHaveBeenCalledWith(rawBody);
     expect(runDrain).toHaveBeenCalledWith({
       eventId: "evt_1",
       budgetMs: 12_000,
@@ -110,7 +127,7 @@ describe("POST /api/webhook", () => {
     expect(runDrain).not.toHaveBeenCalled();
   });
 
-  it("returns 200 without persisting when the body is malformed JSON", async () => {
+  it("still returns 200 and durably enqueues the raw body when it is malformed JSON", async () => {
     const { POST } = await import("../route");
     const rawBody = "not json";
     const req = buildRequest(rawBody, signBody(rawBody));
@@ -118,14 +135,8 @@ describe("POST /api/webhook", () => {
     const res = await POST(req);
 
     expect(res.status).toBe(200);
-    expect(enqueue).not.toHaveBeenCalled();
-    expect(runDrain).not.toHaveBeenCalled();
-    expect(logEvent).toHaveBeenCalledWith(
-      "error",
-      "webhook",
-      expect.any(String),
-      expect.any(Object),
-    );
+    expect(enqueue).toHaveBeenCalledOnce();
+    expect(enqueue).toHaveBeenCalledWith(rawBody);
   });
 
   it("still returns 200 when the inline drain throws", async () => {

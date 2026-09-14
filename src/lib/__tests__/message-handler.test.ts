@@ -10,6 +10,12 @@ import {
   statusUpdatePayload,
   textMessagePayload,
 } from "./fixtures/webhook-payload";
+import type {
+  ChannelConnection,
+  DeliveryStatus,
+  IgnoredEvent,
+  InboundMessage,
+} from "../channels/contracts";
 
 const findFirstPhoneNumber = vi.fn();
 const findFirstMessage = vi.fn();
@@ -80,7 +86,8 @@ vi.mock("../media", () => ({
   transcribeAudioBuffer: (...args: unknown[]) => transcribeAudioBuffer(...args),
 }));
 
-const { processWebhookPayload } = await import("../message-handler");
+const { processNormalizedEvents, processWebhookPayload } =
+  await import("../message-handler");
 
 const business = buildBusiness();
 
@@ -333,6 +340,155 @@ describe("processWebhookPayload (ingest)", () => {
     expect(conversationUpdate.mock.calls[0][0].data).toMatchObject({
       unreadCount: { increment: 1 },
       customerName: "Cliente de Prueba",
+    });
+  });
+});
+
+/**
+ * `processNormalizedEvents` is the registry-driven entry point drain.ts now
+ * calls directly (see src/lib/outbox/drain.ts) — `processWebhookPayload`
+ * above is a thin legacy wrapper around this same function (it decodes a raw
+ * payload through the real WhatsApp adapter first), so every content/status
+ * parity scenario is already proven by the suite above. These tests cover
+ * only what's reachable exclusively at this layer: ignored events, the new
+ * senderDisplayName/quotedMessageId metadata mapping, and the connection-
+ * level fail-closed gate (`resolveBusinessContext`).
+ */
+describe("processNormalizedEvents (ingest, registry-driven layer)", () => {
+  const connection: ChannelConnection = {
+    id: "conn_1",
+    businessId: business.id,
+    channel: "whatsapp",
+    provider: "meta",
+    externalId: phoneNumber.phoneNumberId,
+    isActive: true,
+  };
+
+  function textEvent(overrides: Partial<InboundMessage> = {}): InboundMessage {
+    return {
+      kind: "message",
+      channel: "whatsapp",
+      tenantId: business.id,
+      connectionId: connection.id,
+      eventId: "wamid.TEXT_MESSAGE_ID_001",
+      from: "5215512345678",
+      content: { kind: "text", text: "Hola, quiero hacer una reserva" },
+      ...overrides,
+    };
+  }
+
+  it("does nothing for an ignored event — no persistence, nothing touched", async () => {
+    const ignored: IgnoredEvent = {
+      kind: "ignored",
+      channel: "whatsapp",
+      tenantId: business.id,
+      connectionId: connection.id,
+      eventId: "unknown",
+      reason: "unsupported_message",
+    };
+
+    const touched = await processNormalizedEvents(connection, [ignored]);
+
+    expect(touched).toEqual([]);
+    expect(messageCreate).not.toHaveBeenCalled();
+    expect(conversationUpsert).not.toHaveBeenCalled();
+  });
+
+  it("updates Conversation.customerName from senderDisplayName, and omits it when absent", async () => {
+    await processNormalizedEvents(connection, [
+      textEvent({ senderDisplayName: "Ana López" }),
+    ]);
+    expect(conversationUpdate.mock.calls[0][0].data).toMatchObject({
+      customerName: "Ana López",
+    });
+
+    vi.clearAllMocks();
+    findFirstPhoneNumber.mockResolvedValue({ ...phoneNumber, business });
+    conversationUpsert.mockResolvedValue({
+      id: "conv_1",
+      businessId: business.id,
+      customerPhone: "5215512345678",
+      status: "active",
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    messageCreate.mockResolvedValue({ id: "msg_out_1" });
+
+    await processNormalizedEvents(connection, [textEvent()]);
+    expect(conversationUpdate.mock.calls[0][0].data).not.toHaveProperty(
+      "customerName",
+    );
+  });
+
+  it("persists Message.quotedWamid from quotedMessageId, and leaves it undefined when absent", async () => {
+    await processNormalizedEvents(connection, [
+      textEvent({ quotedMessageId: "wamid.PREVIOUS_001" }),
+    ]);
+    expect(messageCreate.mock.calls[0][0].data).toMatchObject({
+      quotedWamid: "wamid.PREVIOUS_001",
+    });
+
+    vi.clearAllMocks();
+    findFirstPhoneNumber.mockResolvedValue({ ...phoneNumber, business });
+    conversationUpsert.mockResolvedValue({
+      id: "conv_1",
+      businessId: business.id,
+      customerPhone: "5215512345678",
+      status: "active",
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    messageCreate.mockResolvedValue({ id: "msg_out_1" });
+
+    await processNormalizedEvents(connection, [textEvent()]);
+    expect(messageCreate.mock.calls[0][0].data.quotedWamid).toBeUndefined();
+  });
+
+  it("fails closed with zero domain dispatch when the connection's phone number cannot be resolved (foreign/inactive/missing)", async () => {
+    findFirstPhoneNumber.mockResolvedValue(null);
+
+    const touched = await processNormalizedEvents(connection, [textEvent()]);
+
+    expect(touched).toEqual([]);
+    expect(messageCreate).not.toHaveBeenCalled();
+    expect(conversationUpsert).not.toHaveBeenCalled();
+  });
+
+  it("fails closed with zero domain dispatch when the resolved phone number belongs to a different business than the connection", async () => {
+    findFirstPhoneNumber.mockResolvedValue({
+      ...phoneNumber,
+      businessId: "biz_other",
+      business,
+    });
+
+    const touched = await processNormalizedEvents(connection, [textEvent()]);
+
+    expect(touched).toEqual([]);
+    expect(messageCreate).not.toHaveBeenCalled();
+    expect(conversationUpsert).not.toHaveBeenCalled();
+  });
+
+  it("handles a delivery status update event: updates the matching Message by externalMessageId", async () => {
+    findFirstMessage.mockResolvedValue({
+      id: "msg_out_1",
+      wamid: "wamid.TEXT_MESSAGE_ID_001",
+    });
+    const status: DeliveryStatus = {
+      kind: "status",
+      channel: "whatsapp",
+      tenantId: business.id,
+      connectionId: connection.id,
+      eventId: "wamid.TEXT_MESSAGE_ID_001",
+      externalMessageId: "wamid.TEXT_MESSAGE_ID_001",
+      status: "delivered",
+    };
+
+    const touched = await processNormalizedEvents(connection, [status]);
+
+    expect(touched).toEqual([]);
+    expect(messageUpdate).toHaveBeenCalledWith({
+      where: { id: "msg_out_1" },
+      data: { status: "delivered" },
     });
   });
 });
