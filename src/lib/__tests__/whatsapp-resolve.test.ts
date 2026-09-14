@@ -15,6 +15,7 @@ import {
   createTestCredential,
   createTestUser,
 } from "@/lib/__tests__/fixtures/ownership";
+import { ChannelSendError } from "@/lib/channels/send-failure";
 
 // `sendFromNumber` (below) calls the real WhatsApp API through `axios`; mock
 // it so the fail-closed credential-denial tests can assert zero send
@@ -24,7 +25,8 @@ vi.mock("axios", () => ({
   default: { post: (...args: unknown[]) => axiosPostMock(...args) },
 }));
 
-const { resolveWhatsappToken, sendFromNumber } = await import("@/lib/whatsapp");
+const { resolveWhatsappToken, sendFromNumber, sendMessage } =
+  await import("@/lib/whatsapp");
 
 describe("resolveWhatsappToken", () => {
   let owner: User;
@@ -238,5 +240,59 @@ describe("sendFromNumber", () => {
       data: { whatsappCredentialId: null },
     });
     await cleanupOwnershipFixtures([foreignOwner.id]);
+  });
+});
+
+describe("sendMessage", () => {
+  beforeEach(() => {
+    axiosPostMock.mockReset();
+  });
+
+  it("throws a ChannelSendError with the classified failure on a Meta error, preserving the original message as a prefix", async () => {
+    const axiosError = Object.assign(
+      new Error("Request failed with status code 400"),
+      {
+        response: {
+          data: {
+            error: {
+              code: 131047,
+              message: "Re-engagement message",
+              error_data: { details: "More than 24 hours have passed" },
+            },
+          },
+        },
+      },
+    );
+    axiosPostMock.mockRejectedValue(axiosError);
+
+    await expect(
+      sendMessage("wa-phone-id", "token", "5215512345678", "Hola!"),
+    ).rejects.toMatchObject({
+      message: expect.stringContaining("Request failed with status code 400"),
+      failure: { code: "window_expired" },
+    });
+  });
+
+  it("wraps the thrown error as a ChannelSendError instance", async () => {
+    const axiosError = Object.assign(new Error("Request failed"), {
+      response: {
+        data: { error: { code: 4, message: "Rate limited" } },
+      },
+    });
+    axiosPostMock.mockRejectedValue(axiosError);
+
+    await expect(
+      sendMessage("wa-phone-id", "token", "5215512345678", "Hola!"),
+    ).rejects.toBeInstanceOf(ChannelSendError);
+  });
+
+  it("classifies a network/timeout error with no response body as unknown", async () => {
+    axiosPostMock.mockRejectedValue(new Error("connect ETIMEDOUT"));
+
+    await expect(
+      sendMessage("wa-phone-id", "token", "5215512345678", "Hola!"),
+    ).rejects.toMatchObject({
+      failure: { code: "unknown" },
+    });
   });
 });
