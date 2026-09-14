@@ -1,7 +1,12 @@
 import axios from "axios";
-import type { Credential, PhoneNumber } from "@prisma/client";
+import type { PhoneNumber } from "@prisma/client";
 import { prisma } from "./db";
-import { decryptSecret, encryptSecret } from "./crypto";
+import { encryptSecret } from "./crypto";
+import type { ChannelConnection } from "./channels/contracts";
+import {
+  CredentialAuthorizationError,
+  resolveChannelCredential,
+} from "./channels/credentials";
 
 const API_VERSION = "v21.0";
 
@@ -30,54 +35,47 @@ export async function sendMessage(
 }
 
 /**
- * Resolves the WhatsApp access token to use for a phone number. Resolution
- * order: phoneNumber.whatsappCredentialId -> AppConfig.whatsappCredentialId
- * (the admin-managed platform default). Numbers created without an
- * explicit credential inherit the platform default by design. Throws if
- * nothing resolves, since there is no legacy plaintext token to fall back
- * to anymore.
+ * Resolves the WhatsApp access token to use for a phone number, by
+ * constructing an in-memory `ChannelConnection` view of `phoneNumber` and
+ * delegating to the channel-neutral, fail-closed credential authorization
+ * boundary (`resolveChannelCredential`, design's "Routing/credentials"
+ * decision — the same boundary inbound media fetching already uses via
+ * `channels/media.ts`). Resolution order, enforced by that boundary: an
+ * explicit `whatsappCredentialId` pin must be active, provider-compatible,
+ * and tenant- or admin-owned, with zero fallback on denial; with no pin,
+ * the tenant's own active WhatsApp credential wins; only when the tenant
+ * has none does `AppConfig.whatsappCredentialId` (the admin-managed
+ * platform default) apply. `ownerId` is the phone number's business's
+ * owner id — this is what closes the ownership-check gap the previous
+ * implementation only flagged in a comment: an explicit pin belonging to
+ * an unrelated tenant is now rejected outright instead of being trusted by
+ * id alone. Throws with a "No WhatsApp credential" prefix on any denial,
+ * preserving this function's historical error contract.
  */
 export async function resolveWhatsappToken(
   phoneNumber: PhoneNumber,
-  // Currently unread. The credential below is fetched by id alone, without
-  // checking that it belongs to this owner. Kept in the signature because the
-  // missing piece is the ownership check, not the parameter — removing it
-  // would erase the only trace that the check was intended.
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   ownerId: string,
 ): Promise<string> {
-  let credential: Credential | null = null;
+  const connection: ChannelConnection = {
+    id: phoneNumber.channelConnectionId ?? phoneNumber.id,
+    businessId: phoneNumber.businessId,
+    channel: "whatsapp",
+    provider: "meta",
+    externalId: phoneNumber.phoneNumberId,
+    credentialId: phoneNumber.whatsappCredentialId,
+    isActive: phoneNumber.isActive,
+  };
 
-  if (phoneNumber.whatsappCredentialId) {
-    credential = await prisma.credential
-      .update({
-        where: { id: phoneNumber.whatsappCredentialId },
-        data: { lastUsedAt: new Date() },
-      })
-      .catch(() => null);
-  }
-
-  if (!credential) {
-    const config = await prisma.appConfig.findUnique({
-      where: { id: "default" },
-    });
-    if (config?.whatsappCredentialId) {
-      credential = await prisma.credential
-        .update({
-          where: { id: config.whatsappCredentialId },
-          data: { lastUsedAt: new Date() },
-        })
-        .catch(() => null);
+  try {
+    return await resolveChannelCredential(connection, ownerId);
+  } catch (err) {
+    if (err instanceof CredentialAuthorizationError) {
+      throw new Error(
+        `No WhatsApp credential configured for phone number ${phoneNumber.id}: ${err.message}`,
+      );
     }
+    throw err;
   }
-
-  if (!credential) {
-    throw new Error(
-      `No WhatsApp credential configured for phone number ${phoneNumber.id}`,
-    );
-  }
-
-  return decryptSecret(credential.encryptedKey);
 }
 
 /**

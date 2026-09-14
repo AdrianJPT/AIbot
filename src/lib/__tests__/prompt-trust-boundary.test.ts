@@ -14,7 +14,8 @@ const callWithAiCredentialMock = vi.fn();
 
 vi.mock("../ai/resolve", () => ({
   resolveModels: (...args: unknown[]) => resolveModelsMock(...args),
-  callWithAiCredential: (...args: unknown[]) => callWithAiCredentialMock(...args),
+  callWithAiCredential: (...args: unknown[]) =>
+    callWithAiCredentialMock(...args),
 }));
 
 // Imported after the mock above so extractPaymentEvidence's internal
@@ -290,8 +291,7 @@ describe("prompt trust boundary — payment extraction (extractPaymentEvidence)"
       // itself would produce. Read the raw text part (not JSON.stringify'd)
       // so quote characters in the JSON-break-out case aren't escaped away.
       const user = messages.find((m) => m.role === "user") as
-        | { content: Array<{ type: string; text?: string }> }
-        | undefined;
+        { content: Array<{ type: string; text?: string }> } | undefined;
       const userText = user?.content.find((c) => c.type === "text")?.text ?? "";
       expect(userText).toContain(sanitizeUntrusted(hostile));
     },
