@@ -19,9 +19,7 @@ describe("applyTransition — legal transitions", () => {
     );
     expect(result.status).toBe(S.analyzing);
     expect(result.autonomyRounds).toBe(DEFAULT_AUTONOMY_ROUNDS);
-    expect(result.audit.action).toBe(
-      "transition:awaiting_proof->analyzing",
-    );
+    expect(result.audit.action).toBe("transition:awaiting_proof->analyzing");
   });
 
   it("moves analyzing to ready_to_confirm on verdict_ready", () => {
@@ -55,9 +53,7 @@ describe("applyTransition — legal transitions", () => {
       "owner_confirmed",
     );
     expect(result.status).toBe(S.confirmed);
-    expect(result.audit.action).toBe(
-      "transition:ready_to_confirm->confirmed",
-    );
+    expect(result.audit.action).toBe("transition:ready_to_confirm->confirmed");
   });
 
   it("moves ready_to_confirm to rejected on owner_rejected", () => {
@@ -103,10 +99,16 @@ describe("applyTransition — autonomy budget boundary", () => {
   });
 
   it("three correction rounds exhaust the default budget down to zero", () => {
-    let session = { status: S.customer_action, autonomyRounds: DEFAULT_AUTONOMY_ROUNDS };
+    let session = {
+      status: S.customer_action,
+      autonomyRounds: DEFAULT_AUTONOMY_ROUNDS,
+    };
     for (let i = 0; i < DEFAULT_AUTONOMY_ROUNDS; i++) {
       const next = applyTransition(session, "customer_responded");
-      session = { status: S.customer_action, autonomyRounds: next.autonomyRounds };
+      session = {
+        status: S.customer_action,
+        autonomyRounds: next.autonomyRounds,
+      };
     }
     expect(session.autonomyRounds).toBe(0);
 

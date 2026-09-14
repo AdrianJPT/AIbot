@@ -4,6 +4,7 @@ import type { ChannelConnection } from "../contracts";
 
 const credentialFindUnique = vi.fn();
 const credentialFindFirst = vi.fn();
+const credentialUpdate = vi.fn();
 const appConfigFindUnique = vi.fn();
 
 vi.mock("../../db", () => ({
@@ -11,6 +12,7 @@ vi.mock("../../db", () => ({
     credential: {
       findUnique: (...args: unknown[]) => credentialFindUnique(...args),
       findFirst: (...args: unknown[]) => credentialFindFirst(...args),
+      update: (...args: unknown[]) => credentialUpdate(...args),
     },
     appConfig: {
       findUnique: (...args: unknown[]) => appConfigFindUnique(...args),
@@ -87,6 +89,7 @@ describe("channels/credentials resolveChannelCredential", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     decryptSecret.mockImplementation((stored: string) => `decrypted:${stored}`);
+    credentialUpdate.mockResolvedValue(undefined);
   });
 
   it("uses the active tenant-owned credential when there is no explicit pin, without querying the admin default", async () => {
@@ -108,6 +111,37 @@ describe("channels/credentials resolveChannelCredential", () => {
       }),
     );
     expect(appConfigFindUnique).not.toHaveBeenCalled();
+  });
+
+  it("marks the exact resolved tenant credential as used after decrypting its secret", async () => {
+    const connection = makeConnection({ credentialId: null });
+    const tenantCredential = makeCredential({ id: "cred_tenant_used" });
+    credentialFindFirst.mockResolvedValue(tenantCredential);
+    credentialUpdate.mockResolvedValue(tenantCredential);
+
+    await expect(
+      resolveChannelCredential(connection, TENANT_OWNER_ID),
+    ).resolves.toBe("decrypted:enc:cred_1");
+
+    expect(credentialUpdate).toHaveBeenCalledWith({
+      where: { id: "cred_tenant_used" },
+      data: { lastUsedAt: expect.any(Date) },
+    });
+  });
+
+  it("still resolves a secret when best-effort last-used bookkeeping fails", async () => {
+    const connection = makeConnection({ credentialId: null });
+    const tenantCredential = makeCredential({ id: "cred_bookkeeping_failure" });
+    credentialFindFirst.mockResolvedValue(tenantCredential);
+    credentialUpdate.mockRejectedValue(new Error("database unavailable"));
+
+    await expect(
+      resolveChannelCredential(connection, TENANT_OWNER_ID),
+    ).resolves.toBe("decrypted:enc:cred_1");
+    expect(credentialUpdate).toHaveBeenCalledWith({
+      where: { id: "cred_bookkeeping_failure" },
+      data: { lastUsedAt: expect.any(Date) },
+    });
   });
 
   it("uses an explicitly assigned admin-owned credential pin when it is active and provider-compatible", async () => {

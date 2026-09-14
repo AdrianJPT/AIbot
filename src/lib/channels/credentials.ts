@@ -83,6 +83,26 @@ function isUsable(
 }
 
 /**
+ * Returns an already-authorized credential's secret and records its use.
+ * The write is deliberately best-effort: credential authorization and
+ * decryption have already succeeded, so a telemetry failure must not turn a
+ * valid outbound request into a credential denial. This mirrors the
+ * best-effort success bookkeeping pattern in `ai/resolve.ts`.
+ */
+async function decryptAndMarkCredential(
+  credential: Credential,
+): Promise<string> {
+  const secret = decryptSecret(credential.encryptedKey);
+  await prisma.credential
+    .update({
+      where: { id: credential.id },
+      data: { lastUsedAt: new Date() },
+    })
+    .catch(() => undefined);
+  return secret;
+}
+
+/**
  * Validates and decrypts an explicit `connection.credentialId` pin. Never
  * falls back to the tenant chain or the admin default — a pin that fails
  * validation for any reason denies outright.
@@ -112,7 +132,7 @@ async function resolvePinnedCredential(
     );
   }
 
-  return decryptSecret(credential.encryptedKey);
+  return decryptAndMarkCredential(credential);
 }
 
 /**
@@ -146,7 +166,7 @@ export async function resolveChannelCredential(
     orderBy: [{ priority: "asc" }, { createdAt: "asc" }],
   });
   if (tenantCredential) {
-    return decryptSecret(tenantCredential.encryptedKey);
+    return decryptAndMarkCredential(tenantCredential);
   }
 
   const resolveDefaultId = ADMIN_DEFAULT_LOOKUP.get(connection.channel);
@@ -161,5 +181,5 @@ export async function resolveChannelCredential(
     );
   }
 
-  return decryptSecret(adminDefault.encryptedKey);
+  return decryptAndMarkCredential(adminDefault);
 }
