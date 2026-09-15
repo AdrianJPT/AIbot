@@ -30,6 +30,7 @@ export async function POST(
 
   let content: string;
   let sentBy: string;
+  let retryOfId: string | undefined;
   const retryOf =
     typeof body.retryOf === "string" && body.retryOf ? body.retryOf : undefined;
 
@@ -62,8 +63,24 @@ export async function POST(
         { status: 409 },
       );
     }
+    // Closes the duplicate-send hole (defect 1): a stale UI can still offer
+    // "Reintentar" on the original bubble after an earlier retry already
+    // delivered it, so re-check here regardless of what the client believes.
+    // A previous retry that ALSO failed must stay retryable, hence the
+    // `status: { not: "failed" }` filter instead of "any row exists".
+    const successfulRetry = await prisma.message.findFirst({
+      where: { retryOfId: original.id, status: { not: "failed" } },
+      select: { id: true },
+    });
+    if (successfulRetry) {
+      return NextResponse.json(
+        { error: "Este mensaje ya fue reintentado con éxito" },
+        { status: 409 },
+      );
+    }
     content = original.content;
     sentBy = original.sentBy;
+    retryOfId = original.id;
   } else {
     const text = body.text as string;
     if (!text?.trim()) {
@@ -109,6 +126,7 @@ export async function POST(
         status: failure ? "failed" : "sent",
         failureCode: failure?.code,
         failureDetail: failure?.detail,
+        retryOfId,
       },
     }),
     prisma.conversation.update({

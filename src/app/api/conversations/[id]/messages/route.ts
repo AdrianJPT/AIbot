@@ -49,6 +49,16 @@ export async function GET(
       // PR4). A message carries at most one proof in practice (messageId is
       // set once at ingest time), so [0] is the relevant one.
       paymentProofs: { select: { sessionId: true }, take: 1 },
+      // One extra query for the whole page (Prisma batches a relation
+      // include, never N+1) — resolves whether each message already has a
+      // successful retry, so the UI can disable a stale "Reintentar"
+      // instead of letting a second operator send a duplicate
+      // (retry-duplicate-and-visible-cause defect 1).
+      retries: {
+        where: { status: { not: "failed" } },
+        select: { id: true },
+        take: 1,
+      },
     },
   });
 
@@ -57,9 +67,10 @@ export async function GET(
   const nextCursor = hasMore ? page[page.length - 1].id : null;
 
   return NextResponse.json({
-    messages: page.map(({ paymentProofs, ...message }) => ({
+    messages: page.map(({ paymentProofs, retries, ...message }) => ({
       ...message,
       paymentSessionId: paymentProofs[0]?.sessionId ?? null,
+      retried: retries.length > 0,
     })),
     nextCursor,
   });

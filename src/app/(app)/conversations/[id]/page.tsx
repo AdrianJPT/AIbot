@@ -29,6 +29,14 @@ export default async function ConversationDetailPage({
     take: MESSAGES_PAGE_SIZE + 1,
     include: {
       paymentProofs: { select: { sessionId: true }, take: 1 },
+      // One extra query for the whole page (Prisma batches a relation
+      // include, never N+1) — see messages/route.ts's matching `retries`
+      // include for why (retry-duplicate-and-visible-cause defect 1).
+      retries: {
+        where: { status: { not: "failed" } },
+        select: { id: true },
+        take: 1,
+      },
     },
   });
   const hasMore = page.length > MESSAGES_PAGE_SIZE;
@@ -73,6 +81,7 @@ export default async function ConversationDetailPage({
           paymentSessionId: m.paymentProofs[0]?.sessionId ?? null,
           failureCode: m.failureCode,
           failureDetail: m.failureDetail,
+          retried: m.retries.length > 0,
         })),
         nextCursor,
       }}

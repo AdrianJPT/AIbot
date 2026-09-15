@@ -134,4 +134,54 @@ describe("GET /api/conversations/[id]/messages", () => {
     ]);
     expect(third.nextCursor).toBeNull();
   });
+
+  it("marks a failed message as retried once a later row successfully retried it, but not otherwise", async () => {
+    const originalFailed = await prisma.message.create({
+      data: {
+        conversationId: conversation.id,
+        role: "assistant",
+        content: "respuesta que falló",
+        sentBy: "bot",
+        status: "failed",
+        failureCode: "rate_limit",
+      },
+    });
+    await prisma.message.create({
+      data: {
+        conversationId: conversation.id,
+        role: "assistant",
+        content: "respuesta que falló",
+        sentBy: "bot",
+        status: "sent",
+        retryOfId: originalFailed.id,
+      },
+    });
+    const stillFailedOriginal = await prisma.message.create({
+      data: {
+        conversationId: conversation.id,
+        role: "assistant",
+        content: "otra respuesta que falló, sin reintento exitoso",
+        sentBy: "bot",
+        status: "failed",
+        failureCode: "rate_limit",
+      },
+    });
+
+    getSessionUser.mockResolvedValueOnce(owner);
+    const { GET } = await import("../route");
+    const res = await GET(buildRequest(conversation.id, { limit: "10" }), {
+      params: Promise.resolve({ id: conversation.id }),
+    });
+    const body = await res.json();
+
+    const retriedEntry = body.messages.find(
+      (m: { id: string }) => m.id === originalFailed.id,
+    );
+    const stillFailedEntry = body.messages.find(
+      (m: { id: string }) => m.id === stillFailedOriginal.id,
+    );
+
+    expect(retriedEntry.retried).toBe(true);
+    expect(stillFailedEntry.retried).toBe(false);
+  });
 });

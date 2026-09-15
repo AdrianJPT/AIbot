@@ -185,6 +185,9 @@ model Message {
   dispatchLeaseUntil DateTime? // set by claimDispatch while a send attempt is in flight; same lease pattern as Conversation.flushLeaseUntil / WebhookEvent.leaseExpiresAt — makes claiming a "status: pending" row exclusive, so a live send, a racing P2002-conflict resume, and the periodic reaper (message-handler.ts's reapStrandedSends) can never call sendFromNumber for the same row twice; its natural expiry also doubles as backoff spacing between reap attempts
   failureCode        String? // classified reason a failed outbound delivery failed: "window_expired" | "auth" | "rate_limit" | "invalid_recipient" | "unknown" — see `src/lib/channels/send-failure.ts`'s `SendFailureCode`. Null when the message never failed. Set only on failure, never cleared by a later non-failed status update.
   failureDetail      String? // sanitized provider detail text paired with `failureCode` (see `sanitizeFailureDetail`) — never raw request/response bodies, headers, or tokens.
+  retryOfId          String? // id of the failed Message this row is a retry of — set once by send/route.ts's retryOf branch, never on the composer path. Lets the server (and, via a computed `retried` flag, the UI) tell that an earlier failed message already has a successful retry, so a second operator's stale "Reintentar" click 409s instead of sending the customer a duplicate (reply-window-ux-harmonization follow-up, defect 1).
+  retryOf            Message?       @relation("MessageRetry", fields: [retryOfId], references: [id], onDelete: SetNull)
+  retries            Message[]      @relation("MessageRetry")
   createdAt          DateTime       @default(now())
   paymentProofs      PaymentProof[]
 
@@ -202,6 +205,7 @@ model Message {
   // for it would show up as permanent `migrate diff` drift.
   @@index([conversationId, sentBy, batchedAt, createdAt])
   @@index([sentBy, createdAt]) // equality-then-range for the daily AI-reply budget check (message-handler.ts's resolveAiReply / alreadyNotifiedToday): bounds the scan to today's bot messages platform-wide before joining Conversation on businessId, which [businessId,lastMessageAt] on Conversation already covers
+  @@index([retryOfId]) // the "was this failed message already retried successfully" lookup (see `retried` mapping in the conversation page/messages route) filters by retryOfId directly
 }
 
 model Appointment {
