@@ -13,6 +13,8 @@ import type {
 } from "@/features/businesses/types";
 import { DEFAULT_REPLY_WINDOW_MS } from "@/lib/businesses/reply-window";
 import { ReplyDebounceCard } from "@/features/businesses/components/reply-debounce-card";
+import { NicheTemplatePicker } from "@/features/businesses/components/niche-template-picker";
+import type { NicheId, NicheTemplate } from "@/lib/niche-templates";
 
 const MODEL_HINTS: Record<string, string> = {
   openai: "ej: gpt-4o-mini (chat/visión) · whisper-1 (audio)",
@@ -34,16 +36,36 @@ export function BusinessFormFields({
   fixedOwnerLabel,
   owners,
   currentOwnerId,
+  templateFields,
+  templateRevision,
+  nicheId,
+  onNicheChange,
+  onTemplatedFieldEdit,
 }: {
   business?: BusinessDetail;
   credentials: CredentialOption[];
   fixedOwnerLabel?: string;
   owners?: { id: string; label: string }[];
   currentOwnerId?: string;
+  /** The currently-applied giro's template, or undefined when none was
+   * selected — see `BusinessFormContainer.handleNicheChange`. Only used in
+   * create mode; edit mode never sets this. */
+  templateFields?: NicheTemplate;
+  /** Bumped every time a template is (re-)applied, forcing the templated
+   * fields below to remount with fresh `defaultValue`s (see design's
+   * "Prefill mechanism" decision — a keyed remount, not a controlled form). */
+  templateRevision?: number;
+  nicheId?: NicheId | "";
+  onNicheChange?: (id: string) => void;
+  /** Marks the templated fields dirty so a later giro switch knows whether
+   * to gate on `shouldConfirmNicheSwitch`. */
+  onTemplatedFieldEdit?: () => void;
 }) {
   const infoStr = business
     ? JSON.stringify(business.businessInfo, null, 2)
-    : `{
+    : templateFields
+      ? JSON.stringify(templateFields.businessInfoTemplate, null, 2)
+      : `{
   "Horario": "Lun-Vie 9-18",
   "Dirección": "",
   "Teléfono": ""
@@ -89,6 +111,13 @@ export function BusinessFormFields({
             propia cuenta. Mientras sea tuyo, solo lo ves vos.
           </p>
         </div>
+      )}
+
+      {!business && (
+        <NicheTemplatePicker
+          value={nicheId ?? ""}
+          onChange={(id) => onNicheChange?.(id)}
+        />
       )}
 
       <div className="space-y-1.5">
@@ -182,10 +211,14 @@ export function BusinessFormFields({
           Mensaje bienvenida (usa {"{businessName}"})
         </Label>
         <Input
+          key={templateRevision}
           id="welcomeMessage"
           name="welcomeMessage"
           required
-          defaultValue={business?.welcomeMessage}
+          defaultValue={
+            business?.welcomeMessage ?? templateFields?.welcomeMessageTemplate
+          }
+          onChange={onTemplatedFieldEdit}
         />
       </div>
 
@@ -194,36 +227,46 @@ export function BusinessFormFields({
           System prompt ({"{businessName}"}, {"{businessInfo}"})
         </Label>
         <Textarea
+          key={templateRevision}
           id="systemPrompt"
           name="systemPrompt"
           required
           rows={8}
           className="font-mono text-sm"
-          defaultValue={business?.systemPrompt}
+          defaultValue={
+            business?.systemPrompt ?? templateFields?.systemPromptTemplate
+          }
+          onChange={onTemplatedFieldEdit}
         />
       </div>
 
       <div className="space-y-1.5">
         <Label htmlFor="businessInfo">businessInfo (JSON)</Label>
         <Textarea
+          key={templateRevision}
           id="businessInfo"
           name="businessInfo"
           required
           rows={6}
           className="font-mono text-sm"
           defaultValue={infoStr}
+          onChange={onTemplatedFieldEdit}
         />
       </div>
 
       <div className="space-y-1.5">
         <Label htmlFor="knowledgeDoc">Documento de conocimiento</Label>
         <Textarea
+          key={templateRevision}
           id="knowledgeDoc"
           name="knowledgeDoc"
           rows={10}
           maxLength={MAX_KNOWLEDGE_DOC_CHARS}
           placeholder="Carta, horarios, políticas, preguntas frecuentes… vacío = no se usa"
-          defaultValue={business?.knowledgeDoc ?? ""}
+          defaultValue={
+            business?.knowledgeDoc ?? templateFields?.knowledgeDocTemplate ?? ""
+          }
+          onChange={onTemplatedFieldEdit}
         />
         <p className="text-xs text-muted-foreground">
           Texto libre que el bot usa como fuente de datos para responder: carta,
@@ -292,8 +335,11 @@ export function BusinessFormFields({
       </div>
 
       <ReplyDebounceCard
+        key={templateRevision}
         replyWindowMs={
-          business ? business.replyWindowMs : DEFAULT_REPLY_WINDOW_MS
+          business
+            ? business.replyWindowMs
+            : (templateFields?.defaultReplyWindowMs ?? DEFAULT_REPLY_WINDOW_MS)
         }
       />
 
@@ -319,6 +365,11 @@ export function BusinessForm({
   fixedOwnerLabel,
   owners,
   currentOwnerId,
+  templateFields,
+  templateRevision,
+  nicheId,
+  onNicheChange,
+  onTemplatedFieldEdit,
 }: {
   business?: BusinessDetail;
   credentials: CredentialOption[];
@@ -327,6 +378,11 @@ export function BusinessForm({
   fixedOwnerLabel?: string;
   owners?: { id: string; label: string }[];
   currentOwnerId?: string;
+  templateFields?: NicheTemplate;
+  templateRevision?: number;
+  nicheId?: NicheId | "";
+  onNicheChange?: (id: string) => void;
+  onTemplatedFieldEdit?: () => void;
 }) {
   return (
     <form onSubmit={onSubmit} className="min-w-0 max-w-3xl space-y-4">
@@ -336,6 +392,11 @@ export function BusinessForm({
         fixedOwnerLabel={fixedOwnerLabel}
         owners={owners}
         currentOwnerId={currentOwnerId}
+        templateFields={templateFields}
+        templateRevision={templateRevision}
+        nicheId={nicheId}
+        onNicheChange={onNicheChange}
+        onTemplatedFieldEdit={onTemplatedFieldEdit}
       />
       <Button type="submit" disabled={submitting} className="w-full sm:w-auto">
         {submitting ? "Guardando…" : "Guardar"}
