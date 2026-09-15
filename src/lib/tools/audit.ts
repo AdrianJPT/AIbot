@@ -12,6 +12,7 @@ import { prisma } from "@/lib/db";
 import { sanitizeFailureDetail } from "@/lib/channels/send-failure";
 import type { ToolFailureCode, ToolResult } from "./contracts";
 import type { ToolRegistry } from "./registry";
+import type { ToolPipelineContext } from "./tenant-guard";
 
 /**
  * Redacts raw tool input before it is ever persisted. Tool input can carry
@@ -67,12 +68,17 @@ function replayResult(row: ToolExecutionAudit): ToolResult {
  * same way `sendAndPersistReply` resolves a `dispatchId` race: the loser's
  * insert hits the unique constraint (P2002) and it replays the winner's row
  * instead of trusting its own already-computed result.
+ *
+ * `context` is forwarded to `registry.executeTool` unchanged — this
+ * boundary has no tenant logic of its own, it only carries the reply path's
+ * already-resolved `ToolPipelineContext` through to the handler.
  */
 export async function executeToolWithAudit(
   registry: ToolRegistry,
   toolName: string,
   rawInput: unknown,
   idempotencyKey: string,
+  context: ToolPipelineContext,
 ): Promise<ToolResult> {
   const existing = await prisma.toolExecutionAudit.findUnique({
     where: { idempotencyKey },
@@ -81,7 +87,7 @@ export async function executeToolWithAudit(
     return replayResult(existing);
   }
 
-  const result = await registry.executeTool(toolName, rawInput);
+  const result = await registry.executeTool(toolName, rawInput, context);
   const sanitizedInput = sanitizeToolInput(rawInput);
 
   try {

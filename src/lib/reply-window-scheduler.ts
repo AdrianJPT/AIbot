@@ -294,7 +294,7 @@ async function doFlush(
 
   const reply = await resolveAiReply(
     business,
-    fresh.id,
+    fresh,
     history,
     batchedContent,
     dispatchId,

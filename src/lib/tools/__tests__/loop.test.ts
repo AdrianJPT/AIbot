@@ -1,12 +1,16 @@
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { prisma } from "@/lib/db";
+import { buildBusiness } from "@/lib/__tests__/fixtures/business";
+import type { Conversation } from "@prisma/client";
 import type { SystemPrompt } from "../../prompt";
 import type { AiUsage } from "../../ai/generate";
+import * as auditModule from "../audit";
 import {
   MAX_TOOL_LOOP_STEPS,
   TOOL_LOOP_CEILING_MESSAGE,
   runToolLoop,
 } from "../loop";
+import type { ToolPipelineContext } from "../tenant-guard";
 
 /**
  * Unit tests for the tool-calling loop core, in isolation from
@@ -58,6 +62,16 @@ function toolCallAnswer(
   };
 }
 
+/** Same minimal-fixture approach as the registry/audit unit tests: this
+ * suite exercises the loop's own turn-taking and forwarding, not tenant
+ * matching, so a fixture business plus a cast conversation stub is enough. */
+function buildToolContext(): ToolPipelineContext {
+  return {
+    business: buildBusiness(),
+    conversation: { id: "conv_1", businessId: "biz_1" } as Conversation,
+  };
+}
+
 function fixedUsage() {
   return {
     prompt_tokens: 10,
@@ -94,6 +108,7 @@ describe("runToolLoop", () => {
       idempotencyKeyPrefix: `loop-test-${crypto.randomUUID()}`,
       maxSteps: MAX_TOOL_LOOP_STEPS,
       onUsage,
+      context: buildToolContext(),
     });
 
     expect(result).toBe("Hola, ¿en qué ayudo?");
@@ -118,6 +133,7 @@ describe("runToolLoop", () => {
       idempotencyKeyPrefix,
       maxSteps: MAX_TOOL_LOOP_STEPS,
       onUsage,
+      context: buildToolContext(),
     });
 
     expect(result).toBe("El resultado fue ping.");
@@ -162,6 +178,7 @@ describe("runToolLoop", () => {
       idempotencyKeyPrefix,
       maxSteps: MAX_TOOL_LOOP_STEPS,
       onUsage,
+      context: buildToolContext(),
     });
 
     expect(onUsage).toHaveBeenCalledTimes(2);
@@ -184,6 +201,7 @@ describe("runToolLoop", () => {
       idempotencyKeyPrefix: `loop-test-${crypto.randomUUID()}`,
       maxSteps: 1,
       onUsage,
+      context: buildToolContext(),
     });
 
     expect(result).toBe(TOOL_LOOP_CEILING_MESSAGE);
@@ -212,6 +230,7 @@ describe("runToolLoop", () => {
       idempotencyKeyPrefix,
       maxSteps: 2,
       onUsage,
+      context: buildToolContext(),
     });
 
     expect(result).toBe(TOOL_LOOP_CEILING_MESSAGE);
@@ -239,6 +258,7 @@ describe("runToolLoop", () => {
       idempotencyKeyPrefix,
       maxSteps: MAX_TOOL_LOOP_STEPS,
       onUsage,
+      context: buildToolContext(),
     });
     await runToolLoop({
       client: second.client as never,
@@ -249,6 +269,7 @@ describe("runToolLoop", () => {
       idempotencyKeyPrefix,
       maxSteps: MAX_TOOL_LOOP_STEPS,
       onUsage,
+      context: buildToolContext(),
     });
 
     // Only one ToolExecutionAudit row was ever created for this key: the
@@ -258,5 +279,41 @@ describe("runToolLoop", () => {
       where: { idempotencyKey: `${idempotencyKeyPrefix}:0:call_1` },
     });
     expect(rows).toHaveLength(1);
+  });
+
+  it("forwards opts.context through to executeToolWithAudit, so the executed tool's handler receives it", async () => {
+    const idempotencyKeyPrefix = `loop-test-${crypto.randomUUID()}`;
+    auditIdempotencyKeys.push(`${idempotencyKeyPrefix}:0:call_1`);
+    const { client } = fakeClient(
+      toolCallAnswer("call_1", { echo: "ping" }),
+      finalAnswer("listo"),
+    );
+    const executeToolWithAuditSpy = vi.spyOn(
+      auditModule,
+      "executeToolWithAudit",
+    );
+    const context = buildToolContext();
+
+    await runToolLoop({
+      client: client as never,
+      model: "gpt-4o-mini",
+      systemPrompt: systemPrompt(),
+      history: [],
+      userMessage: "probá la herramienta",
+      idempotencyKeyPrefix,
+      maxSteps: MAX_TOOL_LOOP_STEPS,
+      onUsage,
+      context,
+    });
+
+    expect(executeToolWithAuditSpy).toHaveBeenCalledWith(
+      expect.anything(),
+      "kernel_probe",
+      { echo: "ping" },
+      `${idempotencyKeyPrefix}:0:call_1`,
+      context,
+    );
+
+    executeToolWithAuditSpy.mockRestore();
   });
 });
