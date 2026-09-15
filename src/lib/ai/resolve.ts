@@ -230,10 +230,17 @@ async function recordCredentialFailure(
  * *why* a given credential failed. If every candidate fails, rethrows the
  * LAST error encountered so the caller's existing catch/logging is
  * unaffected.
+ *
+ * `fn`'s second argument is the CURRENT candidate's own `provider` string
+ * ("openai" | "openrouter" | "google" | ...) — the tool-calling loop
+ * (src/lib/tools/loop.ts) reads this to enforce its provider allow-list
+ * (only "openai" may run a tools-bearing request), since which candidate
+ * actually ends up serving a call is otherwise fully encapsulated here.
+ * Every existing caller ignores the extra argument, so this is additive.
  */
 export async function callWithAiCredential<T>(
   business: Business,
-  fn: (client: OpenAI) => Promise<T>,
+  fn: (client: OpenAI, provider: string) => Promise<T> | T,
 ): Promise<T> {
   const candidates = await resolveCandidates(business);
 
@@ -249,7 +256,7 @@ export async function callWithAiCredential<T>(
     const client = buildClientForCredential(credential);
 
     try {
-      const result = await fn(client);
+      const result = await fn(client, credential.provider);
       await markCredentialSuccess(credential);
       return result;
     } catch (firstErr) {
@@ -259,7 +266,7 @@ export async function callWithAiCredential<T>(
     if (extractStatus(lastErr) === 429) {
       await delay(RATE_LIMIT_RETRY_DELAY_MS);
       try {
-        const result = await fn(client);
+        const result = await fn(client, credential.provider);
         await markCredentialSuccess(credential);
         return result;
       } catch (retryErr) {

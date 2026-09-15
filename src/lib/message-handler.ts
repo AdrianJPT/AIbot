@@ -10,6 +10,12 @@ import { prisma } from "./db";
 import { generateResponse, type AiUsage } from "./ai/generate";
 import { callWithAiCredential, resolveModels } from "./ai/resolve";
 import { buildSystemPrompt } from "./prompt";
+import { toolsEffectivelyEnabled } from "./tools/enabled";
+import {
+  MAX_TOOL_LOOP_STEPS,
+  TOOL_LOOP_ALLOWED_PROVIDER,
+  runToolLoop,
+} from "./tools/loop";
 import { describeImageFromBuffer, transcribeAudioBuffer } from "./media";
 import { sendFromNumber } from "./whatsapp";
 import { logEvent } from "./log";
@@ -814,6 +820,23 @@ async function logAiUsage(
 }
 
 /**
+ * Whether the tool-calling loop may run for this business: both the
+ * per-tenant opt-in (`business.toolsEnabled`, already on hand — no query
+ * needed) AND the platform-wide switch (`AppConfig.toolsEnabled`) must be
+ * on. Checking the free per-tenant flag first means a business that has not
+ * opted in — the default, and every business before this feature existed —
+ * costs zero extra queries, keeping the disabled path byte-identical to
+ * before this function existed (see `tool-loop-golden-baseline.test.ts`).
+ */
+async function resolveToolsEnabled(business: Business): Promise<boolean> {
+  if (!business.toolsEnabled) return false;
+  const appConfig = await prisma.appConfig.findUnique({
+    where: { id: "default" },
+  });
+  return toolsEffectivelyEnabled(appConfig, business);
+}
+
+/**
  * Resolves the bot's reply respecting the per-business daily AI-call budget
  * (`Business.dailyAiLimit`). The budget is counted as bot-authored Message
  * rows created since UTC midnight for the business — simplest option that
@@ -835,12 +858,18 @@ async function logAiUsage(
  * See `sdd/tool-calling-agent-core/tasks` Unit 1 and
  * `ai-usage-counter-parity.test.ts` for the real-DB reproduction of this
  * divergence.
+ *
+ * `dispatchId` (computed by the caller — `doFlush` — before this runs) seeds
+ * the tool loop's per-call idempotency keys (`runToolLoop`'s
+ * `idempotencyKeyPrefix`), the same deterministic id a crash-and-retry of
+ * this exact batch would recompute.
  */
 export async function resolveAiReply(
   business: Business,
   conversationId: string,
   history: ChatCompletionMessageParam[],
   content: string,
+  dispatchId: string,
 ): Promise<string | null> {
   const startOfDay = new Date();
   startOfDay.setUTCHours(0, 0, 0, 0);
@@ -887,12 +916,50 @@ export async function resolveAiReply(
   try {
     const systemPrompt = buildSystemPrompt(business);
     const { chatModel } = await resolveModels(business);
-    const { content: reply, usage } = await callWithAiCredential(
-      business,
-      (client) =>
-        generateResponse(client, systemPrompt, history, content, chatModel),
+    const toolsOn = await resolveToolsEnabled(business);
+    // Seeded from the check just above (the remaining daily allowance),
+    // then hard-capped by MAX_TOOL_LOOP_STEPS — see that constant's
+    // docstring for the spend and reply-lease reasoning. A business with a
+    // huge dailyAiLimit still can't turn one reply into an unbounded run of
+    // model calls, and a business near its daily ceiling gets a
+    // proportionally smaller loop rather than one that silently overspends
+    // a budget the daily counter was never designed to see per-call.
+    const maxToolSteps = Math.max(
+      1,
+      Math.min(MAX_TOOL_LOOP_STEPS, business.dailyAiLimit - aiCallsToday),
     );
-    await logAiUsage(business, conversationId, chatModel, usage);
+
+    const reply = await callWithAiCredential(
+      business,
+      async (client, provider) => {
+        if (toolsOn && provider === TOOL_LOOP_ALLOWED_PROVIDER) {
+          return runToolLoop({
+            client,
+            model: chatModel,
+            systemPrompt,
+            history,
+            userMessage: content,
+            idempotencyKeyPrefix: dispatchId,
+            maxSteps: maxToolSteps,
+            onUsage: (usage) =>
+              logAiUsage(business, conversationId, chatModel, usage),
+          });
+        }
+        // Tools off, or the resolved candidate isn't on the allow-list: never
+        // send a tools-bearing request to an unvetted provider — fall back to
+        // the plain single-shot path unchanged.
+        const generated = await generateResponse(
+          client,
+          systemPrompt,
+          history,
+          content,
+          chatModel,
+        );
+        await logAiUsage(business, conversationId, chatModel, generated.usage);
+        return generated.content;
+      },
+    );
+
     return reply;
   } catch (err) {
     await logEvent(
