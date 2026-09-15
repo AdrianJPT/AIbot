@@ -823,6 +823,18 @@ async function logAiUsage(
  * once per day (checked by looking for a prior bot message with that exact
  * content today) — subsequent messages that day get no reply at all, to
  * avoid spamming the customer.
+ *
+ * Deliberately still `Message`-based, not `EventLog{source:"ai-usage"}`-based:
+ * `logAiUsage` below fires unconditionally on a successful model call, before
+ * this function's caller (`doFlush`, via `sendAndPersistReply`) ever persists
+ * the `Message` row. A transient DB fault in that later persistence step
+ * leaves `pendingFlushAt` set for a retry (reply-window-scheduler.ts's
+ * `flushDueConversation`), so one eventual `Message` can correspond to two
+ * `EventLog` rows. Redefining this query to count `EventLog` instead would
+ * change observable budget-exhaustion timing even with tools off everywhere.
+ * See `sdd/tool-calling-agent-core/tasks` Unit 1 and
+ * `ai-usage-counter-parity.test.ts` for the real-DB reproduction of this
+ * divergence.
  */
 export async function resolveAiReply(
   business: Business,
