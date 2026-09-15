@@ -10,6 +10,7 @@ function buildTool<TInput, TOutput>(
   return {
     name: "test_tool",
     description: "A tool used only in tests.",
+    mutating: false,
     ...overrides,
   };
 }

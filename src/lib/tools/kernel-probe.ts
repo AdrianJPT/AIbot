@@ -24,6 +24,7 @@ export const kernelProbeTool: ToolDefinition<
   name: "kernel_probe",
   description:
     "Read-only diagnostic tool: echoes its input back and confirms the tool kernel is reachable. No side effects, no tenant data.",
+  mutating: false,
   inputSchema: kernelProbeInputSchema,
   handler: (input) => ({ alive: true, echo: input.echo }),
 };

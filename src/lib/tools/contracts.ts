@@ -15,6 +15,7 @@ export const TOOL_FAILURE_CODES = [
   "unknown_tool",
   "invalid_input",
   "handler_error",
+  "tenant_mismatch",
 ] as const;
 
 export type ToolFailureCode = (typeof TOOL_FAILURE_CODES)[number];
@@ -38,10 +39,21 @@ export type ToolResult<TOutput = unknown> =
  * One callable tool: a name to look it up by, a human description (for a
  * future model's tool listing), the Zod schema its raw input is validated
  * against before the handler ever runs, and the handler itself.
+ *
+ * `mutating` is a required, explicit declaration — not an optional flag
+ * defaulting to `false` — so a new tool can never slip through by omission.
+ * A tool that writes against tenant-owned data (books an appointment, opens
+ * a ticket, anything past a lookup) MUST set `mutating: true` and call
+ * `requireSameTenant` (`./tenant-guard.ts`) on every entity it writes to
+ * before the write happens. This is enforced structurally, not just by
+ * convention — see `__tests__/mutating-tool-guard-wiring.test.ts`, which
+ * fails the build if a tool source file declares `mutating: true` without a
+ * `requireSameTenant(` call in the same file.
  */
 export type ToolDefinition<TInput = unknown, TOutput = unknown> = {
   name: string;
   description: string;
+  mutating: boolean;
   inputSchema: z.ZodType<TInput>;
   handler: (input: TInput) => Promise<TOutput> | TOutput;
 };
