@@ -132,6 +132,7 @@ export async function PATCH(
           replyWindowMs: clampReplyWindowMs(body.replyWindowMs),
         }),
         ...(body.isActive != null && { isActive: body.isActive }),
+        ...(body.toolsEnabled != null && { toolsEnabled: body.toolsEnabled }),
         ...(body.ownerId != null && { ownerId: body.ownerId }),
         ...("aiCredentialId" in body && {
           aiCredentialId: body.aiCredentialId || null,

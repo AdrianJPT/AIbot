@@ -13,6 +13,7 @@ import type {
 } from "@/features/businesses/types";
 import { DEFAULT_REPLY_WINDOW_MS } from "@/lib/businesses/reply-window";
 import { ReplyDebounceCard } from "@/features/businesses/components/reply-debounce-card";
+import { ToolsToggleCard } from "@/features/businesses/components/tools-toggle-card";
 import { NicheTemplatePicker } from "@/features/businesses/components/niche-template-picker";
 import type { NicheId, NicheTemplate } from "@/lib/niche-templates";
 
@@ -342,6 +343,8 @@ export function BusinessFormFields({
             : (templateFields?.defaultReplyWindowMs ?? DEFAULT_REPLY_WINDOW_MS)
         }
       />
+
+      <ToolsToggleCard toolsEnabled={business?.toolsEnabled ?? false} />
 
       <div className="flex items-center gap-2">
         <Switch

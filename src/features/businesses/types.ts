@@ -34,6 +34,7 @@ export type BusinessDetail = {
   maxHistoryMessages: number;
   replyWindowMs: number;
   isActive: boolean;
+  toolsEnabled?: boolean;
   aiCredentialId?: string | null;
   whatsappCredentialId?: string | null;
 };
@@ -75,6 +76,7 @@ export type BusinessInput = {
   maxHistoryMessages: number;
   replyWindowMs: number;
   isActive: boolean;
+  toolsEnabled: boolean;
   aiCredentialId: string | null;
   whatsappCredentialId: string | null;
   ownerId?: string;

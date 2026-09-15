@@ -179,3 +179,58 @@ describe("BusinessFormFields templated fields stay editable (uncontrolled, not p
     },
   );
 });
+
+function extractToolsSwitchTag(html: string): string {
+  const match = html.match(/<button[^>]*id="toolsEnabled"[^>]*>/);
+  if (!match) {
+    throw new Error(
+      'expected a <button id="toolsEnabled"> switch in the markup',
+    );
+  }
+  return match[0];
+}
+
+describe("BusinessFormFields tools toggle", () => {
+  it("renders the per-business switch off by default for a new business", () => {
+    const html = renderToStaticMarkup(
+      <BusinessFormFields business={undefined} credentials={[]} />,
+    );
+
+    expect(html).toMatch(/name="toolsEnabled"/);
+    expect(extractToolsSwitchTag(html)).toMatch(/data-state="unchecked"/);
+  });
+
+  it("reflects an existing business with tools already on", () => {
+    const business: BusinessDetail = {
+      id: "business-1",
+      name: "Existing business",
+      phoneNumberId: null,
+      systemPrompt: "prompt",
+      welcomeMessage: "welcome",
+      businessInfo: {},
+      knowledgeDoc: null,
+      model: null,
+      visionModel: null,
+      audioModel: null,
+      maxHistoryMessages: 20,
+      replyWindowMs: 0,
+      isActive: true,
+      toolsEnabled: true,
+    };
+
+    const html = renderToStaticMarkup(
+      <BusinessFormFields business={business} credentials={[]} />,
+    );
+
+    expect(extractToolsSwitchTag(html)).toMatch(/data-state="checked"/);
+  });
+
+  it("warns that the platform switch must also be on, and that no new abilities exist yet", () => {
+    const html = renderToStaticMarkup(
+      <BusinessFormFields business={undefined} credentials={[]} />,
+    );
+
+    expect(html).toMatch(/plataforma/i);
+    expect(html).toMatch(/diagnóstico/i);
+  });
+});

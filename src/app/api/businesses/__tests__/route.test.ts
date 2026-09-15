@@ -155,6 +155,27 @@ describe("GET/POST /api/businesses", () => {
     });
     expect(stored?.phoneNumbers).toHaveLength(0);
     expect(stored?.replyWindowMs).toBe(5_000);
+    expect(stored?.toolsEnabled).toBe(false);
+
+    await prisma.business.delete({ where: { id: created.id } });
+  });
+
+  it("POST persists an explicit toolsEnabled: true instead of defaulting it off", async () => {
+    getSessionUser.mockResolvedValueOnce(admin);
+    const { POST } = await import("../route");
+
+    const res = await POST(
+      buildRequest({
+        name: "Tools-on Biz",
+        systemPrompt: "prompt",
+        welcomeMessage: "hola",
+        toolsEnabled: true,
+      }),
+    );
+    const created = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(created.toolsEnabled).toBe(true);
 
     await prisma.business.delete({ where: { id: created.id } });
   });

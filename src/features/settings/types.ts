@@ -10,3 +10,7 @@ export type AiCredentialOption = {
   label: string;
   provider: string;
 };
+
+export type ToolsPlatformConfig = {
+  toolsEnabled: boolean;
+};

@@ -148,6 +148,19 @@ describe("PATCH/DELETE /api/businesses/[id]", () => {
     expect(updated.replyWindowMs).toBe(300_000);
   });
 
+  it("PATCH updates toolsEnabled for an admin caller", async () => {
+    getSessionUser.mockResolvedValueOnce(admin);
+    const { PATCH } = await import("../route");
+
+    const res = await PATCH(buildPatch({ toolsEnabled: true }), {
+      params: Promise.resolve({ id: business.id }),
+    });
+    const updated = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(updated.toolsEnabled).toBe(true);
+  });
+
   it("PATCH coerces a non-numeric replyWindowMs to 0 instead of storing NaN", async () => {
     getSessionUser.mockResolvedValueOnce(admin);
     const { PATCH } = await import("../route");
