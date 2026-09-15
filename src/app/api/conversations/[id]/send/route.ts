@@ -19,10 +19,6 @@ export async function POST(
 
   const { id } = await params;
   const body = await req.json();
-  const text = body.text as string;
-  if (!text?.trim()) {
-    return NextResponse.json({ error: "texto requerido" }, { status: 400 });
-  }
 
   const conv = await prisma.conversation.findFirst({
     where: { id, ...conversationScope(user) },
@@ -32,6 +28,51 @@ export async function POST(
     return NextResponse.json({ error: "No encontrado" }, { status: 404 });
   }
 
+  let content: string;
+  let sentBy: string;
+  const retryOf =
+    typeof body.retryOf === "string" && body.retryOf ? body.retryOf : undefined;
+
+  if (retryOf) {
+    // Retry only ever re-inserts a row with the ORIGINAL sender (bot, since
+    // only assistant/bot replies can fail and be retried here) — it never
+    // creates a `sentBy: "customer"` row. reply-window-scheduler.ts's
+    // customer-only batching query (`sentBy: "customer", batchedAt: null`,
+    // served by the `[conversationId, sentBy, batchedAt, createdAt]` index)
+    // is therefore structurally unaffected by this branch.
+    //
+    // Tenant scoping: `conv` above was already resolved through
+    // `conversationScope(user)`, so filtering by `conversationId: conv.id`
+    // here is sufficient — a retryOf id from another tenant's conversation
+    // simply never matches and falls through to the same 404 as a missing
+    // conversation (fail closed, no existence leak).
+    const original = await prisma.message.findFirst({
+      where: { id: retryOf, conversationId: conv.id },
+    });
+    if (!original) {
+      return NextResponse.json({ error: "No encontrado" }, { status: 404 });
+    }
+    if (
+      original.role !== "assistant" ||
+      original.status !== "failed" ||
+      original.failureCode === "window_expired"
+    ) {
+      return NextResponse.json(
+        { error: "No se puede reintentar" },
+        { status: 409 },
+      );
+    }
+    content = original.content;
+    sentBy = original.sentBy;
+  } else {
+    const text = body.text as string;
+    if (!text?.trim()) {
+      return NextResponse.json({ error: "texto requerido" }, { status: 400 });
+    }
+    content = text.trim();
+    sentBy = "human";
+  }
+
   let wamid: string | undefined;
   let failure: SendFailure | null = null;
   try {
@@ -39,7 +80,7 @@ export async function POST(
       conv.phoneNumber,
       conv.business.ownerId,
       conv.customerPhone,
-      text.trim(),
+      content,
     );
   } catch (err) {
     failure = sendFailureFromError(err);
@@ -61,9 +102,9 @@ export async function POST(
       data: {
         conversationId: conv.id,
         role: "assistant",
-        content: text.trim(),
+        content,
         mediaType: "text",
-        sentBy: "human",
+        sentBy,
         wamid,
         status: failure ? "failed" : "sent",
         failureCode: failure?.code,
