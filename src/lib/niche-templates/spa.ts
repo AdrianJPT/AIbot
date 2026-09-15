@@ -44,6 +44,12 @@ const spa: NicheTemplate = {
     politica_de_turnos_y_cancelacion:
       "[Completá con cuánta anticipación mínima se puede reservar un turno " +
       "y con cuánto tiempo de aviso se puede cancelar sin costo]",
+    duracion_estimada_por_tratamiento:
+      "[Completá cuánto dura en promedio cada tratamiento, por ejemplo un " +
+      "masaje frente a un circuito completo]",
+    bonos_y_atencion_para_parejas_o_grupos:
+      "[Completá si vendés bonos o vouchers de regalo y si ofrecés " +
+      "tratamientos para parejas o grupos]",
   },
   knowledgeDocTemplate:
     "Preguntas frecuentes de {businessName}\n\n" +
@@ -51,13 +57,21 @@ const spa: NicheTemplate = {
     "[Completá tus días y horarios de atención.]\n\n" +
     "## Turnos\n" +
     "[Completá con cuánta anticipación mínima se puede reservar un turno y " +
-    "tu política de cancelación.]\n\n" +
+    "tu política de cancelación.] [Completá cuánto dura en promedio cada " +
+    "tratamiento, para ayudar a coordinar el horario.]\n\n" +
     "## Tratamientos\n" +
     "[Completá los tratamientos que ofrecés y si hay recomendaciones " +
     "previas a la sesión, por ejemplo llegar unos minutos antes o evitar " +
     "exposición solar.]\n\n" +
+    "## Bonos, regalos y grupos\n" +
+    "[Completá si vendés bonos o vouchers de regalo, y si ofrecés " +
+    "tratamientos para parejas o grupos y cómo se coordinan.]\n\n" +
     "## Medios de pago\n" +
-    "[Completá los medios de pago que aceptás.]",
+    "[Completá los medios de pago que aceptás.]\n\n" +
+    "## Otros datos útiles\n" +
+    "[Completá otros datos que suelen preguntar tus clientes, por ejemplo " +
+    "si hay vestuarios, si conviene venir sin maquillaje o si hay alguna " +
+    "restricción de edad para ciertos tratamientos.]",
   defaultReplyWindowMs: 5_000,
 };
 

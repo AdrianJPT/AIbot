@@ -44,6 +44,15 @@ const dentista: NicheTemplate = {
     politica_de_turnos_y_cancelacion:
       "[Completá con cuánta anticipación mínima se puede reservar un turno " +
       "y con cuánto tiempo de aviso se puede cancelar o reprogramar]",
+    obras_sociales_y_seguros_aceptados:
+      "[Completá con qué obras sociales o seguros trabajás, si corresponde]",
+    tratamientos_que_ofrecemos:
+      "[Completá los tipos de tratamiento que ofrece el consultorio, por " +
+      "ejemplo ortodoncia, blanqueamiento o implantes, solo como listado " +
+      "general, sin evaluar casos particulares]",
+    atencion_de_urgencias:
+      "[Completá si atendés urgencias fuera de tu horario habitual y cómo " +
+      "se solicita ese turno]",
   },
   knowledgeDocTemplate:
     "Preguntas frecuentes de {businessName}\n\n" +
@@ -55,6 +64,17 @@ const dentista: NicheTemplate = {
     "## Qué traer\n" +
     "[Completá qué debe traer el paciente a la consulta, por ejemplo DNI, " +
     "carnet de obra social o estudios previos.]\n\n" +
+    "## Tratamientos que ofrecemos\n" +
+    "[Completá el listado general de tratamientos que ofrece el " +
+    "consultorio, por ejemplo ortodoncia, blanqueamiento o implantes.] " +
+    "Este listado es solo informativo: qué tratamiento corresponde a cada " +
+    "caso lo evalúa siempre el profesional en el consultorio, nunca por " +
+    "chat.\n\n" +
+    "## Urgencias\n" +
+    "[Completá si atendés urgencias fuera de tu horario habitual y cómo se " +
+    "solicita ese turno.] Ante una urgencia, siempre se prioriza coordinar " +
+    "un turno lo antes posible; el asistente no evalúa la gravedad por " +
+    "chat.\n\n" +
     "## Medios de pago y cobertura\n" +
     "[Completá los medios de pago que aceptás y si trabajás con obras " +
     "sociales o seguros.]",

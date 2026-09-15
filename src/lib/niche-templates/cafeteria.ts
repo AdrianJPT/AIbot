@@ -40,6 +40,17 @@ const cafeteria: NicheTemplate = {
     especialidad_de_la_casa:
       "[Completá tu especialidad, por ejemplo el tipo de café que servís o " +
       "un producto de pastelería insignia]",
+    zona_de_envio:
+      "[Completá la zona de envío que cubrís, por ejemplo los barrios " +
+      "cercanos o el radio al que llega tu delivery, si ofrecés este " +
+      "servicio]",
+    tiempo_estimado_delivery:
+      "[Completá el tiempo estimado de entrega del delivery, por ejemplo " +
+      "un rango en minutos según la zona]",
+    wifi_y_espacio_para_trabajar:
+      "[Completá si contás con wifi para clientes y si el espacio es apto " +
+      "para trabajar o estudiar, por ejemplo con enchufes disponibles o un " +
+      "límite de tiempo en horarios pico]",
   },
   knowledgeDocTemplate:
     "Preguntas frecuentes de {businessName}\n\n" +
@@ -50,11 +61,21 @@ const cafeteria: NicheTemplate = {
     "ofrecés.] La carta puede variar según disponibilidad de productos " +
     "frescos.\n\n" +
     "## Pedidos para llevar y delivery\n" +
-    "[Completá si ofrecés delivery o solo retiro en el local, y la zona de " +
-    "envío si corresponde.] Para un pedido necesitamos el detalle de los " +
-    "productos y la forma de entrega elegida.\n\n" +
+    "[Completá tu zona de envío y el tiempo estimado de entrega, por " +
+    "ejemplo el radio y un rango en minutos según la zona.] Para un pedido " +
+    "necesitamos el detalle de los productos y la forma de entrega " +
+    "elegida. Si la dirección está fuera de la zona de envío, lo avisamos " +
+    "antes de confirmar y ofrecemos la opción de retiro en el local.\n\n" +
+    "## Wifi y espacio para trabajar\n" +
+    "[Completá si contás con wifi para clientes, si el espacio es apto " +
+    "para trabajar o estudiar y si hay algún límite de tiempo en horarios " +
+    "pico.]\n\n" +
     "## Medios de pago\n" +
-    "[Completá los medios de pago que aceptás.]",
+    "[Completá los medios de pago que aceptás.]\n\n" +
+    "## Otros datos útiles\n" +
+    "[Completá otros datos que suelen preguntar tus clientes, por ejemplo " +
+    "si aceptás mascotas, si tenés opciones vegetarianas, veganas o sin " +
+    "TACC, o si armás mesas dulces o catering para eventos.]",
   defaultReplyWindowMs: 5_000,
 };
 

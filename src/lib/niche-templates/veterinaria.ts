@@ -56,6 +56,12 @@ const veterinaria: NicheTemplate = {
     metodos_de_pago:
       "[Completá los medios de pago que aceptás, por ejemplo efectivo, " +
       "tarjeta o transferencia]",
+    politica_de_turnos_y_cancelacion:
+      "[Completá con cuánta anticipación mínima se puede reservar un turno " +
+      "y con cuánto tiempo de aviso se puede cancelar o reprogramar]",
+    especies_que_atendemos:
+      "[Completá qué especies atendés, por ejemplo perros y gatos, o si " +
+      "también atendés animales exóticos]",
   },
   knowledgeDocTemplate:
     "Preguntas frecuentes de {businessName}\n\n" +
@@ -69,6 +75,9 @@ const veterinaria: NicheTemplate = {
     "fuera de tu horario de atención.] Ante una emergencia, siempre se " +
     "prioriza el contacto inmediato con una persona, nunca coordinar por " +
     "chat.\n\n" +
+    "## Especies que atendemos\n" +
+    "[Completá qué especies atendés, por ejemplo perros y gatos, o si " +
+    "también atendés animales exóticos.]\n\n" +
     "## Servicios y medios de pago\n" +
     "[Completá los servicios que ofrecés y los medios de pago que " +
     "aceptás.]",

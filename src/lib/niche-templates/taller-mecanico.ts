@@ -51,6 +51,13 @@ const tallerMecanico: NicheTemplate = {
     politica_de_turnos_y_presupuestos:
       "[Completá con cuánta anticipación se puede reservar un turno y " +
       "cómo se entrega el presupuesto una vez revisado el vehículo]",
+    tipos_de_vehiculos_que_atendes:
+      "[Completá qué tipos de vehículos atendés, por ejemplo autos, " +
+      "camionetas, motos, o marcas específicas en las que te especializás]",
+    tiempo_estimado_de_entrega:
+      "[Completá el tiempo estimado de entrega según el tipo de trabajo, " +
+      "por ejemplo un service rápido frente a una reparación mayor, " +
+      "aclarando que es orientativo hasta revisar el vehículo]",
   },
   knowledgeDocTemplate:
     "Preguntas frecuentes de {businessName}\n\n" +
@@ -59,10 +66,18 @@ const tallerMecanico: NicheTemplate = {
     "## Turnos\n" +
     "[Completá con cuánta anticipación se puede reservar un turno y tu " +
     "política de cancelación.]\n\n" +
+    "## Vehículos que atendemos\n" +
+    "[Completá qué tipos de vehículos atendés, por ejemplo autos, " +
+    "camionetas, motos, o marcas en las que te especializás.]\n\n" +
     "## Diagnóstico y presupuestos\n" +
     "[Completá cómo se entrega el presupuesto.] El diagnóstico y el " +
     "presupuesto definitivos siempre requieren el vehículo en el taller, " +
     "nunca se confirman solo por la descripción del cliente.\n\n" +
+    "## Tiempos de entrega\n" +
+    "[Completá el tiempo estimado de entrega según el tipo de trabajo, " +
+    "por ejemplo un service rápido frente a una reparación mayor.] Este " +
+    "tiempo es siempre orientativo hasta que el vehículo es revisado en el " +
+    "taller.\n\n" +
     "## Servicios y medios de pago\n" +
     "[Completá los servicios que ofrecés y los medios de pago que " +
     "aceptás.]",

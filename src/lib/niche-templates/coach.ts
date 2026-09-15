@@ -48,6 +48,12 @@ const coach: NicheTemplate = {
     politica_de_cancelacion:
       "[Completá con cuánto tiempo de aviso se puede cancelar o " +
       "reprogramar una sesión sin costo]",
+    duracion_habitual_de_sesiones:
+      "[Completá cuánto dura habitualmente una sesión individual y una " +
+      "grupal, si ofrecés ambas]",
+    formato_de_programas_o_paquetes:
+      "[Completá si trabajás con sesiones sueltas, programas de varias " +
+      "sesiones o paquetes, sin fijar montos]",
   },
   knowledgeDocTemplate:
     "Preguntas frecuentes de {businessName}\n\n" +
@@ -58,6 +64,10 @@ const coach: NicheTemplate = {
     "## Tipos de coaching\n" +
     "[Completá los tipos de coaching que ofrecés.] El coaching no " +
     "reemplaza un tratamiento psicológico ni terapéutico.\n\n" +
+    "## Programas y primera sesión\n" +
+    "[Completá si trabajás con sesiones sueltas, programas de varias " +
+    "sesiones o paquetes, y qué incluye una primera sesión o entrevista " +
+    "inicial.]\n\n" +
     "## Medios de pago\n" +
     "[Completá los medios de pago que aceptás y tu política de " +
     "cancelación.]",

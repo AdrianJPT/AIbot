@@ -41,6 +41,13 @@ const panaderia: NicheTemplate = {
     pedidos_por_encargo:
       "[Completá con cuánta anticipación mínima se puede encargar una " +
       "torta o un pedido grande, y qué datos pedís para confirmarlo]",
+    zona_de_envio:
+      "[Completá la zona de envío que cubrís, por ejemplo los barrios " +
+      "cercanos o el radio al que llega tu reparto, si ofrecés este " +
+      "servicio]",
+    opciones_dieteticas:
+      "[Completá si tenés opciones sin TACC, integrales, sin azúcar o " +
+      "veganas, y si se preparan en un espacio separado del resto]",
   },
   knowledgeDocTemplate:
     "Preguntas frecuentes de {businessName}\n\n" +
@@ -49,13 +56,21 @@ const panaderia: NicheTemplate = {
     "horario de salida del pan caliente.]\n\n" +
     "## Productos\n" +
     "[Completá tus productos destacados, por ejemplo tipos de pan, " +
-    "facturas o productos sin TACC.]\n\n" +
+    "facturas o productos sin TACC.] [Completá si tenés opciones " +
+    "integrales, sin azúcar o veganas.]\n\n" +
     "## Pedidos por encargo\n" +
     "[Completá con cuánta anticipación se pueden encargar tortas o pedidos " +
     "grandes para eventos.] Para un encargo necesitamos el detalle del " +
     "pedido, la fecha de retiro y una forma de contacto.\n\n" +
+    "## Envíos\n" +
+    "[Completá si hacés envíos a domicilio, la zona que cubrís y si hay un " +
+    "pedido mínimo para el reparto.]\n\n" +
     "## Medios de pago\n" +
-    "[Completá los medios de pago que aceptás.]",
+    "[Completá los medios de pago que aceptás.]\n\n" +
+    "## Otros datos útiles\n" +
+    "[Completá otros datos que suelen preguntar tus clientes, por ejemplo " +
+    "si tomás pedidos para desayunos o meriendas de oficina, o si vendés " +
+    "por peso o por unidad.]",
   defaultReplyWindowMs: 5_000,
 };
 
