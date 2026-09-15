@@ -1,26 +1,31 @@
 import { redirect } from "next/navigation";
 import { getSessionUser } from "@/lib/auth";
-import { deliveryHealth, tokenUsage } from "@/lib/analytics/repository";
+import {
+  deliveryHealth,
+  responseTimeByDay,
+  tokenUsage,
+  volumeByDay,
+} from "@/lib/analytics/repository";
 import {
   DEFAULT_ANALYTICS_RANGE_KEY,
   formatUtcRangeLabel,
   resolveAnalyticsRange,
 } from "@/lib/analytics/range";
-import { DeliveryHealthPanel } from "@/features/analytics/components/delivery-health-panel";
-import { TokenUsagePanel } from "@/features/analytics/components/token-usage-panel";
+import { AnalyticsContainer } from "@/features/analytics/containers/analytics-container";
+import type { AnalyticsPayload } from "@/features/analytics/types";
 
 /**
  * SSR analytics surface, default 30-day range (spec `Range Selection`).
  * Not admin-only — an owner sees their own businesses' numbers, an admin
- * sees the cross-tenant view; both come for free from `deliveryHealth`/
- * `tokenUsage`'s own `messageScope`/`eventLogScope` filtering (spec `Tenant
+ * sees the cross-tenant view; both come for free from each repository
+ * function's own `messageScope`/`eventLogScope` filtering (spec `Tenant
  * Scoping for Analytics`), never a filter applied here.
  *
- * Only renders the two panels this unit ships. `volumeByDay`/
- * `responseTimeByDay` are deliberately not fetched here yet — nothing
- * consumes them until the volume/response-time panels and the client range
- * selector land in a later unit; that unit will extend this page (and add
- * the client container) rather than fetch data with no current renderer.
+ * Fetches all 4 metrics for the default range and hands them to
+ * `AnalyticsContainer` as `initialData`, the same SSR-then-client-refetch
+ * shape `settings/events/page.tsx` uses for `EventsPanelContainer`. A later
+ * client range change refetches through `GET /api/analytics` — the route
+ * already returns this same shape, so it needed no changes for this unit.
  */
 export default async function AnalyticsPage() {
   const user = await getSessionUser();
@@ -33,10 +38,24 @@ export default async function AnalyticsPage() {
   // trigger `react-hooks/purity`).
   const range = resolveAnalyticsRange(DEFAULT_ANALYTICS_RANGE_KEY, new Date());
 
-  const [health, usage] = await Promise.all([
+  const [health, volume, responseTime, usage] = await Promise.all([
     deliveryHealth(user, range),
+    volumeByDay(user, range),
+    responseTimeByDay(user, range),
     tokenUsage(user, range),
   ]);
+
+  const initialPayload: AnalyticsPayload = {
+    range: {
+      key: DEFAULT_ANALYTICS_RANGE_KEY,
+      start: range.start.toISOString(),
+      end: range.end.toISOString(),
+    },
+    deliveryHealth: health,
+    volumeByDay: volume,
+    responseTimeByDay: responseTime,
+    tokenUsage: usage,
+  };
 
   return (
     <div>
@@ -44,10 +63,7 @@ export default async function AnalyticsPage() {
       <p className="mb-6 text-sm text-muted-foreground">
         {formatUtcRangeLabel(range)}
       </p>
-      <div className="grid gap-4 lg:grid-cols-2">
-        <DeliveryHealthPanel health={health} />
-        <TokenUsagePanel usage={usage} />
-      </div>
+      <AnalyticsContainer initialPayload={initialPayload} />
     </div>
   );
 }
