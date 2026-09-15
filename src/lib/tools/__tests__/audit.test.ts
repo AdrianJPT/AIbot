@@ -1,14 +1,29 @@
 import { afterAll, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import type { ToolDefinition } from "../contracts";
+import { buildBusiness } from "@/lib/__tests__/fixtures/business";
+import type { Conversation } from "@prisma/client";
+import { ToolRefusalError, type ToolDefinition } from "../contracts";
 import { ToolRegistry } from "../registry";
 import { executeToolWithAudit, sanitizeToolInput } from "../audit";
+import type { ToolPipelineContext } from "../tenant-guard";
 
 const createdIds: string[] = [];
 
 async function findAuditRow(idempotencyKey: string) {
   return prisma.toolExecutionAudit.findUnique({ where: { idempotencyKey } });
+}
+
+/**
+ * Same minimal-fixture approach as `registry.test.ts`'s `buildToolContext`:
+ * these tests exercise the audit/idempotency boundary, not tenant matching,
+ * so a fixture business plus a cast conversation stub is enough.
+ */
+function buildToolContext(): ToolPipelineContext {
+  return {
+    business: buildBusiness(),
+    conversation: { id: "conv_1", businessId: "biz_1" } as Conversation,
+  };
 }
 
 describe("executeToolWithAudit", () => {
@@ -36,6 +51,7 @@ describe("executeToolWithAudit", () => {
       "probe_tool",
       {},
       idempotencyKey,
+      buildToolContext(),
     );
 
     expect(handler).toHaveBeenCalledTimes(1);
@@ -68,6 +84,7 @@ describe("executeToolWithAudit", () => {
       "strict_tool",
       { count: "not a number" },
       idempotencyKey,
+      buildToolContext(),
     );
 
     expect(result.ok).toBe(false);
@@ -92,17 +109,20 @@ describe("executeToolWithAudit", () => {
     registry.register(tool);
     const idempotencyKey = `audit-idempotent-${crypto.randomUUID()}`;
 
+    const context = buildToolContext();
     const first = await executeToolWithAudit(
       registry,
       "echo_tool",
       {},
       idempotencyKey,
+      context,
     );
     const second = await executeToolWithAudit(
       registry,
       "echo_tool",
       {},
       idempotencyKey,
+      context,
     );
 
     // The critical assertion: the handler ran exactly once across BOTH
@@ -112,6 +132,75 @@ describe("executeToolWithAudit", () => {
 
     const row = await findAuditRow(idempotencyKey);
     if (row) createdIds.push(row.id);
+  });
+
+  it("forwards the given context through to the registry's executeTool", async () => {
+    const registry = new ToolRegistry();
+    const executeToolSpy = vi.spyOn(registry, "executeTool");
+    registry.register({
+      name: "noop_tool",
+      description: "test tool",
+      mutating: false,
+      inputSchema: z.object({}),
+      handler: () => ({ alive: true }),
+    });
+    const context = buildToolContext();
+    const idempotencyKey = `audit-context-${crypto.randomUUID()}`;
+
+    const result = await executeToolWithAudit(
+      registry,
+      "noop_tool",
+      {},
+      idempotencyKey,
+      context,
+    );
+
+    expect(executeToolSpy).toHaveBeenCalledWith("noop_tool", {}, context);
+
+    const row = await findAuditRow(idempotencyKey);
+    expect(row).not.toBeNull();
+    if (row) createdIds.push(row.id);
+    expect(result.ok).toBe(true);
+  });
+
+  it("audits a handler's ToolRefusalError as a failure with the refusal's own failure code", async () => {
+    const registry = new ToolRegistry();
+    const tool: ToolDefinition<Record<string, never>, never> = {
+      name: "refusing_tool",
+      description: "test tool",
+      mutating: true,
+      inputSchema: z.object({}),
+      handler: () => {
+        throw new ToolRefusalError(
+          "tenant_mismatch",
+          "Refused: cross-tenant write.",
+        );
+      },
+    };
+    registry.register(tool);
+    const idempotencyKey = `audit-refusal-${crypto.randomUUID()}`;
+
+    const result = await executeToolWithAudit(
+      registry,
+      "refusing_tool",
+      {},
+      idempotencyKey,
+      buildToolContext(),
+    );
+
+    expect(result).toEqual({
+      ok: false,
+      failure: {
+        code: "tenant_mismatch",
+        message: "Refused: cross-tenant write.",
+      },
+    });
+
+    const row = await findAuditRow(idempotencyKey);
+    expect(row).not.toBeNull();
+    if (row) createdIds.push(row.id);
+    expect(row?.outcome).toBe("failure");
+    expect(row?.failureCode).toBe("tenant_mismatch");
   });
 });
 

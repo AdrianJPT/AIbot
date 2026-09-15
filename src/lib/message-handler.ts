@@ -863,10 +863,15 @@ async function resolveToolsEnabled(business: Business): Promise<boolean> {
  * the tool loop's per-call idempotency keys (`runToolLoop`'s
  * `idempotencyKeyPrefix`), the same deterministic id a crash-and-retry of
  * this exact batch would recompute.
+ *
+ * Takes the full `conversation` (not just its id) so it can build the
+ * `ToolPipelineContext` the tool loop's handlers run with — see
+ * `tenant-guard.ts`. The caller (`doFlush` in `reply-window-scheduler.ts`)
+ * already has the full row on hand from its own re-fetch.
  */
 export async function resolveAiReply(
   business: Business,
-  conversationId: string,
+  conversation: Conversation,
   history: ChatCompletionMessageParam[],
   content: string,
   dispatchId: string,
@@ -942,7 +947,8 @@ export async function resolveAiReply(
             idempotencyKeyPrefix: dispatchId,
             maxSteps: maxToolSteps,
             onUsage: (usage) =>
-              logAiUsage(business, conversationId, chatModel, usage),
+              logAiUsage(business, conversation.id, chatModel, usage),
+            context: { business, conversation },
           });
         }
         // Tools off, or the resolved candidate isn't on the allow-list: never
@@ -955,7 +961,7 @@ export async function resolveAiReply(
           content,
           chatModel,
         );
-        await logAiUsage(business, conversationId, chatModel, generated.usage);
+        await logAiUsage(business, conversation.id, chatModel, generated.usage);
         return generated.content;
       },
     );
@@ -966,7 +972,7 @@ export async function resolveAiReply(
       "error",
       "ai",
       "generateResponse failed",
-      { error: describeError(err), conversationId },
+      { error: describeError(err), conversationId: conversation.id },
       business.id,
     );
     return null;

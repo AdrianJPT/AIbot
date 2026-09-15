@@ -21,6 +21,7 @@ import { ToolRegistry } from "./registry";
 import { executeToolWithAudit } from "./audit";
 import { renderToolResultBlock } from "./untrusted-result";
 import { kernelProbeTool } from "./kernel-probe";
+import type { ToolPipelineContext } from "./tenant-guard";
 
 /**
  * Only `openai` may run a tools-bearing request. `resolveAiReply` reads
@@ -54,8 +55,8 @@ export const TOOL_LOOP_ALLOWED_PROVIDER = "openai";
  *    `callWithAiCredential` (it wraps the entire loop as its `fn`), which is
  *    within the existing 2x headroom the lease already budgets for.
  *
- * 2 steps is also exactly enough for the one tool this kernel exposes: one
- * round trip to call `kernel_probe`, one more to synthesize the answer.
+ * 2 steps is also exactly enough for a single-tool-call turn: one round trip
+ * to call a tool, one more to synthesize the answer.
  */
 export const MAX_TOOL_LOOP_STEPS = 2;
 
@@ -152,6 +153,14 @@ export type RunToolLoopOptions = {
    * row per real provider call, not one per customer-facing reply.
    */
   onUsage: (usage: AiUsage | null) => Promise<void> | void;
+  /**
+   * The tenant identity every tool call in this loop runs with. Supplied by
+   * the reply path (`resolveAiReply` in `../message-handler.ts`), which
+   * already resolved the business and conversation before the loop ever
+   * started — NEVER derived from model input, since the model's tool-call
+   * arguments are untrusted.
+   */
+  context: ToolPipelineContext;
 };
 
 /**
@@ -210,6 +219,7 @@ export async function runToolLoop(opts: RunToolLoopOptions): Promise<string> {
         call.function.name,
         rawInput,
         `${opts.idempotencyKeyPrefix}:${step}:${call.id}`,
+        opts.context,
       );
       messages.push({
         role: "tool",

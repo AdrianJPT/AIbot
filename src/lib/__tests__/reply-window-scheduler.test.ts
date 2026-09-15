@@ -195,10 +195,10 @@ describe("sweepDueConversations", () => {
     expect(computeDispatchId).toHaveBeenCalledWith("conv_1", ["m1", "m2"]);
 
     expect(resolveAiReply).toHaveBeenCalledTimes(1);
-    const [calledBusiness, calledConversationId, , calledContent] =
+    const [calledBusiness, calledConversation, , calledContent] =
       resolveAiReply.mock.calls[0];
     expect(calledBusiness.id).toBe("biz_1");
-    expect(calledConversationId).toBe("conv_1");
+    expect(calledConversation.id).toBe("conv_1");
     expect(calledContent).toContain("hola");
     expect(calledContent).toContain("quiero una reserva");
 

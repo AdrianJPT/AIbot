@@ -1,7 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
-import type { ToolDefinition } from "../contracts";
+import { buildBusiness } from "@/lib/__tests__/fixtures/business";
+import type { Conversation } from "@prisma/client";
+import { ToolRefusalError, type ToolDefinition } from "../contracts";
 import { ToolRegistry } from "../registry";
+import type { ToolPipelineContext } from "../tenant-guard";
 
 function buildTool<TInput, TOutput>(
   overrides: Partial<ToolDefinition<TInput, TOutput>> &
@@ -12,6 +15,19 @@ function buildTool<TInput, TOutput>(
     description: "A tool used only in tests.",
     mutating: false,
     ...overrides,
+  };
+}
+
+/**
+ * A minimal `ToolPipelineContext` for tests in this file: these tests exercise
+ * the registry's own dispatch/refusal machinery, not tenant matching itself
+ * (that's `tenant-guard.test.ts`, which needs real `Business`/`Conversation`
+ * rows), so a fixture business plus a cast conversation stub is enough.
+ */
+function buildToolContext(): ToolPipelineContext {
+  return {
+    business: buildBusiness(),
+    conversation: { id: "conv_1", businessId: "biz_1" } as Conversation,
   };
 }
 
@@ -37,7 +53,11 @@ describe("ToolRegistry", () => {
   it("executeTool resolves an unknown tool name to a typed failure instead of throwing", async () => {
     const registry = new ToolRegistry();
 
-    const result = await registry.executeTool("does_not_exist", {});
+    const result = await registry.executeTool(
+      "does_not_exist",
+      {},
+      buildToolContext(),
+    );
 
     expect(result).toEqual({
       ok: false,
@@ -59,9 +79,11 @@ describe("ToolRegistry", () => {
       }),
     );
 
-    const result = await registry.executeTool("strict_tool", {
-      count: "not-a-number",
-    });
+    const result = await registry.executeTool(
+      "strict_tool",
+      { count: "not-a-number" },
+      buildToolContext(),
+    );
 
     expect(handler).not.toHaveBeenCalled();
     expect(result.ok).toBe(false);
@@ -80,7 +102,11 @@ describe("ToolRegistry", () => {
       }),
     );
 
-    const result = await registry.executeTool("add_one", { n: 41 });
+    const result = await registry.executeTool(
+      "add_one",
+      { n: 41 },
+      buildToolContext(),
+    );
 
     expect(result).toEqual({ ok: true, data: 42 });
   });
@@ -97,7 +123,9 @@ describe("ToolRegistry", () => {
       }),
     );
 
-    await expect(registry.executeTool("exploding_tool", {})).resolves.toEqual({
+    await expect(
+      registry.executeTool("exploding_tool", {}, buildToolContext()),
+    ).resolves.toEqual({
       ok: false,
       failure: { code: "handler_error", message: "boom" },
     });
@@ -116,11 +144,56 @@ describe("ToolRegistry", () => {
       }),
     );
 
-    const result = await registry.executeTool("throws_a_string", {});
+    const result = await registry.executeTool(
+      "throws_a_string",
+      {},
+      buildToolContext(),
+    );
 
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.failure.code).toBe("handler_error");
     }
+  });
+
+  it("maps a thrown ToolRefusalError to its own typed failure code, not handler_error", async () => {
+    const registry = new ToolRegistry();
+    registry.register(
+      buildTool({
+        name: "refusing_tool",
+        inputSchema: z.object({}),
+        handler: () => {
+          throw new ToolRefusalError("tenant_mismatch", "x");
+        },
+      }),
+    );
+
+    const result = await registry.executeTool(
+      "refusing_tool",
+      {},
+      buildToolContext(),
+    );
+
+    expect(result).toEqual({
+      ok: false,
+      failure: { code: "tenant_mismatch", message: "x" },
+    });
+  });
+
+  it("passes the context given to executeTool through to the handler as its second argument", async () => {
+    const registry = new ToolRegistry();
+    const handler = vi.fn(() => "ok");
+    registry.register(
+      buildTool({
+        name: "context_aware_tool",
+        inputSchema: z.object({}),
+        handler,
+      }),
+    );
+    const context = buildToolContext();
+
+    await registry.executeTool("context_aware_tool", {}, context);
+
+    expect(handler).toHaveBeenCalledWith({}, context);
   });
 });

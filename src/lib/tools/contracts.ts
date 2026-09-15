@@ -6,6 +6,7 @@
  * tool loop, no reply-path wiring, no product tools live here.
  */
 import type { z } from "zod";
+import type { ToolPipelineContext } from "./tenant-guard";
 
 /**
  * Every classified reason a tool call can fail, modeled on
@@ -27,10 +28,32 @@ export type ToolFailure = {
 };
 
 /**
+ * A handler's own typed refusal to run — distinct from an ordinary bug. A
+ * handler throws this (instead of returning a failure or letting an
+ * unrelated error escape) when it deliberately declines the call, e.g.
+ * `requireSameTenant` (`./tenant-guard.ts`) failing closed on a cross-tenant
+ * write. `ToolRegistry.executeTool` (`registry.ts`) recognizes this type
+ * specifically and maps it to `{ code, message }` verbatim, rather than
+ * collapsing it into the generic `handler_error` code every other thrown
+ * error gets.
+ */
+export class ToolRefusalError extends Error {
+  constructor(
+    public readonly code: ToolFailureCode,
+    message: string,
+  ) {
+    super(message);
+    this.name = "ToolRefusalError";
+  }
+}
+
+/**
  * The result of a tool call. This boundary never throws — an unknown tool
- * name, a schema-validation failure, and a thrown handler error all
- * resolve to `{ ok: false }` (see `ToolRegistry.executeTool` in
- * `registry.ts`) rather than propagating an exception.
+ * name, a schema-validation failure, and a thrown handler error (including a
+ * thrown `ToolRefusalError`, mapped to its own carried code rather than
+ * `handler_error`) all resolve to `{ ok: false }` (see
+ * `ToolRegistry.executeTool` in `registry.ts`) rather than propagating an
+ * exception.
  */
 export type ToolResult<TOutput = unknown> =
   { ok: true; data: TOutput } | { ok: false; failure: ToolFailure };
@@ -49,11 +72,22 @@ export type ToolResult<TOutput = unknown> =
  * convention — see `__tests__/mutating-tool-guard-wiring.test.ts`, which
  * fails the build if a tool source file declares `mutating: true` without a
  * `requireSameTenant(` call in the same file.
+ *
+ * The handler's second parameter is the `ToolPipelineContext` the reply path
+ * resolved before any tool ran (`registry.ts`'s `executeTool` supplies it,
+ * never the model). A handler never throws for an ordinary business-logic
+ * failure — it returns `TOutput` describing the outcome — but it MAY throw
+ * `ToolRefusalError` to deliberately decline the call (e.g. a
+ * `requireSameTenant` failure), which `executeTool` maps to its own typed
+ * failure code instead of the generic `handler_error` catch-all.
  */
 export type ToolDefinition<TInput = unknown, TOutput = unknown> = {
   name: string;
   description: string;
   mutating: boolean;
   inputSchema: z.ZodType<TInput>;
-  handler: (input: TInput) => Promise<TOutput> | TOutput;
+  handler: (
+    input: TInput,
+    context: ToolPipelineContext,
+  ) => Promise<TOutput> | TOutput;
 };
