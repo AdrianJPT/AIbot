@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   cleanupOwnershipFixtures,
@@ -6,7 +8,7 @@ import {
   createTestMessage,
   createTestUser,
 } from "@/lib/__tests__/fixtures/ownership";
-import { deliveryHealth } from "../repository";
+import { deliveryHealth, volumeByDay } from "../repository";
 
 const ownerIds: string[] = [];
 
@@ -121,5 +123,67 @@ describe("deliveryHealth", () => {
     expect(result.totalFailed).toBe(1);
     expect(result.byCode.auth).toBe(1);
     expect(result.byCode.rate_limit).toBe(0);
+  });
+});
+
+describe("volumeByDay", () => {
+  it("renders a UTC day with no traffic as a zero bucket, not omitted", async () => {
+    const { owner, conversation } = await setupOwnerWithConversation("vol-gap");
+    const range = testRange(2); // two UTC days: only the earlier one gets traffic
+    await createTestMessage(conversation.id, {
+      sentBy: "customer",
+      createdAt: range.start,
+    });
+
+    const buckets = await volumeByDay(owner, range);
+
+    expect(buckets).toHaveLength(2);
+    expect(buckets[0].inbound).toBe(1);
+    expect(buckets[1]).toEqual({
+      day: buckets[1].day,
+      inbound: 0,
+      outbound: 0,
+    });
+  });
+
+  it("never lets a second tenant's traffic into the first tenant's day buckets", async () => {
+    const { owner: owner1, conversation: conversation1 } =
+      await setupOwnerWithConversation("vol-tenant-a");
+    const { conversation: conversation2 } =
+      await setupOwnerWithConversation("vol-tenant-b");
+    const range = testRange(1);
+
+    await createTestMessage(conversation1.id, {
+      sentBy: "customer",
+      createdAt: range.start,
+    });
+    await createTestMessage(conversation2.id, {
+      sentBy: "customer",
+      createdAt: range.start,
+    });
+    await createTestMessage(conversation2.id, {
+      sentBy: "bot",
+      createdAt: range.start,
+    });
+
+    const buckets = await volumeByDay(owner1, range);
+
+    expect(buckets).toHaveLength(1);
+    expect(buckets[0].inbound).toBe(1);
+    expect(buckets[0].outbound).toBe(0);
+  });
+});
+
+describe("raw SQL safety (task 2.11)", () => {
+  it("builds every raw query with tagged-template interpolation, never Prisma.raw or an unsafe query", () => {
+    const source = readFileSync(
+      path.join(__dirname, "../repository.ts"),
+      "utf-8",
+    );
+
+    expect(source).toMatch(/\$queryRaw(<[^>]*>)?`/);
+    expect(source).not.toMatch(/Prisma\.raw\(/);
+    expect(source).not.toMatch(/\$queryRawUnsafe/);
+    expect(source).not.toMatch(/\$executeRawUnsafe/);
   });
 });

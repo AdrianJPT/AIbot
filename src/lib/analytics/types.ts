@@ -27,6 +27,13 @@ export type DeliveryHealth = {
 };
 
 /**
+ * Inbound/outbound message counts for one UTC calendar day. `day` is
+ * `"YYYY-MM-DD"`. A day with no traffic is still represented with zero
+ * counts, never omitted (spec `Volume Over Time`).
+ */
+export type DayBucket = { day: string; inbound: number; outbound: number };
+
+/**
  * Average time-to-respond for one UTC calendar day (spec `Time to
  * Respond`). `avgMs` is `null` and `sampleCount` is 0 for a day with no
  * completed reply — never a synthetic zero-duration average.
