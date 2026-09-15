@@ -501,6 +501,188 @@ describe("billableChatsByPhoneNumber", () => {
   });
 });
 
+// All existing tenant-isolation tests above use two different owners. That
+// leaves the case the spec calls most important untested: one owner with
+// TWO businesses. `messageScope`/`eventLogScope`/`businessScope` (src/lib/
+// scope.ts) filter by `ownerId`, never by a single `businessId`, so an
+// owner-scoped aggregation is expected to combine both of their businesses —
+// and a query additionally scoped to one phone number must still not bleed
+// the owner's OTHER business's traffic in.
+describe("multi-business owner tenant isolation", () => {
+  async function setupOwnerWithTwoBusinesses(prefix: string) {
+    const owner = await createTestUser(prefix);
+    ownerIds.push(owner.id);
+    const businessA = await createTestBusiness(owner.id, `${prefix}-a`);
+    const businessB = await createTestBusiness(owner.id, `${prefix}-b`);
+    const conversationA = await createTestConversation(
+      businessA.id,
+      `${prefix}-a`,
+    );
+    const conversationB = await createTestConversation(
+      businessB.id,
+      `${prefix}-b`,
+    );
+    return { owner, businessA, businessB, conversationA, conversationB };
+  }
+
+  it("combines a distinct failure from each of an owner's two businesses in deliveryHealth", async () => {
+    const { owner, conversationA, conversationB } =
+      await setupOwnerWithTwoBusinesses("mb-dh");
+    const range = testRange(1);
+
+    // Distinct codes so a mismatch (dropped, duplicated, or swapped) is
+    // unambiguous rather than coincidentally matching.
+    await createTestMessage(conversationA.id, {
+      sentBy: "bot",
+      status: "failed",
+      failureCode: "auth",
+      createdAt: range.start,
+    });
+    await createTestMessage(conversationB.id, {
+      sentBy: "bot",
+      status: "failed",
+      failureCode: "rate_limit",
+      createdAt: range.start,
+    });
+
+    const health = await deliveryHealth(owner, range);
+
+    expect(health.totalFailed).toBe(2);
+    expect(health.byCode.auth).toBe(1);
+    expect(health.byCode.rate_limit).toBe(1);
+  });
+
+  it("combines one inbound message from each of an owner's two businesses in volumeByDay", async () => {
+    const { owner, conversationA, conversationB } =
+      await setupOwnerWithTwoBusinesses("mb-vol");
+    const range = testRange(1);
+
+    await createTestMessage(conversationA.id, {
+      sentBy: "customer",
+      createdAt: range.start,
+    });
+    await createTestMessage(conversationB.id, {
+      sentBy: "customer",
+      createdAt: range.start,
+    });
+
+    const buckets = await volumeByDay(owner, range);
+
+    expect(buckets).toHaveLength(1);
+    expect(buckets[0].inbound).toBe(2);
+    expect(buckets[0].outbound).toBe(0);
+  });
+
+  it("averages a distinct reply time from each of an owner's two businesses in responseTimeByDay", async () => {
+    const { owner, conversationA, conversationB } =
+      await setupOwnerWithTwoBusinesses("mb-rt");
+    const range = testRange(1);
+
+    // One customer message + one reply per business (not two per business),
+    // so the LATERAL join in responseTimeByDay has exactly one candidate
+    // reply to pick per conversation and can't cross-pair with an unrelated
+    // message. Different elapsed times so an average that silently
+    // collapsed to a single business's number would be caught.
+    await createTestMessage(conversationA.id, {
+      sentBy: "customer",
+      createdAt: range.start,
+    });
+    await createTestMessage(conversationA.id, {
+      sentBy: "bot",
+      createdAt: new Date(range.start.getTime() + 10_000),
+    });
+    await createTestMessage(conversationB.id, {
+      sentBy: "customer",
+      createdAt: range.start,
+    });
+    await createTestMessage(conversationB.id, {
+      sentBy: "bot",
+      createdAt: new Date(range.start.getTime() + 30_000),
+    });
+
+    const buckets = await responseTimeByDay(owner, range);
+
+    expect(buckets).toHaveLength(1);
+    expect(buckets[0].sampleCount).toBe(2);
+    expect(buckets[0].avgMs).toBe((10_000 + 30_000) / 2);
+  });
+
+  it("sums one ai-usage sample from each of an owner's two businesses in tokenUsage", async () => {
+    const { owner, businessA, businessB } =
+      await setupOwnerWithTwoBusinesses("mb-tok");
+    const range = testRange(7);
+
+    await prisma.eventLog.create({
+      data: {
+        level: "info",
+        source: "ai-usage",
+        message: "AI call token usage",
+        businessId: businessA.id,
+        detail: { promptTokens: 10, completionTokens: 1, totalTokens: 11 },
+      },
+    });
+    await prisma.eventLog.create({
+      data: {
+        level: "info",
+        source: "ai-usage",
+        message: "AI call token usage",
+        businessId: businessB.id,
+        detail: { promptTokens: 20, completionTokens: 2, totalTokens: 22 },
+      },
+    });
+
+    const usage = await tokenUsage(owner, range);
+
+    expect(usage).toEqual({
+      promptTokens: 30,
+      completionTokens: 3,
+      totalTokens: 33,
+      sampleCount: 2,
+    });
+  });
+
+  it("never lets a phone-number-scoped query bleed traffic from the same owner's other business", async () => {
+    const { owner, conversationA, conversationB } =
+      await setupOwnerWithTwoBusinesses("mb-phone");
+    const opensAt = utcMidnight(-1);
+
+    // Business A: one chat (customer + reply).
+    await createTestMessage(conversationA.id, {
+      sentBy: "customer",
+      createdAt: opensAt,
+    });
+    await createTestMessage(conversationA.id, {
+      sentBy: "bot",
+      createdAt: new Date(opensAt.getTime() + 60_000),
+    });
+
+    // Business B: two separate chats, so an under- or over-match by exactly
+    // one is also caught, not just a total absence of scoping.
+    await createTestMessage(conversationB.id, {
+      sentBy: "customer",
+      createdAt: opensAt,
+    });
+    await createTestMessage(conversationB.id, {
+      sentBy: "customer",
+      createdAt: new Date(opensAt.getTime() + 25 * 60 * 60 * 1000),
+    });
+
+    const countA = await billableChatsByPhoneNumber(
+      owner,
+      conversationA.phoneNumberId,
+      testRange(7),
+    );
+    const countB = await billableChatsByPhoneNumber(
+      owner,
+      conversationB.phoneNumberId,
+      testRange(7),
+    );
+
+    expect(countA).toBe(1);
+    expect(countB).toBe(2);
+  });
+});
+
 describe("raw SQL safety (task 2.11, extended in 3.6)", () => {
   it("builds every raw query with tagged-template interpolation, never Prisma.raw or an unsafe query", () => {
     const source = readFileSync(
