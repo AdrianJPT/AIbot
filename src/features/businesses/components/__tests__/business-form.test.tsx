@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import type { BusinessDetail } from "@/features/businesses/types";
@@ -124,4 +126,56 @@ describe("BusinessFormFields template prefill", () => {
 
     expect(html).toMatch(/name="replyWindowSeconds"[^>]*value="5"/);
   });
+});
+
+// The core promise of the giro picker is that a prefilled field is still the
+// operator's field: whatever they type must win over the template. This repo
+// has no jsdom/testing-library (environment: "node" in vitest.config.ts), so
+// we can't simulate typing and read back a changed value. What we CAN prove
+// at the source level is the mechanism that makes editing possible at all:
+// every templated field is rendered uncontrolled (`defaultValue`, no `value`
+// prop). React only ever seeds an uncontrolled field once, on mount — a
+// `value` prop would instead re-pin it on every re-render (including the one
+// its own onChange triggers), silently discarding the operator's edit. This
+// mirrors the repo's existing "read the source and assert its shape"
+// convention (see `raw SQL safety` in analytics/repository.test.ts).
+describe("BusinessFormFields templated fields stay editable (uncontrolled, not pinned)", () => {
+  const businessFormSource = readFileSync(
+    path.join(__dirname, "../business-form.tsx"),
+    "utf-8",
+  );
+  const replyDebounceSource = readFileSync(
+    path.join(__dirname, "../reply-debounce-card.tsx"),
+    "utf-8",
+  );
+
+  function extractSelfClosingElement(source: string, fieldId: string): string {
+    const match = source.match(new RegExp(`id="${fieldId}"[\\s\\S]*?/>`));
+    if (!match) {
+      throw new Error(
+        `expected a self-closing element with id="${fieldId}" in the source`,
+      );
+    }
+    return match[0];
+  }
+
+  it.each([
+    ["welcomeMessage", "business-form.tsx", () => businessFormSource],
+    ["systemPrompt", "business-form.tsx", () => businessFormSource],
+    ["businessInfo", "business-form.tsx", () => businessFormSource],
+    ["knowledgeDoc", "business-form.tsx", () => businessFormSource],
+    [
+      "replyWindowSeconds",
+      "reply-debounce-card.tsx",
+      () => replyDebounceSource,
+    ],
+  ] as const)(
+    "%s (%s) is rendered with defaultValue and no pinning value prop",
+    (fieldId, _file, getSource) => {
+      const element = extractSelfClosingElement(getSource(), fieldId);
+
+      expect(element).toMatch(/defaultValue=/);
+      expect(element).not.toMatch(/\bvalue=/);
+    },
+  );
 });

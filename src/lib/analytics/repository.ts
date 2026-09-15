@@ -274,3 +274,53 @@ export async function tokenUsage(
 
   return totals;
 }
+
+type BillableChatCountRow = { count: number };
+
+/**
+ * Counts billable chats opened within `range` for a single phone number
+ * (design #1432's `LAG()` derivation, plans-and-quotas task 2.4). A chat
+ * opens on a customer (`sentBy: "customer"`) message with no earlier
+ * customer message in the preceding 24 hours; bot/operator messages never
+ * reset the clock or open a chat (ruling #1427 — only `sentBy: "customer"`
+ * rows are ever selected). The `- interval '24 hours'` lookback on the
+ * inner query covers a chat that opened before `range.start` and is still
+ * open at the boundary, so the outer `LAG()` comparison sees its true
+ * previous customer message instead of miscounting it as new (spec
+ * scenario "A chat spans a cycle boundary"). `Conversation[phoneNumberId,
+ * lastMessageAt]` and `Message[conversationId, createdAt]` (both existing)
+ * are what keep this an index range scan per conversation — see task 2.8's
+ * EXPLAIN evidence in apply-progress.
+ *
+ * Tenant filter mirrors `phoneNumberScope`'s ownership rule via
+ * `tenantFilterSql` (same pattern as `volumeByDay`/`responseTimeByDay`
+ * above): a `phoneNumberId` outside the caller's own businesses matches
+ * zero rows instead of leaking another tenant's count. Built entirely from
+ * Prisma's tagged template — never `Prisma.raw`/string concatenation.
+ */
+export async function billableChatsByPhoneNumber(
+  user: ScopedUser,
+  phoneNumberId: string,
+  range: AnalyticsRange,
+): Promise<number> {
+  const rows = await prisma.$queryRaw<BillableChatCountRow[]>`
+    SELECT count(*)::int AS count FROM (
+      SELECT m."createdAt",
+             LAG(m."createdAt") OVER (
+               PARTITION BY m."conversationId" ORDER BY m."createdAt"
+             ) AS prev
+      FROM "Message" m
+      JOIN "Conversation" c ON c.id = m."conversationId"
+      JOIN "Business" b ON b.id = c."businessId"
+      WHERE c."phoneNumberId" = ${phoneNumberId}
+        AND m."sentBy" = 'customer'
+        AND m."createdAt" >= ${range.start} - interval '24 hours'
+        AND m."createdAt" <  ${range.end}
+        AND ${tenantFilterSql(user)}
+    ) g
+    WHERE g."createdAt" >= ${range.start}
+      AND (g.prev IS NULL OR g."createdAt" - g.prev >= interval '24 hours')
+  `;
+
+  return rows[0]?.count ?? 0;
+}
