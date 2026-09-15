@@ -51,3 +51,11 @@ export type TokenUsage = {
   totalTokens: number;
   sampleCount: number;
 };
+
+/**
+ * The only two selectable ranges (spec `Range Selection`): fixed and
+ * bounded, never open-ended, so every query stays index-served on date
+ * columns.
+ */
+export const ANALYTICS_RANGE_KEYS = ["7d", "30d"] as const;
+export type AnalyticsRangeKey = (typeof ANALYTICS_RANGE_KEYS)[number];
