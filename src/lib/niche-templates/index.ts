@@ -1,10 +1,15 @@
 import barberia from "@/lib/niche-templates/barberia";
 import cafeteria from "@/lib/niche-templates/cafeteria";
+import clinica from "@/lib/niche-templates/clinica";
+import coach from "@/lib/niche-templates/coach";
 import dentista from "@/lib/niche-templates/dentista";
+import gimnasio from "@/lib/niche-templates/gimnasio";
+import inmobiliaria from "@/lib/niche-templates/inmobiliaria";
 import panaderia from "@/lib/niche-templates/panaderia";
 import restaurante from "@/lib/niche-templates/restaurante";
 import salonDeBelleza from "@/lib/niche-templates/salon-de-belleza";
 import spa from "@/lib/niche-templates/spa";
+import tienda from "@/lib/niche-templates/tienda";
 import type { NicheTemplate } from "@/lib/niche-templates/types";
 
 export type { NicheId, NicheTemplate } from "@/lib/niche-templates/types";
@@ -22,6 +27,11 @@ export const NICHE_TEMPLATE_LIST: NicheTemplate[] = [
   salonDeBelleza,
   spa,
   dentista,
+  clinica,
+  gimnasio,
+  coach,
+  inmobiliaria,
+  tienda,
 ];
 
 /**
