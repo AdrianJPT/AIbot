@@ -68,6 +68,17 @@ export function messageScope(user: ScopedUser): Prisma.MessageWhereInput {
 }
 
 /**
+ * Same as `businessScope`, scoped through the `PhoneNumber -> Business`
+ * relation. Backs plans-and-quotas entitlement/usage reads (allowance panel,
+ * billable-chat derivation) so a client only ever sees numbers they own.
+ */
+export function phoneNumberScope(
+  user: ScopedUser,
+): Prisma.PhoneNumberWhereInput {
+  return isAdmin(user) ? {} : { business: { ownerId: user.id } };
+}
+
+/**
  * `EventLog.businessId` is nullable (see schema.prisma) — some events (e.g.
  * auth failures before a business is resolved) carry no businessId. Admins
  * see everything; clients see events for a business they own OR events with
