@@ -3,7 +3,9 @@ import {
   appointmentScope,
   businessScope,
   conversationScope,
+  eventLogScope,
   isAdmin,
+  messageScope,
   paymentSessionScope,
 } from "@/lib/scope";
 
@@ -62,6 +64,38 @@ describe("paymentSessionScope", () => {
   it("scopes through business.ownerId for clients", () => {
     expect(paymentSessionScope(client)).toEqual({
       business: { ownerId: client.id },
+    });
+  });
+});
+
+describe("messageScope", () => {
+  it("returns no filter for admins", () => {
+    expect(messageScope(admin)).toEqual({});
+  });
+
+  it("scopes through conversation.business.ownerId for clients", () => {
+    expect(messageScope(client)).toEqual({
+      conversation: { business: { ownerId: client.id } },
+    });
+  });
+});
+
+describe("eventLogScope", () => {
+  const ownedBusinessIds = ["biz-1", "biz-2"];
+
+  it("returns no filter for admins", () => {
+    expect(eventLogScope(admin, ownedBusinessIds)).toEqual({});
+  });
+
+  it("scopes clients to owned businessIds OR a null businessId", () => {
+    expect(eventLogScope(client, ownedBusinessIds)).toEqual({
+      OR: [{ businessId: { in: ownedBusinessIds } }, { businessId: null }],
+    });
+  });
+
+  it("scopes a client with no owned businesses to null businessId only", () => {
+    expect(eventLogScope(client, [])).toEqual({
+      OR: [{ businessId: { in: [] } }, { businessId: null }],
     });
   });
 });

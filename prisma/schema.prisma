@@ -222,6 +222,12 @@ model Appointment {
   status         String        @default("pending")
   notes          String?
   createdAt      DateTime      @default(now())
+
+  // Serves operational-analytics range-bounded queries (spec "Range
+  // Selection": every analytics query must be index-served on date and
+  // tenant columns). Appointment carried zero indexes before this — every
+  // lookup was a full table scan.
+  @@index([businessId, createdAt])
 }
 
 // Manually-seeded price list for the payment-verification engine (v1: no

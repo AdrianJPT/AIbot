@@ -52,3 +52,36 @@ export function paymentSessionScope(
 ): Prisma.PaymentSessionWhereInput {
   return isAdmin(user) ? {} : { business: { ownerId: user.id } };
 }
+
+/**
+ * Same as `businessScope`, scoped through the `Message -> Conversation ->
+ * Business` relation. Used by operational-analytics' delivery-health and
+ * volume queries.
+ */
+export function messageScope(user: ScopedUser): Prisma.MessageWhereInput {
+  return isAdmin(user)
+    ? {}
+    : { conversation: { business: { ownerId: user.id } } };
+}
+
+/**
+ * `EventLog.businessId` is nullable (see schema.prisma) — some events (e.g.
+ * auth failures before a business is resolved) carry no businessId. Admins
+ * see everything; clients see events for a business they own OR events with
+ * no business at all, matching the accepted OR-array pattern already used
+ * by `src/app/(app)/page.tsx`'s dashboard error count. A relation filter
+ * (`business: { ownerId }`) would INNER-JOIN and silently drop the
+ * `businessId: null` rows the dashboard already counts, which is why this
+ * takes the caller's precomputed owned business ids instead of deriving
+ * them itself.
+ */
+export function eventLogScope(
+  user: ScopedUser,
+  ownedBusinessIds: string[],
+): Prisma.EventLogWhereInput {
+  return isAdmin(user)
+    ? {}
+    : {
+        OR: [{ businessId: { in: ownedBusinessIds } }, { businessId: null }],
+      };
+}
