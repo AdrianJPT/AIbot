@@ -8,10 +8,22 @@ describe("sendFailureCopy", () => {
     expect(copy.retryLabel).toBe("Reintento no disponible");
   });
 
-  it("returns cause-specific copy for auth", () => {
+  it("returns cause-specific copy for auth naming the fix, keeping retry available", () => {
     const copy = sendFailureCopy("auth");
-    expect(copy.title).toContain("autenticación");
+    expect(copy.title).toContain("conexión");
     expect(copy.retryLabel).toBe("Reintentar");
+  });
+
+  it("relabels retry as 'Ya reintentado' when the message was already retried, keeping the original cause in the title", () => {
+    const copy = sendFailureCopy("rate_limit", true);
+    expect(copy.title).toContain("límite");
+    expect(copy.retryLabel).toBe("Ya reintentado");
+  });
+
+  it("defaults to not-retried when the second argument is omitted", () => {
+    expect(sendFailureCopy("rate_limit")).toEqual(
+      sendFailureCopy("rate_limit", false),
+    );
   });
 
   it("returns cause-specific copy for rate_limit", () => {
@@ -85,6 +97,27 @@ describe("canRetryFailedMessage", () => {
         role: "assistant",
         status: "failed",
         failureCode: "window_expired",
+      }),
+    ).toBe(false);
+  });
+
+  it("allows retry when the failure code is auth: fixing the credential makes the same send succeed", () => {
+    expect(
+      canRetryFailedMessage({
+        role: "assistant",
+        status: "failed",
+        failureCode: "auth",
+      }),
+    ).toBe(true);
+  });
+
+  it("denies retry when the message was already retried successfully, even with an otherwise-retryable code", () => {
+    expect(
+      canRetryFailedMessage({
+        role: "assistant",
+        status: "failed",
+        failureCode: "rate_limit",
+        retried: true,
       }),
     ).toBe(false);
   });

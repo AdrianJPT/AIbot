@@ -78,7 +78,9 @@ export function MessageBubble({
   // rendering correct even if a caller only ever sets `failed`.
   const isFailed = message.status === "failed" || Boolean(message.failed);
   const retryEligible = isFailed && canRetryFailedMessage(message);
-  const failureCopy = isFailed ? sendFailureCopy(message.failureCode) : null;
+  const failureCopy = isFailed
+    ? sendFailureCopy(message.failureCode, message.retried)
+    : null;
   const time = new Date(message.createdAt).toLocaleTimeString("es-MX", {
     hour: "2-digit",
     minute: "2-digit",
@@ -110,17 +112,27 @@ export function MessageBubble({
           {message.content}
         </div>
 
+        {isFailed && failureCopy && (
+          // Visible cause text (design decision, defect 2): a phone has no
+          // hover, so the button's title/aria-label alone never reaches a
+          // mobile operator. This is the single place the cause is
+          // announced to screen readers too — the button below carries no
+          // aria-label of its own, so nothing is read twice.
+          <div className="mt-1 text-[11px] text-muted-foreground">
+            {failureCopy.title}
+          </div>
+        )}
+
         <div className="mt-1 flex items-center justify-end gap-1 text-[10px] text-muted-foreground">
           {message.pending && (
             <Clock className="h-3 w-3" aria-label="Enviando" />
           )}
+          {!message.pending && <span>{time}</span>}
           {isFailed && failureCopy ? (
             <button
               type="button"
               onClick={retryEligible ? onRetry : undefined}
               disabled={!retryEligible || retrying}
-              title={failureCopy.title}
-              aria-label={failureCopy.title}
               className={cn(
                 "flex items-center gap-1",
                 retryEligible
@@ -132,12 +144,8 @@ export function MessageBubble({
               {retrying ? "Reintentando…" : failureCopy.retryLabel}
             </button>
           ) : (
-            !message.pending && (
-              <>
-                <span>{time}</span>
-                {!isCustomer && <DeliveryTicks status={message.status} />}
-              </>
-            )
+            !message.pending &&
+            !isCustomer && <DeliveryTicks status={message.status} />
           )}
         </div>
 
