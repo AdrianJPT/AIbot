@@ -438,7 +438,9 @@ describe("opencode-zen base URL resolution", () => {
       updatedAt: new Date("2026-03-01T00:00:00.000Z"),
     });
     credentialFindUnique.mockResolvedValue(credential);
-    const business = makeBusiness({ aiCredentialId: "cred_opencode_zen_default" });
+    const business = makeBusiness({
+      aiCredentialId: "cred_opencode_zen_default",
+    });
 
     await callWithAiCredential(business, vi.fn().mockResolvedValue("ok"));
 
@@ -455,12 +457,16 @@ describe("opencode-zen base URL resolution", () => {
       updatedAt: new Date("2026-03-02T00:00:00.000Z"),
     });
     credentialFindUnique.mockResolvedValue(credential);
-    const business = makeBusiness({ aiCredentialId: "cred_opencode_zen_override" });
+    const business = makeBusiness({
+      aiCredentialId: "cred_opencode_zen_override",
+    });
 
     await callWithAiCredential(business, vi.fn().mockResolvedValue("ok"));
 
     expect(openAiCtor).toHaveBeenCalledWith(
-      expect.objectContaining({ baseURL: "https://custom.opencode.example/v1" }),
+      expect.objectContaining({
+        baseURL: "https://custom.opencode.example/v1",
+      }),
     );
   });
 });
@@ -518,6 +524,34 @@ describe("callWithAiCredential — global fallback chain (no business.aiCredenti
         orderBy: [{ priority: "asc" }, { createdAt: "asc" }],
       });
     }
+  });
+
+  it("passes the resolved candidate's own provider to fn as a second argument — the tool-calling loop's allow-list check reads this", async () => {
+    credentialFindMany.mockResolvedValue([
+      makeCredential({ id: "cred_1", provider: "openrouter" }),
+    ]);
+    const business = makeBusiness({ aiCredentialId: null });
+
+    const fn = vi.fn().mockResolvedValue("ok");
+    await callWithAiCredential(business, fn);
+
+    expect(fn).toHaveBeenCalledWith(expect.anything(), "openrouter");
+  });
+
+  it("passes the CURRENT candidate's provider on retry/failover, not the first candidate's", async () => {
+    const first = makeCredential({ id: "cred_first", provider: "google" });
+    const second = makeCredential({ id: "cred_second", provider: "openai" });
+    credentialFindMany.mockResolvedValue([first, second]);
+    const business = makeBusiness({ aiCredentialId: null });
+
+    const fn = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("first candidate down"))
+      .mockResolvedValueOnce("ok");
+    await callWithAiCredential(business, fn);
+
+    expect(fn).toHaveBeenNthCalledWith(1, expect.anything(), "google");
+    expect(fn).toHaveBeenNthCalledWith(2, expect.anything(), "openai");
   });
 
   it("uses only the first candidate on success — never calls fn against the second", async () => {

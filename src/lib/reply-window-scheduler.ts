@@ -297,6 +297,7 @@ async function doFlush(
     fresh.id,
     history,
     batchedContent,
+    dispatchId,
   );
   if (reply === null) {
     await markBatched(batchedIds);

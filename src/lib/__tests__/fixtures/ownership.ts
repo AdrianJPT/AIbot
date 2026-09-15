@@ -53,6 +53,7 @@ export async function createTestBusinessWithNumber(
     paymentsEnabled: boolean;
     dailyAiLimit: number;
     summaryEnabled: boolean;
+    toolsEnabled: boolean;
   }> = {},
 ): Promise<Business & { phoneNumbers: PhoneNumber[] }> {
   return prisma.business.create({
@@ -76,6 +77,9 @@ export async function createTestBusinessWithNumber(
       }),
       ...(overrides.summaryEnabled !== undefined && {
         summaryEnabled: overrides.summaryEnabled,
+      }),
+      ...(overrides.toolsEnabled !== undefined && {
+        toolsEnabled: overrides.toolsEnabled,
       }),
       phoneNumbers: {
         create: { phoneNumberId: `test-phone-${suffix}-${randomUUID()}` },
