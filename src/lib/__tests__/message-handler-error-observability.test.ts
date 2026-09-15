@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { buildBusiness, buildPhoneNumber } from "./fixtures/business";
 import { buildAiReply } from "./fixtures/ai-reply";
 import { textMessagePayload } from "./fixtures/webhook-payload";
+import { ChannelSendError } from "../channels/send-failure";
 
 const findFirstPhoneNumber = vi.fn();
 const findFirstMessage = vi.fn();
@@ -211,7 +212,34 @@ describe("error observability", () => {
     expect(sendFailures[0]).toMatchObject({ level: "error" });
     expect(messageUpdate).toHaveBeenCalledWith({
       where: { id: "msg_out_1" },
-      data: { status: "failed" },
+      data: {
+        status: "failed",
+        failureCode: "unknown",
+        failureDetail: "WhatsApp API timeout",
+      },
+    });
+  });
+
+  it("persists a classified failureCode/failureDetail when the WhatsApp send fails with a ChannelSendError", async () => {
+    sendFromNumber.mockRejectedValue(
+      new ChannelSendError(
+        "WhatsApp send failed: Request failed with status code 400",
+        {
+          code: "window_expired",
+          detail: "131047 Re-engagement message: 24 hour window expired",
+        },
+      ),
+    );
+
+    await expect(runIngestThenSweep(textMessagePayload)).resolves.toBeDefined();
+
+    expect(messageUpdate).toHaveBeenCalledWith({
+      where: { id: "msg_out_1" },
+      data: {
+        status: "failed",
+        failureCode: "window_expired",
+        failureDetail: "131047 Re-engagement message: 24 hour window expired",
+      },
     });
   });
 });

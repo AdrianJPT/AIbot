@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import type { Business, Conversation, User } from "@prisma/client";
 import { prisma } from "@/lib/db";
+import { ChannelSendError } from "@/lib/channels/send-failure";
 import {
   cleanupOwnershipFixtures,
   createTestBusiness,
@@ -89,6 +90,43 @@ describe("POST /api/conversations/[id]/send", () => {
       conversation.lastMessageAt.getTime(),
     );
     expect(updated.unreadCount).toBe(conversation.unreadCount);
+
+    await prisma.message.delete({ where: { id: msg.id } });
+  });
+
+  it("persists the classified failureCode/failureDetail on a window_expired send failure before the response returns", async () => {
+    getSessionUser.mockResolvedValueOnce(owner);
+    sendFromNumber.mockRejectedValueOnce(
+      new ChannelSendError(
+        "WhatsApp send failed: Request failed with status code 400",
+        {
+          code: "window_expired",
+          detail: "131047 Re-engagement message: 24 hour window expired",
+        },
+      ),
+    );
+    const { POST } = await import("../route");
+
+    const res = await POST(buildRequest("mensaje tardío"), {
+      params: Promise.resolve({ id: conversation.id }),
+    });
+    const msg = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(msg.status).toBe("failed");
+    expect(msg.failureCode).toBe("window_expired");
+    expect(msg.failureDetail).toBe(
+      "131047 Re-engagement message: 24 hour window expired",
+    );
+
+    const persisted = await prisma.message.findUniqueOrThrow({
+      where: { id: msg.id },
+    });
+    expect(persisted.status).toBe("failed");
+    expect(persisted.failureCode).toBe("window_expired");
+    expect(persisted.failureDetail).toBe(
+      "131047 Re-engagement message: 24 hour window expired",
+    );
 
     await prisma.message.delete({ where: { id: msg.id } });
   });
