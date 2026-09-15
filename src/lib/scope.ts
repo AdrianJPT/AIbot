@@ -1,6 +1,9 @@
 import type { Prisma, User } from "@prisma/client";
 
-type ScopedUser = Pick<User, "id" | "role">;
+// Exported so downstream modules (e.g. `src/lib/analytics/repository.ts`)
+// can type their own `user` parameter against the same minimal shape
+// instead of requiring a full Prisma `User`.
+export type ScopedUser = Pick<User, "id" | "role">;
 
 /**
  * True when the user has the "admin" role. Admins are the product owner's
