@@ -50,6 +50,8 @@ export function buildPhoneNumber(
     displayPhone: null,
     whatsappCredentialId: null,
     channelConnectionId: null,
+    planCode: null,
+    cycleAnchorDate: null,
     isActive: true,
     createdAt: new Date(),
     updatedAt: new Date(),

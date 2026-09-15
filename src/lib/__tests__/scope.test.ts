@@ -7,6 +7,7 @@ import {
   isAdmin,
   messageScope,
   paymentSessionScope,
+  phoneNumberScope,
 } from "@/lib/scope";
 
 const admin = { id: "admin-1", role: "admin" };
@@ -76,6 +77,18 @@ describe("messageScope", () => {
   it("scopes through conversation.business.ownerId for clients", () => {
     expect(messageScope(client)).toEqual({
       conversation: { business: { ownerId: client.id } },
+    });
+  });
+});
+
+describe("phoneNumberScope", () => {
+  it("returns no filter for admins", () => {
+    expect(phoneNumberScope(admin)).toEqual({});
+  });
+
+  it("scopes through business.ownerId for clients", () => {
+    expect(phoneNumberScope(client)).toEqual({
+      business: { ownerId: client.id },
     });
   });
 });

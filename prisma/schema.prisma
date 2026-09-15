@@ -57,19 +57,47 @@ model Business {
 // than one PhoneNumber; conversations belong to the number the customer
 // actually messaged, not to the WABA directly.
 model PhoneNumber {
-  id                   String         @id @default(cuid())
+  id                   String                  @id @default(cuid())
   businessId           String
-  business             Business       @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  phoneNumberId        String         @unique // Meta's opaque technical id — webhook lookup key
+  business             Business                @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  phoneNumberId        String                  @unique // Meta's opaque technical id — webhook lookup key
   displayPhone         String? // human-readable "+<código país> <número>", shown as the item title
   whatsappCredentialId String?
   channelConnectionId  String? // nullable compat pointer to the generalized ChannelConnection (channel-adapter-foundation PR2) — null until backfilled (PR3), plain id not an FK, same convention as whatsappCredentialId above
-  isActive             Boolean        @default(true)
+  planCode             String? // commercial plan discriminator ("starter" | "basic" | "pro" | "premium", see src/lib/plans/catalog.ts's PlanCode) — nullable until assigned, same convention as channelConnectionId above. Null means no entitlement/enforcement applies yet (plans-and-quotas design, "Entitlement Model").
+  cycleAnchorDate      DateTime? // plan activation date; the billing cycle is a per-number ANNIVERSARY rollover from this date, never a calendar month (plans-and-quotas ruling — see resolveBillingCycle). Null until a plan is assigned.
+  isActive             Boolean                 @default(true)
   conversations        Conversation[]
-  createdAt            DateTime       @default(now())
-  updatedAt            DateTime       @updatedAt
+  usageCycles          PhoneNumberUsageCycle[]
+  createdAt            DateTime                @default(now())
+  updatedAt            DateTime                @updatedAt
 
   @@index([businessId])
+}
+
+// Per-(phone number, billing cycle) counter of AI-generated replies sent to a
+// customer, backing the commercial allowance from plans-and-quotas. Written
+// alongside the bot Message insert (informational only in this slice — no
+// caller exists yet). `@@unique([phoneNumberId, cycleStart])` is the
+// idempotency key `getOrCreateUsageCycle` relies on: a concurrent
+// create-or-fetch race resolves to exactly one row per cycle, same as every
+// other CAS-backed row in this schema. `warnedAt80`/`warnedAt100` are
+// per-cycle idempotency flags for the 80%/100% EventLog warning (flipped by a
+// guarded `updateMany`, mirroring the `dispatchId`-claiming idiom elsewhere),
+// reset to false whenever a new cycle row is created.
+model PhoneNumberUsageCycle {
+  id            String      @id @default(cuid())
+  phoneNumberId String
+  phoneNumber   PhoneNumber @relation(fields: [phoneNumberId], references: [id], onDelete: Cascade)
+  cycleStart    DateTime
+  cycleEnd      DateTime
+  replyCount    Int         @default(0)
+  warnedAt80    Boolean     @default(false)
+  warnedAt100   Boolean     @default(false)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@unique([phoneNumberId, cycleStart])
 }
 
 // Tenant-owned provider connection identity (channel-adapter-foundation
