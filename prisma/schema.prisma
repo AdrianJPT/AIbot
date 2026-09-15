@@ -39,6 +39,7 @@ model Business {
   replyWindowMs         Int                 @default(5000) // 5s default debounce window for batching pending customer messages; 0 explicitly disables the wait — see reply-window-scheduler.ts
   isActive              Boolean             @default(true)
   paymentsEnabled       Boolean             @default(false) // feature flag for the payment-verification engine (slice 1 of 4) — off leaves every new table inert, no code path references them yet; flipping it on is the whole rollback story, no destructive migration needed
+  toolsEnabled          Boolean             @default(false) // per-tenant opt-in into tool-calling; only takes effect when AppConfig.toolsEnabled is also true
   ownerId               String
   owner                 User                @relation(fields: [ownerId], references: [id])
   aiCredentialId        String?
@@ -139,6 +140,7 @@ model AppConfig {
   chatModel            String   @default("gpt-4o-mini")
   visionModel          String   @default("gpt-4o-mini")
   audioModel           String   @default("whisper-1")
+  toolsEnabled         Boolean  @default(false) // platform-wide kill switch for tool-calling; off overrides every Business.toolsEnabled opt-in
   updatedAt            DateTime @updatedAt
 }
 
