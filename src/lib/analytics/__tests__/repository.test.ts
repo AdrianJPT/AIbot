@@ -10,11 +10,14 @@ import {
   createTestUser,
 } from "@/lib/__tests__/fixtures/ownership";
 import {
+  billableChatsByPhoneNumber,
   deliveryHealth,
   responseTimeByDay,
   tokenUsage,
   volumeByDay,
 } from "../repository";
+
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 const ownerIds: string[] = [];
 
@@ -351,6 +354,150 @@ describe("tokenUsage", () => {
       totalTokens: 11,
       sampleCount: 1,
     });
+  });
+});
+
+describe("billableChatsByPhoneNumber", () => {
+  it("counts a single inbound + reply with no return as one chat", async () => {
+    const { owner, conversation } =
+      await setupOwnerWithConversation("bc-single");
+    const opensAt = utcMidnight(-1);
+    await createTestMessage(conversation.id, {
+      sentBy: "customer",
+      createdAt: opensAt,
+    });
+    await createTestMessage(conversation.id, {
+      sentBy: "bot",
+      createdAt: new Date(opensAt.getTime() + 60_000),
+    });
+
+    const count = await billableChatsByPhoneNumber(
+      owner,
+      conversation.phoneNumberId,
+      testRange(7),
+    );
+
+    expect(count).toBe(1);
+  });
+
+  it("counts a return 25h after the last customer message as a second chat", async () => {
+    const { owner, conversation } = await setupOwnerWithConversation("bc-25h");
+    const opensAt = utcMidnight(-2);
+    await createTestMessage(conversation.id, {
+      sentBy: "customer",
+      createdAt: opensAt,
+    });
+    await createTestMessage(conversation.id, {
+      sentBy: "customer",
+      createdAt: new Date(opensAt.getTime() + 25 * 60 * 60 * 1000),
+    });
+
+    const count = await billableChatsByPhoneNumber(
+      owner,
+      conversation.phoneNumberId,
+      testRange(7),
+    );
+
+    expect(count).toBe(2);
+  });
+
+  it("keeps a return 23h after the last customer message as the same chat", async () => {
+    const { owner, conversation } = await setupOwnerWithConversation("bc-23h");
+    const opensAt = utcMidnight(-2);
+    await createTestMessage(conversation.id, {
+      sentBy: "customer",
+      createdAt: opensAt,
+    });
+    await createTestMessage(conversation.id, {
+      sentBy: "customer",
+      createdAt: new Date(opensAt.getTime() + 23 * 60 * 60 * 1000),
+    });
+
+    const count = await billableChatsByPhoneNumber(
+      owner,
+      conversation.phoneNumberId,
+      testRange(7),
+    );
+
+    expect(count).toBe(1);
+  });
+
+  it("does not extend or open a chat from a bot reply 30h after the last customer message", async () => {
+    const { owner, conversation } =
+      await setupOwnerWithConversation("bc-bot30h");
+    const opensAt = utcMidnight(-3);
+    await createTestMessage(conversation.id, {
+      sentBy: "customer",
+      createdAt: opensAt,
+    });
+    await createTestMessage(conversation.id, {
+      sentBy: "bot",
+      createdAt: new Date(opensAt.getTime() + 30 * 60 * 60 * 1000),
+    });
+
+    const count = await billableChatsByPhoneNumber(
+      owner,
+      conversation.phoneNumberId,
+      testRange(7),
+    );
+
+    expect(count).toBe(1);
+  });
+
+  it("attributes a chat spanning a cycle boundary once, to the cycle it opened in", async () => {
+    const { owner, conversation } =
+      await setupOwnerWithConversation("bc-boundary");
+    const boundary = utcMidnight(0);
+    const cycle1 = {
+      start: new Date(boundary.getTime() - DAY_MS),
+      end: boundary,
+    };
+    const cycle2 = {
+      start: boundary,
+      end: new Date(boundary.getTime() + DAY_MS),
+    };
+    const openedAt = new Date(boundary.getTime() - 60 * 60 * 1000); // 1h before boundary
+    const continuesAt = new Date(boundary.getTime() + 2 * 60 * 60 * 1000); // 2h after, 3h gap
+    await createTestMessage(conversation.id, {
+      sentBy: "customer",
+      createdAt: openedAt,
+    });
+    await createTestMessage(conversation.id, {
+      sentBy: "customer",
+      createdAt: continuesAt,
+    });
+
+    const cycle1Count = await billableChatsByPhoneNumber(
+      owner,
+      conversation.phoneNumberId,
+      cycle1,
+    );
+    const cycle2Count = await billableChatsByPhoneNumber(
+      owner,
+      conversation.phoneNumberId,
+      cycle2,
+    );
+
+    expect(cycle1Count).toBe(1);
+    expect(cycle2Count).toBe(0);
+  });
+
+  it("never lets a second tenant's phone number return that tenant's chat count", async () => {
+    const { owner: owner1 } = await setupOwnerWithConversation("bc-tenant-a");
+    const { conversation: conversation2 } =
+      await setupOwnerWithConversation("bc-tenant-b");
+    await createTestMessage(conversation2.id, {
+      sentBy: "customer",
+      createdAt: utcMidnight(-1),
+    });
+
+    const count = await billableChatsByPhoneNumber(
+      owner1,
+      conversation2.phoneNumberId,
+      testRange(7),
+    );
+
+    expect(count).toBe(0);
   });
 });
 
