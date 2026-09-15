@@ -44,6 +44,12 @@ const gimnasio: NicheTemplate = {
     politica_de_inscripcion_y_baja:
       "[Completá cómo se inscribe alguien nuevo y con cuánto tiempo de " +
       "aviso se puede dar de baja el plan]",
+    horarios_de_clases_grupales:
+      "[Completá los días y horarios de las clases grupales, por ejemplo " +
+      "funcional, spinning o yoga, y si requieren inscripción previa]",
+    servicios_adicionales:
+      "[Completá si ofrecés servicios adicionales como entrenamiento " +
+      "personalizado, evaluación física o asesoramiento nutricional]",
   },
   knowledgeDocTemplate:
     "Preguntas frecuentes de {businessName}\n\n" +
@@ -52,8 +58,14 @@ const gimnasio: NicheTemplate = {
     "## Planes\n" +
     "[Completá los planes que ofrecés y qué incluye cada uno.]\n\n" +
     "## Clases\n" +
-    "[Completá las clases grupales disponibles y si requieren inscripción " +
-    "previa.]\n\n" +
+    "[Completá los días y horarios de las clases grupales disponibles y si " +
+    "requieren inscripción previa.]\n\n" +
+    "## Primera visita\n" +
+    "[Completá si ofrecés una clase de prueba o día gratuito, y qué debe " +
+    "traer una persona nueva, por ejemplo apto físico o ropa deportiva.]\n\n" +
+    "## Servicios adicionales\n" +
+    "[Completá si ofrecés entrenamiento personalizado, evaluación física o " +
+    "asesoramiento nutricional.]\n\n" +
     "## Medios de pago\n" +
     "[Completá los medios de pago que aceptás y tu política de baja.]",
   defaultReplyWindowMs: 5_000,

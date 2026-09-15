@@ -43,6 +43,12 @@ const barberia: NicheTemplate = {
     politica_de_turnos:
       "[Completá si trabajás solo con turno, con orden de llegada, o " +
       "ambos, y con cuánta anticipación mínima se puede reservar]",
+    duracion_estimada_por_servicio:
+      "[Completá cuánto dura en promedio cada servicio, por ejemplo un " +
+      "corte simple frente a un corte con barba]",
+    servicios_adicionales_y_productos_en_venta:
+      "[Completá si ofrecés servicios adicionales como tinte o diseño de " +
+      "barba, o si vendés productos de cuidado como ceras o pomadas]",
   },
   knowledgeDocTemplate:
     "Preguntas frecuentes de {businessName}\n\n" +
@@ -51,13 +57,22 @@ const barberia: NicheTemplate = {
     "## Turnos\n" +
     "[Completá tu política de turnos: si trabajás solo con reserva previa, " +
     "con orden de llegada o ambos, y con cuánta anticipación mínima se " +
-    "puede reservar.]\n\n" +
+    "puede reservar.] [Completá cuánto dura en promedio cada servicio, " +
+    "para ayudar a coordinar el horario.]\n\n" +
     "## Servicios\n" +
     "[Completá los servicios que ofrecés, por ejemplo corte, arreglo de " +
     "barba o afeitado.] La disponibilidad de cada estilo puede depender " +
     "del barbero asignado.\n\n" +
+    "## Primera visita\n" +
+    "[Completá qué puede esperar un cliente que viene por primera vez, por " +
+    "ejemplo si conviene llegar unos minutos antes o si se puede elegir " +
+    "barbero.]\n\n" +
     "## Medios de pago\n" +
-    "[Completá los medios de pago que aceptás.]",
+    "[Completá los medios de pago que aceptás.]\n\n" +
+    "## Otros datos útiles\n" +
+    "[Completá otros datos que suelen preguntar tus clientes, por ejemplo " +
+    "si vendés productos de cuidado, si atendés a menores o si hay " +
+    "estacionamiento cerca.]",
   defaultReplyWindowMs: 5_000,
 };
 

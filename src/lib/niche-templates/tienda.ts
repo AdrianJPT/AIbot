@@ -42,6 +42,12 @@ const tienda: NicheTemplate = {
     politica_de_envios_y_cambios:
       "[Completá si hacés envíos, sus zonas, y tu política de cambios y " +
       "devoluciones]",
+    tiempo_estimado_de_entrega:
+      "[Completá el tiempo estimado de entrega de un envío, por ejemplo un " +
+      "rango en días según la zona]",
+    reserva_o_apartado_de_productos:
+      "[Completá si podés reservar o apartar un producto para retirar " +
+      "después, y por cuánto tiempo se mantiene la reserva]",
   },
   knowledgeDocTemplate:
     "Preguntas frecuentes de {businessName}\n\n" +
@@ -51,8 +57,12 @@ const tienda: NicheTemplate = {
     "[Completá los productos o rubros que vendés y cómo consultar stock " +
     "disponible.]\n\n" +
     "## Envíos y retiro\n" +
-    "[Completá si hacés envíos, sus zonas, y si hay retiro en el local.]" +
-    "\n\n" +
+    "[Completá si hacés envíos, sus zonas, y el tiempo estimado de " +
+    "entrega.] Si hay retiro en el local, indicá qué se necesita para " +
+    "retirar un pedido.\n\n" +
+    "## Reservas de productos\n" +
+    "[Completá si podés reservar o apartar un producto para un cliente y " +
+    "por cuánto tiempo se mantiene la reserva antes de liberarlo.]\n\n" +
     "## Medios de pago y cambios\n" +
     "[Completá los medios de pago que aceptás y tu política de cambios y " +
     "devoluciones.]",

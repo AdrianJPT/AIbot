@@ -43,6 +43,12 @@ const salonDeBelleza: NicheTemplate = {
     politica_de_turnos_y_cancelacion:
       "[Completá con cuánta anticipación mínima se puede reservar un turno " +
       "y con cuánto tiempo de aviso se puede cancelar sin costo]",
+    duracion_estimada_por_servicio:
+      "[Completá cuánto dura en promedio cada servicio, por ejemplo un " +
+      "corte frente a una coloración completa]",
+    atencion_para_eventos_especiales:
+      "[Completá si armás propuestas para novias, egresadas o eventos, y " +
+      "con cuánta anticipación conviene consultar]",
   },
   knowledgeDocTemplate:
     "Preguntas frecuentes de {businessName}\n\n" +
@@ -50,13 +56,21 @@ const salonDeBelleza: NicheTemplate = {
     "[Completá tus días y horarios de atención.]\n\n" +
     "## Turnos\n" +
     "[Completá con cuánta anticipación mínima se puede reservar un turno y " +
-    "tu política de cancelación.]\n\n" +
+    "tu política de cancelación.] [Completá cuánto dura en promedio cada " +
+    "servicio, para ayudar a coordinar el horario.]\n\n" +
     "## Servicios\n" +
     "[Completá los servicios que ofrecés y las marcas o productos que " +
     "usás.] La duración puede variar según el estilista asignado y el " +
     "estado del cabello o la piel.\n\n" +
+    "## Eventos especiales\n" +
+    "[Completá si armás propuestas para novias, egresadas o eventos " +
+    "grupales, y con cuánta anticipación conviene consultar.]\n\n" +
     "## Medios de pago\n" +
-    "[Completá los medios de pago que aceptás.]",
+    "[Completá los medios de pago que aceptás.]\n\n" +
+    "## Otros datos útiles\n" +
+    "[Completá otros datos que suelen preguntar tus clientes, por ejemplo " +
+    "si atendés solo con un estilista puntual, si hay estacionamiento o si " +
+    "se puede consultar con fotos de referencia antes del turno.]",
   defaultReplyWindowMs: 5_000,
 };
 

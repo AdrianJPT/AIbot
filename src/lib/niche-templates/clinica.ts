@@ -51,6 +51,12 @@ const clinica: NicheTemplate = {
     politica_de_turnos_y_cancelacion:
       "[Completá con cuánta anticipación mínima se puede reservar un turno " +
       "y con cuánto tiempo de aviso se puede cancelar o reprogramar]",
+    modalidad_de_atencion:
+      "[Completá si atendés solo de forma presencial, también por " +
+      "telemedicina, o ambas según la especialidad]",
+    atencion_de_urgencias_y_guardia:
+      "[Completá si contás con guardia o atención de urgencias, en qué " +
+      "horario y cómo se accede a ella]",
   },
   knowledgeDocTemplate:
     "Preguntas frecuentes de {businessName}\n\n" +
@@ -58,10 +64,16 @@ const clinica: NicheTemplate = {
     "[Completá tus días y horarios de atención.]\n\n" +
     "## Turnos\n" +
     "[Completá con cuánta anticipación mínima se puede reservar un turno y " +
-    "tu política de cancelación o reprogramación.]\n\n" +
+    "tu política de cancelación o reprogramación.] [Completá si atendés " +
+    "presencial, por telemedicina, o ambas.]\n\n" +
     "## Especialidades\n" +
     "[Completá las especialidades que atendés y si alguna requiere " +
     "derivación u orden médica previa.]\n\n" +
+    "## Urgencias y guardia\n" +
+    "[Completá si contás con guardia o atención de urgencias, en qué " +
+    "horario y cómo se accede a ella.] El asistente no evalúa síntomas ni " +
+    "gravedad por chat; ante una urgencia, siempre se prioriza coordinar " +
+    "la atención lo antes posible.\n\n" +
     "## Medios de pago y cobertura\n" +
     "[Completá los medios de pago que aceptás y si trabajás con obras " +
     "sociales o seguros.]",

@@ -49,11 +49,20 @@ const inmobiliaria: NicheTemplate = {
     politica_de_visitas:
       "[Completá cómo se coordina una visita y con cuánta anticipación " +
       "hay que solicitarla]",
+    zona_de_cobertura:
+      "[Completá la zona geográfica en la que gestionás propiedades, por " +
+      "ejemplo los barrios o localidades donde operás]",
+    documentacion_requerida:
+      "[Completá qué documentación suele pedirse para avanzar en un " +
+      "alquiler o una compra, por ejemplo recibo de sueldo o garantía, sin " +
+      "detallar requisitos definitivos]",
   },
   knowledgeDocTemplate:
     "Preguntas frecuentes de {businessName}\n\n" +
     "## Horarios\n" +
     "[Completá tus días y horarios de atención.]\n\n" +
+    "## Zona de cobertura\n" +
+    "[Completá los barrios o localidades donde gestionás propiedades.]\n\n" +
     "## Visitas\n" +
     "[Completá cómo se coordina una visita a una propiedad y con cuánta " +
     "anticipación.]\n\n" +
@@ -61,6 +70,10 @@ const inmobiliaria: NicheTemplate = {
     "[Completá los tipos de propiedades que gestionás.] Los precios y la " +
     "disponibilidad se confirman siempre con una persona del equipo antes " +
     "de cualquier acuerdo.\n\n" +
+    "## Documentación y requisitos\n" +
+    "[Completá qué documentación suele pedirse para avanzar en un alquiler " +
+    "o una compra.] Los requisitos definitivos siempre los confirma una " +
+    "persona del equipo según la propiedad y la operación.\n\n" +
     "## Medios de pago\n" +
     "[Completá los medios de pago que aceptás y cómo se manejan las " +
     "comisiones.]",
