@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   AlertCircle,
+  BarChart3,
   Building2,
   Calendar,
   CreditCard,
@@ -27,6 +28,12 @@ const links = [
   { href: "/businesses", label: "Negocios", icon: Building2, adminOnly: false },
   { href: "/appointments", label: "Citas", icon: Calendar, adminOnly: false },
   { href: "/payments", label: "Pagos", icon: CreditCard, adminOnly: false },
+  {
+    href: "/analytics",
+    label: "Analítica",
+    icon: BarChart3,
+    adminOnly: false,
+  },
   { href: "/admin/clients", label: "Clientes", icon: Users, adminOnly: true },
   {
     href: "/settings/credentials",
