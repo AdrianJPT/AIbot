@@ -9,8 +9,10 @@ import panaderia from "@/lib/niche-templates/panaderia";
 import restaurante from "@/lib/niche-templates/restaurante";
 import salonDeBelleza from "@/lib/niche-templates/salon-de-belleza";
 import spa from "@/lib/niche-templates/spa";
+import tallerMecanico from "@/lib/niche-templates/taller-mecanico";
 import tienda from "@/lib/niche-templates/tienda";
 import type { NicheTemplate } from "@/lib/niche-templates/types";
+import veterinaria from "@/lib/niche-templates/veterinaria";
 
 export type { NicheId, NicheTemplate } from "@/lib/niche-templates/types";
 
@@ -32,6 +34,8 @@ export const NICHE_TEMPLATE_LIST: NicheTemplate[] = [
   coach,
   inmobiliaria,
   tienda,
+  veterinaria,
+  tallerMecanico,
 ];
 
 /**

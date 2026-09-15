@@ -21,7 +21,35 @@ function countSpanishFunctionWordHits(text: string): number {
   ).length;
 }
 
-const PLACEHOLDER_MARKERS = ["TODO", "lorem", "FIXME"];
+/**
+ * Genuine unfinished-content markers, split by case sensitivity:
+ * - `TODO`/`FIXME` are matched as a case-sensitive whole word. Naive
+ *   case-insensitive substring matching (the defect this replaces)
+ *   false-positives on ordinary Spanish prose containing "todo"/"todos"
+ *   ("everything"/"all"/"every") — it already flagged a legitimate phrase in
+ *   `inmobiliaria.ts` ("cambian todo el tiempo") in a prior batch. Real
+ *   unfinished-content markers are conventionally written in ALL CAPS, so
+ *   matching only the exact uppercase word both catches the genuine marker
+ *   and never fires on lowercase (or capitalized) Spanish prose.
+ * - `lorem` (as in "lorem ipsum") stays case-insensitive: it is never
+ *   legitimate Spanish prose, so there is no false-positive risk to guard
+ *   against, and placeholder text sometimes ships capitalized ("Lorem
+ *   ipsum...").
+ * Both groups are still word-boundary matched so they don't fire on a
+ * marker word embedded inside a longer, unrelated word.
+ */
+const CASE_SENSITIVE_WORD_MARKERS = ["TODO", "FIXME"];
+const CASE_INSENSITIVE_WORD_MARKERS = ["lorem"];
+
+function containsPlaceholderMarker(text: string): boolean {
+  const hasCaseSensitiveHit = CASE_SENSITIVE_WORD_MARKERS.some((marker) =>
+    new RegExp(`\\b${marker}\\b`, "u").test(text),
+  );
+  const hasCaseInsensitiveHit = CASE_INSENSITIVE_WORD_MARKERS.some((marker) =>
+    new RegExp(`\\b${marker}\\b`, "iu").test(text),
+  );
+  return hasCaseSensitiveHit || hasCaseInsensitiveHit;
+}
 
 /**
  * Matches a contiguous run of digits and common phone separators
@@ -149,11 +177,35 @@ describe("content integrity across the registry", () => {
         template.knowledgeDocTemplate ?? "",
         ...Object.values(template.businessInfoTemplate),
       ].join("\n");
-      for (const marker of PLACEHOLDER_MARKERS) {
-        expect(haystack).not.toMatch(new RegExp(marker, "i"));
-      }
+      expect(containsPlaceholderMarker(haystack)).toBe(false);
     },
   );
+
+  it("does not flag ordinary Spanish prose containing 'todo'/'todos'", () => {
+    // Regression guard for the false positive that already hit
+    // `inmobiliaria.ts` in a prior batch ("cambian todo el tiempo"):
+    // naive case-insensitive substring matching on "TODO" also matched the
+    // ordinary Spanish words "todo"/"todos" ("everything"/"all"/"every").
+    expect(
+      containsPlaceholderMarker(
+        "Atendemos todo el día. Nuestros horarios cambian todos los meses.",
+      ),
+    ).toBe(false);
+  });
+
+  it("still flags a real TODO/FIXME marker", () => {
+    expect(
+      containsPlaceholderMarker("TODO: fill this in before shipping"),
+    ).toBe(true);
+    expect(containsPlaceholderMarker("FIXME: wrong copy")).toBe(true);
+  });
+
+  it("still flags 'lorem ipsum' placeholder text case-insensitively", () => {
+    expect(containsPlaceholderMarker("Lorem ipsum dolor sit amet")).toBe(true);
+    expect(containsPlaceholderMarker("texto de relleno lorem ipsum")).toBe(
+      true,
+    );
+  });
 
   it.each(NICHE_TEMPLATE_LIST)(
     "$id: no businessInfoTemplate value contains a phone-number-shaped string",
@@ -219,5 +271,33 @@ describe("content integrity across the registry", () => {
     const labels = NICHE_TEMPLATE_LIST.map((t) => t.label);
     expect(new Set(ids).size).toBe(ids.length);
     expect(new Set(labels).size).toBe(labels.length);
+  });
+
+  it("closes the registry at exactly the 14 expected giros, no missing/extra/duplicate", () => {
+    // Terminal completion criterion for this change: all 14 giros present,
+    // matching the spec's slugs exactly — see spec "All 14 Giros Are
+    // Reachable From the Picker" / "Registry completeness at end of chain".
+    const EXPECTED_IDS = [
+      "restaurante",
+      "cafeteria",
+      "panaderia",
+      "barberia",
+      "salon-de-belleza",
+      "spa",
+      "dentista",
+      "clinica",
+      "gimnasio",
+      "coach",
+      "inmobiliaria",
+      "tienda",
+      "veterinaria",
+      "taller-mecanico",
+    ];
+
+    expect(NICHE_TEMPLATE_LIST).toHaveLength(14);
+
+    const actualIds = NICHE_TEMPLATE_LIST.map((t) => t.id);
+    expect(new Set(actualIds).size).toBe(actualIds.length);
+    expect([...actualIds].sort()).toEqual([...EXPECTED_IDS].sort());
   });
 });
