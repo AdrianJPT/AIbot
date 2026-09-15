@@ -4,6 +4,10 @@ import { sendFromNumber } from "@/lib/whatsapp";
 import { getSessionUser } from "@/lib/auth";
 import { logEvent } from "@/lib/log";
 import { conversationScope } from "@/lib/scope";
+import {
+  sendFailureFromError,
+  type SendFailure,
+} from "@/lib/channels/send-failure";
 
 export async function POST(
   req: NextRequest,
@@ -29,7 +33,7 @@ export async function POST(
   }
 
   let wamid: string | undefined;
-  let sendFailed = false;
+  let failure: SendFailure | null = null;
   try {
     wamid = await sendFromNumber(
       conv.phoneNumber,
@@ -38,7 +42,7 @@ export async function POST(
       text.trim(),
     );
   } catch (err) {
-    sendFailed = true;
+    failure = sendFailureFromError(err);
     await logEvent(
       "error",
       "whatsapp-send",
@@ -61,7 +65,9 @@ export async function POST(
         mediaType: "text",
         sentBy: "human",
         wamid,
-        status: sendFailed ? "failed" : "sent",
+        status: failure ? "failed" : "sent",
+        failureCode: failure?.code,
+        failureDetail: failure?.detail,
       },
     }),
     prisma.conversation.update({

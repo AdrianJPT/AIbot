@@ -530,6 +530,76 @@ describe("channels/whatsapp base adapter", () => {
     }
   });
 
+  it("attaches a classified failure when a delivery status reports failed with an error", async () => {
+    const outcomes = await whatsappAdapter.normalize(
+      event({
+        statuses: [
+          {
+            id: "wamid.status_failed_1",
+            status: "failed",
+            errors: [
+              {
+                code: 131047,
+                title: "Re-engagement message",
+                error_data: { details: "24 hour window expired" },
+              },
+            ],
+          },
+        ],
+      }),
+      connection(),
+    );
+
+    expect(outcomes).toEqual([
+      {
+        kind: "status",
+        channel: "whatsapp",
+        tenantId: "business_1",
+        connectionId: "connection_1",
+        eventId: "wamid.status_failed_1",
+        externalMessageId: "wamid.status_failed_1",
+        status: "failed",
+        failure: {
+          code: "window_expired",
+          detail: "131047 Re-engagement message: 24 hour window expired",
+        },
+      },
+    ]);
+  });
+
+  it("classifies a failed status with no errors array as unknown", async () => {
+    const outcomes = await whatsappAdapter.normalize(
+      event({
+        statuses: [{ id: "wamid.status_failed_no_errors", status: "failed" }],
+      }),
+      connection(),
+    );
+
+    expect(outcomes).toEqual([
+      {
+        kind: "status",
+        channel: "whatsapp",
+        tenantId: "business_1",
+        connectionId: "connection_1",
+        eventId: "wamid.status_failed_no_errors",
+        externalMessageId: "wamid.status_failed_no_errors",
+        status: "failed",
+        failure: { code: "unknown", detail: null },
+      },
+    ]);
+  });
+
+  it("never attaches a failure key to a non-failed or unclassified delivery status", async () => {
+    const outcomes = await whatsappAdapter.normalize(
+      event({
+        statuses: [{ id: "wamid.status_delivered", status: "delivered" }],
+      }),
+      connection(),
+    );
+
+    expect(outcomes[0]).not.toHaveProperty("failure");
+  });
+
   it("self-registers exactly the WhatsApp/Meta adapter", () => {
     expect(resolveAdapter("whatsapp", "meta", connection())).toBe(
       whatsappAdapter,

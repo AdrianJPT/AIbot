@@ -9,6 +9,8 @@
  * never hold or cache one.
  */
 
+import type { SendFailure } from "./send-failure";
+
 /** Every channel this platform knows how to route, not just ones with a live adapter. */
 export type Channel = "whatsapp";
 
@@ -81,6 +83,13 @@ export type DeliveryStatus = EventContext & {
   kind: "status";
   externalMessageId: string;
   status: DeliveryState;
+  /**
+   * Channel-neutral, descriptive-only failure classification (see
+   * `channels/send-failure.ts`'s `SendFailure`), present only when
+   * `status` is `"failed"` and a provider error was available to classify.
+   * MUST NOT encode retry, window, or other channel-specific policy.
+   */
+  failure?: SendFailure;
 };
 
 /** A supported event an adapter intentionally normalizes to "no domain action". */
