@@ -1,7 +1,13 @@
 import { randomUUID } from "node:crypto";
 import { prisma } from "@/lib/db";
 import { encryptSecret } from "@/lib/crypto";
-import type { Business, Credential, PhoneNumber, User } from "@prisma/client";
+import type {
+  Business,
+  Credential,
+  Message,
+  PhoneNumber,
+  User,
+} from "@prisma/client";
 
 export async function createTestUser(
   prefix: string,
@@ -111,6 +117,45 @@ export async function createTestConversation(
       businessId,
       phoneNumberId: phoneNumber.id,
       customerPhone: `+549${suffix}`,
+    },
+  });
+}
+
+/**
+ * Message fixture for `src/lib/analytics/__tests__/repository.test.ts`.
+ * `sentBy` drives `role` the same way `message-handler.ts`'s real send/
+ * receive paths do ("customer" → "user", otherwise → "assistant") so
+ * fixture rows match production shape instead of hardcoding an unrelated
+ * role. Every other field defaults to a successful, unclassified-failure-
+ * free outbound bot message and is overridable per test.
+ */
+export async function createTestMessage(
+  conversationId: string,
+  overrides: Partial<{
+    sentBy: string;
+    status: string;
+    failureCode: string | null;
+    createdAt: Date;
+    retryOfId: string;
+  }> = {},
+): Promise<Message> {
+  const sentBy = overrides.sentBy ?? "bot";
+  return prisma.message.create({
+    data: {
+      conversationId,
+      role: sentBy === "customer" ? "user" : "assistant",
+      content: "test message",
+      sentBy,
+      ...(overrides.status !== undefined && { status: overrides.status }),
+      ...(overrides.failureCode !== undefined && {
+        failureCode: overrides.failureCode,
+      }),
+      ...(overrides.createdAt !== undefined && {
+        createdAt: overrides.createdAt,
+      }),
+      ...(overrides.retryOfId !== undefined && {
+        retryOfId: overrides.retryOfId,
+      }),
     },
   });
 }
