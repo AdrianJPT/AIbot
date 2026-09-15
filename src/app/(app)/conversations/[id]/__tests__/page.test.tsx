@@ -173,6 +173,49 @@ describe("ConversationDetailPage (prod-shaped data)", () => {
       failureDetail: "code 4 title: rate limited",
     });
   });
+
+  it("maps retried:true onto a failed message once it has a successful retry, and false otherwise (retry-duplicate-and-visible-cause defect 1)", async () => {
+    getSessionUser.mockResolvedValueOnce(admin);
+    const originalFailed = await prisma.message.create({
+      data: {
+        conversationId: conversation.id,
+        role: "assistant",
+        content: "mensaje reintentado con éxito",
+        sentBy: "bot",
+        status: "failed",
+        failureCode: "rate_limit",
+        createdAt: new Date(Date.UTC(2026, 0, 1, 0, 0, 40)),
+      },
+    });
+    await prisma.message.create({
+      data: {
+        conversationId: conversation.id,
+        role: "assistant",
+        content: "mensaje reintentado con éxito",
+        sentBy: "bot",
+        status: "sent",
+        retryOfId: originalFailed.id,
+        createdAt: new Date(Date.UTC(2026, 0, 1, 0, 0, 41)),
+      },
+    });
+
+    const { default: ConversationDetailPage } = await import("../page");
+    const element = await ConversationDetailPage({
+      params: Promise.resolve({ id: conversation.id }),
+    });
+
+    const mappedRetried = element.props.initialMessages.messages.find(
+      (m: { id: string }) => m.id === originalFailed.id,
+    );
+    const mappedNotRetried = element.props.initialMessages.messages.find(
+      (m: { id: string; sentBy: string; status: string }) =>
+        m.sentBy === "bot" &&
+        m.status === "failed" &&
+        m.id !== originalFailed.id,
+    );
+    expect(mappedRetried.retried).toBe(true);
+    expect(mappedNotRetried.retried).toBe(false);
+  });
 });
 
 describe("format helpers with prod-shaped edge inputs", () => {

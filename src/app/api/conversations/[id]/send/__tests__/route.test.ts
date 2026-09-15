@@ -139,13 +139,45 @@ describe("POST /api/conversations/[id]/send", () => {
     await prisma.message.delete({ where: { id: msg.id } });
   });
 
-  it('retries a failed bot-origin message: persists a new Message row with sentBy:"bot" and the original content', async () => {
+  it('retries a failed bot-origin message: persists a new Message row with sentBy:"bot", the original content, and retryOfId pointing at the original', async () => {
     getSessionUser.mockResolvedValueOnce(owner);
     const original = await prisma.message.create({
       data: {
         conversationId: conversation.id,
         role: "assistant",
         content: "respuesta original del bot",
+        sentBy: "bot",
+        status: "failed",
+        failureCode: "invalid_recipient",
+        failureDetail: "número inválido",
+      },
+    });
+    const { POST } = await import("../route");
+
+    const res = await POST(buildRetryRequest(original.id), {
+      params: Promise.resolve({ id: conversation.id }),
+    });
+    const retried = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(retried.sentBy).toBe("bot");
+    expect(retried.content).toBe("respuesta original del bot");
+    expect(retried.status).toBe("sent");
+    expect(retried.retryOfId).toBe(original.id);
+    expect(sendFromNumber).toHaveBeenCalled();
+
+    await prisma.message.deleteMany({
+      where: { id: { in: [original.id, retried.id] } },
+    });
+  });
+
+  it("still retries an auth failure: credentials are the one cause the operator can fix before resending", async () => {
+    getSessionUser.mockResolvedValueOnce(owner);
+    const original = await prisma.message.create({
+      data: {
+        conversationId: conversation.id,
+        role: "assistant",
+        content: "mensaje con error de auth",
         sentBy: "bot",
         status: "failed",
         failureCode: "auth",
@@ -160,13 +192,88 @@ describe("POST /api/conversations/[id]/send", () => {
     const retried = await res.json();
 
     expect(res.status).toBe(200);
-    expect(retried.sentBy).toBe("bot");
-    expect(retried.content).toBe("respuesta original del bot");
     expect(retried.status).toBe("sent");
-    expect(sendFromNumber).toHaveBeenCalled();
+    expect(retried.retryOfId).toBe(original.id);
 
     await prisma.message.deleteMany({
       where: { id: { in: [original.id, retried.id] } },
+    });
+  });
+
+  it("returns 409 and sends nothing when the original already has a successful retry (prevents a duplicate customer send)", async () => {
+    getSessionUser.mockResolvedValueOnce(owner);
+    const original = await prisma.message.create({
+      data: {
+        conversationId: conversation.id,
+        role: "assistant",
+        content: "mensaje ya reintentado con éxito",
+        sentBy: "bot",
+        status: "failed",
+        failureCode: "rate_limit",
+      },
+    });
+    const successfulRetry = await prisma.message.create({
+      data: {
+        conversationId: conversation.id,
+        role: "assistant",
+        content: "mensaje ya reintentado con éxito",
+        sentBy: "bot",
+        status: "sent",
+        retryOfId: original.id,
+      },
+    });
+    const { POST } = await import("../route");
+    const callsBefore = sendFromNumber.mock.calls.length;
+
+    const res = await POST(buildRetryRequest(original.id), {
+      params: Promise.resolve({ id: conversation.id }),
+    });
+
+    expect(res.status).toBe(409);
+    expect(sendFromNumber.mock.calls.length).toBe(callsBefore);
+
+    await prisma.message.deleteMany({
+      where: { id: { in: [original.id, successfulRetry.id] } },
+    });
+  });
+
+  it("still allows retrying a message whose previous retry ALSO failed", async () => {
+    getSessionUser.mockResolvedValueOnce(owner);
+    const original = await prisma.message.create({
+      data: {
+        conversationId: conversation.id,
+        role: "assistant",
+        content: "mensaje cuyo primer reintento también falló",
+        sentBy: "bot",
+        status: "failed",
+        failureCode: "rate_limit",
+      },
+    });
+    const failedRetry = await prisma.message.create({
+      data: {
+        conversationId: conversation.id,
+        role: "assistant",
+        content: "mensaje cuyo primer reintento también falló",
+        sentBy: "bot",
+        status: "failed",
+        failureCode: "rate_limit",
+        retryOfId: original.id,
+      },
+    });
+    const { POST } = await import("../route");
+
+    const res = await POST(buildRetryRequest(original.id), {
+      params: Promise.resolve({ id: conversation.id }),
+    });
+    const secondRetry = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(secondRetry.status).toBe("sent");
+    expect(secondRetry.retryOfId).toBe(original.id);
+    expect(sendFromNumber).toHaveBeenCalled();
+
+    await prisma.message.deleteMany({
+      where: { id: { in: [original.id, failedRetry.id, secondRetry.id] } },
     });
   });
 

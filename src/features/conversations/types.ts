@@ -20,6 +20,13 @@ export type ConversationMessage = {
   // `sanitizeFailureDetail`. Never rendered raw; not currently surfaced in
   // the UI beyond the code-driven copy.
   failureDetail?: string | null;
+  // True when a LATER message row (Message.retryOfId) already delivered
+  // this failed message's content successfully. Computed server-side from
+  // one extra `retries` include (never N+1) so the UI can disable a stale
+  // "Reintentar" instead of letting a second operator send a duplicate
+  // (retry-duplicate-and-visible-cause defect 1). Deliberately a boolean,
+  // not the retry's id — the client never needs to navigate to it.
+  retried?: boolean;
 };
 
 export type ConversationListItem = {
