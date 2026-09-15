@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { prisma } from "@/lib/db";
 import {
   cleanupOwnershipFixtures,
   createTestBusiness,
@@ -8,7 +9,12 @@ import {
   createTestMessage,
   createTestUser,
 } from "@/lib/__tests__/fixtures/ownership";
-import { deliveryHealth, volumeByDay } from "../repository";
+import {
+  deliveryHealth,
+  responseTimeByDay,
+  tokenUsage,
+  volumeByDay,
+} from "../repository";
 
 const ownerIds: string[] = [];
 
@@ -174,14 +180,191 @@ describe("volumeByDay", () => {
   });
 });
 
-describe("raw SQL safety (task 2.11)", () => {
+describe("responseTimeByDay", () => {
+  it("excludes a customer message with no later outbound reply, instead of counting it as zero-duration", async () => {
+    const { owner, conversation } = await setupOwnerWithConversation("rt-none");
+    const range = testRange(1);
+    // Customer message with no reply at all in the conversation.
+    await createTestMessage(conversation.id, {
+      sentBy: "customer",
+      createdAt: range.start,
+    });
+
+    const buckets = await responseTimeByDay(owner, range);
+
+    expect(buckets).toHaveLength(1);
+    expect(buckets[0]).toEqual({
+      day: buckets[0].day,
+      avgMs: null,
+      sampleCount: 0,
+    });
+  });
+
+  it("computes the elapsed time to the next outbound reply in the same conversation", async () => {
+    const { owner, conversation } =
+      await setupOwnerWithConversation("rt-reply");
+    const range = testRange(1);
+    const customerAt = range.start;
+    const replyAt = new Date(customerAt.getTime() + 60_000); // 1 minute later
+    await createTestMessage(conversation.id, {
+      sentBy: "customer",
+      createdAt: customerAt,
+    });
+    await createTestMessage(conversation.id, {
+      sentBy: "bot",
+      createdAt: replyAt,
+    });
+
+    const buckets = await responseTimeByDay(owner, range);
+
+    expect(buckets).toHaveLength(1);
+    expect(buckets[0].sampleCount).toBe(1);
+    expect(buckets[0].avgMs).toBe(60_000);
+  });
+
+  it("never lets a second tenant's reply times into the first tenant's buckets", async () => {
+    const { owner: owner1, conversation: conversation1 } =
+      await setupOwnerWithConversation("rt-tenant-a");
+    const { conversation: conversation2 } =
+      await setupOwnerWithConversation("rt-tenant-b");
+    const range = testRange(1);
+
+    await createTestMessage(conversation1.id, {
+      sentBy: "customer",
+      createdAt: range.start,
+    });
+    await createTestMessage(conversation1.id, {
+      sentBy: "bot",
+      createdAt: new Date(range.start.getTime() + 30_000),
+    });
+    await createTestMessage(conversation2.id, {
+      sentBy: "customer",
+      createdAt: range.start,
+    });
+    await createTestMessage(conversation2.id, {
+      sentBy: "bot",
+      createdAt: new Date(range.start.getTime() + 999_000),
+    });
+
+    const buckets = await responseTimeByDay(owner1, range);
+
+    expect(buckets[0].sampleCount).toBe(1);
+    expect(buckets[0].avgMs).toBe(30_000);
+  });
+});
+
+describe("tokenUsage", () => {
+  it("sums promptTokens/completionTokens/totalTokens across ai-usage EventLog rows in range", async () => {
+    const { owner, business } = await setupOwnerWithConversation("tok-sum");
+    const range = testRange(7);
+    await prisma.eventLog.create({
+      data: {
+        level: "info",
+        source: "ai-usage",
+        message: "AI call token usage",
+        businessId: business.id,
+        detail: { promptTokens: 100, completionTokens: 20, totalTokens: 120 },
+      },
+    });
+    await prisma.eventLog.create({
+      data: {
+        level: "info",
+        source: "ai-usage",
+        message: "AI call token usage",
+        businessId: business.id,
+        detail: { promptTokens: 50, completionTokens: 5, totalTokens: 55 },
+      },
+    });
+
+    const result = await tokenUsage(owner, range);
+
+    expect(result).toEqual({
+      promptTokens: 150,
+      completionTokens: 25,
+      totalTokens: 175,
+      sampleCount: 2,
+    });
+  });
+
+  it("skips an ai-usage row with no usage block instead of counting it as a zero sample", async () => {
+    const { owner, business } = await setupOwnerWithConversation("tok-noblock");
+    const range = testRange(7);
+    await prisma.eventLog.create({
+      data: {
+        level: "info",
+        source: "ai-usage",
+        message: "AI call returned no usage block",
+        businessId: business.id,
+        detail: { conversationId: "conv_1", model: "gpt-4o-mini" },
+      },
+    });
+    await prisma.eventLog.create({
+      data: {
+        level: "info",
+        source: "ai-usage",
+        message: "AI call token usage",
+        businessId: business.id,
+        detail: { promptTokens: 10, completionTokens: 2, totalTokens: 12 },
+      },
+    });
+
+    const result = await tokenUsage(owner, range);
+
+    expect(result).toEqual({
+      promptTokens: 10,
+      completionTokens: 2,
+      totalTokens: 12,
+      sampleCount: 1,
+    });
+  });
+
+  it("never lets a second tenant's ai-usage rows into the first tenant's totals", async () => {
+    const { owner: owner1, business: business1 } =
+      await setupOwnerWithConversation("tok-tenant-a");
+    const { business: business2 } =
+      await setupOwnerWithConversation("tok-tenant-b");
+    const range = testRange(7);
+    await prisma.eventLog.create({
+      data: {
+        level: "info",
+        source: "ai-usage",
+        message: "AI call token usage",
+        businessId: business1.id,
+        detail: { promptTokens: 10, completionTokens: 1, totalTokens: 11 },
+      },
+    });
+    await prisma.eventLog.create({
+      data: {
+        level: "info",
+        source: "ai-usage",
+        message: "AI call token usage",
+        businessId: business2.id,
+        detail: { promptTokens: 999, completionTokens: 999, totalTokens: 1998 },
+      },
+    });
+
+    const result = await tokenUsage(owner1, range);
+
+    expect(result).toEqual({
+      promptTokens: 10,
+      completionTokens: 1,
+      totalTokens: 11,
+      sampleCount: 1,
+    });
+  });
+});
+
+describe("raw SQL safety (task 2.11, extended in 3.6)", () => {
   it("builds every raw query with tagged-template interpolation, never Prisma.raw or an unsafe query", () => {
     const source = readFileSync(
       path.join(__dirname, "../repository.ts"),
       "utf-8",
     );
 
-    expect(source).toMatch(/\$queryRaw(<[^>]*>)?`/);
+    const taggedTemplateCalls = source.match(/\$queryRaw(<[^>]*>)?`/g) ?? [];
+    // volumeByDay (task 2.9/2.11) and responseTimeByDay (task 3.2/3.6) each
+    // build a raw query — both must use the tagged-template form.
+    expect(taggedTemplateCalls.length).toBeGreaterThanOrEqual(2);
     expect(source).not.toMatch(/Prisma\.raw\(/);
     expect(source).not.toMatch(/\$queryRawUnsafe/);
     expect(source).not.toMatch(/\$executeRawUnsafe/);
