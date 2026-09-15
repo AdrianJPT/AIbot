@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -14,6 +15,12 @@ import type {
   BusinessInput,
 } from "@/features/businesses/types";
 import { replyWindowMsFromSeconds } from "@/lib/businesses/reply-window";
+import type { NicheId, NicheTemplate } from "@/lib/niche-templates";
+import { resolveNicheTemplate } from "@/lib/niche-templates";
+import { shouldConfirmNicheSwitch } from "@/features/businesses/lib/niche-template-apply";
+
+const NICHE_SWITCH_CONFIRM_MESSAGE =
+  "Cambiar el giro va a reemplazar el prompt, el mensaje de bienvenida, la información del negocio y el documento de conocimiento con los valores del nuevo giro. Vas a perder los cambios que hiciste. ¿Continuar?";
 
 export function BusinessFormContainer({
   business,
@@ -35,6 +42,41 @@ export function BusinessFormContainer({
     queryKey: ["credentials"],
     queryFn: fetchCredentials,
   });
+
+  // Giro picker state (create mode only — see business's "if (business)"
+  // guard around the picker in BusinessFormFields). `templateRevision` is
+  // bumped on every applied template so the templated fields remount with
+  // fresh `defaultValue`s (design's "Prefill mechanism" decision).
+  const [nicheId, setNicheId] = useState<NicheId | "">("");
+  const [templateFields, setTemplateFields] = useState<
+    NicheTemplate | undefined
+  >(undefined);
+  const [templateRevision, setTemplateRevision] = useState(0);
+  const [hasAppliedTemplate, setHasAppliedTemplate] = useState(false);
+  const [dirtySinceTemplate, setDirtySinceTemplate] = useState(false);
+
+  function applyNiche(id: string) {
+    setNicheId(id as NicheId | "");
+    setTemplateFields(resolveNicheTemplate(id));
+    setTemplateRevision((rev) => rev + 1);
+    setDirtySinceTemplate(false);
+    setHasAppliedTemplate(true);
+  }
+
+  function handleNicheChange(id: string) {
+    if (shouldConfirmNicheSwitch(hasAppliedTemplate, dirtySinceTemplate)) {
+      if (!window.confirm(NICHE_SWITCH_CONFIRM_MESSAGE)) {
+        // Cancel reverts the <select> to its prior value — a no-op, since
+        // `nicheId` state was never changed.
+        return;
+      }
+    }
+    applyNiche(id);
+  }
+
+  function handleTemplatedFieldEdit() {
+    setDirtySinceTemplate(true);
+  }
 
   const mutation = useMutation({
     mutationFn: (payload: BusinessInput) =>
@@ -101,6 +143,11 @@ export function BusinessFormContainer({
       currentOwnerId={currentOwnerId}
       submitting={mutation.isPending}
       onSubmit={onSubmit}
+      templateFields={templateFields}
+      templateRevision={templateRevision}
+      nicheId={nicheId}
+      onNicheChange={handleNicheChange}
+      onTemplatedFieldEdit={handleTemplatedFieldEdit}
     />
   );
 }
