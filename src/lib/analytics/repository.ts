@@ -1,12 +1,24 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
-import { isAdmin, messageScope, type ScopedUser } from "@/lib/scope";
+import {
+  businessScope,
+  eventLogScope,
+  isAdmin,
+  messageScope,
+  type ScopedUser,
+} from "@/lib/scope";
 import {
   SEND_FAILURE_CODES,
   type SendFailureCode,
 } from "@/lib/channels/send-failure";
 import { fillUtcDayGaps } from "./day-buckets";
-import type { AnalyticsRange, DayBucket, DeliveryHealth } from "./types";
+import type {
+  AnalyticsRange,
+  DayBucket,
+  DeliveryHealth,
+  ResponseTimeBucket,
+  TokenUsage,
+} from "./types";
 
 const OUTBOUND_SENDERS = ["bot", "human"] as const;
 
@@ -117,5 +129,148 @@ export async function volumeByDay(
     ORDER BY day
   `;
 
-  return fillUtcDayGaps(rows, range);
+  return fillUtcDayGaps(rows, range, (day) => ({
+    day,
+    inbound: 0,
+    outbound: 0,
+  }));
+}
+
+type ResponseTimeRow = {
+  day: string;
+  avgMs: number | null;
+  sampleCount: number;
+};
+
+/**
+ * Elapsed time from each customer message to the next outbound message in
+ * the same conversation, averaged per UTC calendar day (spec `Time to
+ * Respond`). A customer message with no later outbound reply is excluded
+ * entirely by the `JOIN LATERAL ... ON TRUE` below (an inner join: no
+ * matching reply row means no joined row at all) — never counted as a
+ * zero-duration reply (spec scenario "Conversation with no reply yet").
+ *
+ * This measures wall-clock elapsed time end to end, so it INCLUDES the
+ * configured reply debounce (`Business.replyWindowMs`, including its
+ * sliding extension up to 4x — see reply-window-scheduler.ts) as well as
+ * actual AI generation time. It is deliberately not decomposed into those
+ * two parts here, so callers/UI must never present this figure as "AI
+ * latency" (spec: "MUST NOT be presented as AI latency").
+ *
+ * Built entirely from Prisma's tagged template (task 3.6, extending 2.11's
+ * SQL-safety check) — never `Prisma.raw`/string concatenation.
+ */
+export async function responseTimeByDay(
+  user: ScopedUser,
+  range: AnalyticsRange,
+): Promise<ResponseTimeBucket[]> {
+  const rows = await prisma.$queryRaw<ResponseTimeRow[]>`
+    SELECT
+      to_char(date_trunc('day', m."createdAt"), 'YYYY-MM-DD') AS day,
+      AVG(EXTRACT(EPOCH FROM (reply."createdAt" - m."createdAt")) * 1000)::float8 AS "avgMs",
+      COUNT(*)::int AS "sampleCount"
+    FROM "Message" m
+    JOIN "Conversation" c ON c.id = m."conversationId"
+    JOIN "Business" b ON b.id = c."businessId"
+    JOIN LATERAL (
+      SELECT r."createdAt"
+      FROM "Message" r
+      WHERE r."conversationId" = m."conversationId"
+        AND r."sentBy" IN ('bot', 'human')
+        AND r."createdAt" > m."createdAt"
+      ORDER BY r."createdAt" ASC
+      LIMIT 1
+    ) reply ON TRUE
+    WHERE m."sentBy" = 'customer'
+      AND m."createdAt" >= ${range.start}
+      AND m."createdAt" < ${range.end}
+      AND ${tenantFilterSql(user)}
+    GROUP BY day
+    ORDER BY day
+  `;
+
+  return fillUtcDayGaps(rows, range, (day) => ({
+    day,
+    avgMs: null,
+    sampleCount: 0,
+  }));
+}
+
+/** A single `EventLog.detail` shape this module recognizes as a real usage sample. */
+type UsageDetail = {
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+};
+
+/**
+ * Narrows an `EventLog.detail` JSON value to `UsageDetail` only when all
+ * three numeric fields are present — message-handler.ts's `logEvent` call
+ * for `"ai-usage"` still logs a row (with only `conversationId`/`model` in
+ * `detail`) when the provider returned no usage block at all, and that row
+ * must be skipped here rather than counted as a zero-token sample.
+ */
+function isUsageDetail(detail: unknown): detail is UsageDetail {
+  if (detail === null || typeof detail !== "object") return false;
+  const d = detail as Record<string, unknown>;
+  return (
+    typeof d.promptTokens === "number" &&
+    typeof d.completionTokens === "number" &&
+    typeof d.totalTokens === "number"
+  );
+}
+
+/**
+ * Raw AI token counts for `range`, summed in TypeScript from `EventLog`
+ * rows with `source: "ai-usage"` (design: "no column `SUM`" — the counts
+ * live inside the `detail` JSON, which Postgres can't aggregate directly
+ * without an unindexable JSON-path expression). Deliberately reports only
+ * raw counts, never a dollar figure — there is no pricing table anywhere in
+ * this repo, and inventing per-token pricing here would be a silent
+ * accuracy claim nothing backs.
+ *
+ * Scoped via `eventLogScope`, matching the OR-array pattern already used by
+ * `src/app/(app)/page.tsx`'s dashboard error count: owned-business ids are
+ * resolved here (not derived inside `eventLogScope` itself — see its doc
+ * comment) so a client only sees usage tied to a business they own, or to
+ * no business at all.
+ */
+export async function tokenUsage(
+  user: ScopedUser,
+  range: AnalyticsRange,
+): Promise<TokenUsage> {
+  const ownedBusinessIds = isAdmin(user)
+    ? []
+    : (
+        await prisma.business.findMany({
+          where: businessScope(user),
+          select: { id: true },
+        })
+      ).map((b) => b.id);
+
+  const rows = await prisma.eventLog.findMany({
+    where: {
+      ...eventLogScope(user, ownedBusinessIds),
+      source: "ai-usage",
+      createdAt: { gte: range.start, lt: range.end },
+    },
+    select: { detail: true },
+  });
+
+  const totals: TokenUsage = {
+    promptTokens: 0,
+    completionTokens: 0,
+    totalTokens: 0,
+    sampleCount: 0,
+  };
+
+  for (const row of rows) {
+    if (!isUsageDetail(row.detail)) continue;
+    totals.promptTokens += row.detail.promptTokens;
+    totals.completionTokens += row.detail.completionTokens;
+    totals.totalTokens += row.detail.totalTokens;
+    totals.sampleCount += 1;
+  }
+
+  return totals;
 }
