@@ -445,3 +445,27 @@ model WebhookEvent {
   @@index([status, nextRunAt])
   @@index([status, leaseExpiresAt])
 }
+
+// Append-only audit record of one tool-kernel execution — modeled on
+// PaymentAuditEntry's shape above. `idempotencyKey` is this table's
+// dispatchId-equivalent (see computeDispatchId in message-handler.ts): the
+// future message-pipeline caller derives a deterministic key per attempt, so
+// a retried execution collides on the unique constraint instead of
+// re-running the handler's side effect — see executeToolWithAudit in
+// src/lib/tools/audit.ts. `sanitizedInput` is pre-redacted (see
+// sanitizeToolInput, which reuses send-failure.ts's sanitizeFailureDetail)
+// before it is ever written here, since tool input can carry raw customer
+// text. `resultData` is the handler's own output on success and is not
+// redacted — only caller-supplied input is treated as untrusted here.
+model ToolExecutionAudit {
+  id             String   @id @default(cuid())
+  toolName       String
+  idempotencyKey String   @unique
+  sanitizedInput String?
+  outcome        String // "success" | "failure"
+  failureCode    String? // reuses ToolFailureCode (src/lib/tools/contracts.ts) when outcome is "failure"
+  resultData     Json?
+  createdAt      DateTime @default(now())
+
+  @@index([toolName, createdAt])
+}
