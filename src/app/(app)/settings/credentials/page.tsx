@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth";
 import { CredentialsPanelContainer } from "@/features/credentials/containers/credentials-panel-container";
 import { AiDefaultsContainer } from "@/features/settings/containers/ai-defaults-container";
+import { ToolsPlatformContainer } from "@/features/settings/containers/tools-platform-container";
 
 export default async function CredentialsPage() {
   const user = await requireAdmin();
@@ -34,6 +35,7 @@ export default async function CredentialsPage() {
       chatModel: true,
       visionModel: true,
       audioModel: true,
+      toolsEnabled: true,
     },
   });
 
@@ -49,6 +51,7 @@ export default async function CredentialsPage() {
           .filter((c) => c.kind === "whatsapp")
           .map(({ id, label, provider }) => ({ id, label, provider }))}
       />
+      <ToolsPlatformContainer initialToolsEnabled={aiDefaults.toolsEnabled} />
     </div>
   );
 }

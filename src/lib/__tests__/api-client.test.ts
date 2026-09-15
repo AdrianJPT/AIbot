@@ -175,6 +175,7 @@ describe("feature API fallbacks", () => {
         maxHistoryMessages: 20,
         replyWindowMs: 5_000,
         isActive: true,
+        toolsEnabled: false,
         aiCredentialId: null,
         whatsappCredentialId: null,
       }),

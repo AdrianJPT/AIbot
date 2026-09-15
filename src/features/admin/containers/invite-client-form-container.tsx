@@ -95,6 +95,7 @@ export function InviteClientFormContainer({
         maxHistoryMessages: Number(fd.get("maxHistoryMessages")) || 20,
         replyWindowMs: replyWindowMsFromSeconds(fd.get("replyWindowSeconds")),
         isActive: fd.get("isActive") === "on",
+        toolsEnabled: fd.get("toolsEnabled") === "on",
         aiCredentialId: (fd.get("aiCredentialId") as string) || null,
         whatsappCredentialId:
           (fd.get("whatsappCredentialId") as string) || null,

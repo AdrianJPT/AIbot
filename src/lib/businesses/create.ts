@@ -53,6 +53,7 @@ export type CreateBusinessInput = {
   maxHistoryMessages?: number;
   replyWindowMs?: number;
   isActive?: boolean;
+  toolsEnabled?: boolean;
   aiCredentialId?: string | null;
   whatsappCredentialId?: string | null;
 };
@@ -117,6 +118,7 @@ export async function createBusinessForOwner(
         input.replyWindowMs ?? DEFAULT_REPLY_WINDOW_MS,
       ),
       isActive: input.isActive !== false,
+      toolsEnabled: input.toolsEnabled === true,
       ownerId,
       aiCredentialId: input.aiCredentialId || null,
       ...(input.phoneNumberId && {

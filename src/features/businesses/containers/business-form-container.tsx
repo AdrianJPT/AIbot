@@ -124,6 +124,7 @@ export function BusinessFormContainer({
       // UI collects seconds for readability; the DB column is ms.
       replyWindowMs: replyWindowMsFromSeconds(fd.get("replyWindowSeconds")),
       isActive: fd.get("isActive") === "on",
+      toolsEnabled: fd.get("toolsEnabled") === "on",
       aiCredentialId: (fd.get("aiCredentialId") as string) || null,
       whatsappCredentialId: (fd.get("whatsappCredentialId") as string) || null,
       ...(fixedOwnerId && { ownerId: fixedOwnerId }),
