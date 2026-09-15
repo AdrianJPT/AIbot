@@ -3,11 +3,16 @@
 # the suite can never touch development data. Data lives in tmpfs and is
 # wiped on `down` — the integration tests create and delete their own
 # fixtures and assume a disposable database.
+#
+# Host port and project name are overridable (defaults reproduce today's
+# single-stack behavior) so a second stack can run alongside this one — see
+# the header comment in vitest.global-setup.ts for the exact commands.
+name: ${TEST_COMPOSE_PROJECT:-aibot-test}
 services:
   test-db:
     image: postgres:16-alpine
     ports:
-      - "55432:5432"
+      - "${TEST_DB_PORT:-55432}:5432"
     environment:
       POSTGRES_DB: whatsapp_bot
       POSTGRES_USER: bot

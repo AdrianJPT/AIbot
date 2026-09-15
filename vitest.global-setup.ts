@@ -1,3 +1,14 @@
+/**
+ * Run a second, fully isolated stack in another worktree so its `npm test`
+ * cannot collide with this one's container, port, or schemas:
+ *
+ *   TEST_COMPOSE_PROJECT=aibot-test-2 TEST_DB_PORT=55433 TEST_SCHEMA_PREFIX=test2_w \
+ *     npm run test:db:up
+ *   TEST_DB_PORT=55433 TEST_SCHEMA_PREFIX=test2_w npm test
+ *
+ * With no env vars set, the defaults below reproduce today's single-stack
+ * behavior (port 55432, schemas `test_w1..test_w4`) exactly.
+ */
 import { execFile } from "node:child_process";
 import { connect } from "node:net";
 import { promisify } from "node:util";
@@ -5,7 +16,8 @@ import { promisify } from "node:util";
 const execFileAsync = promisify(execFile);
 
 const TEST_DB_HOST = "localhost";
-const TEST_DB_PORT = 55432;
+const TEST_DB_PORT = Number(process.env.TEST_DB_PORT ?? 55432);
+const TEST_SCHEMA_PREFIX = process.env.TEST_SCHEMA_PREFIX ?? "test_w";
 
 /**
  * How many Vitest workers the suite runs with, and therefore how many
@@ -31,7 +43,7 @@ export const TEST_DATABASE_URL = `postgresql://bot:testpass@${TEST_DB_HOST}:${TE
  * shared state instead of relying on discipline around it.
  */
 export function workerDatabaseUrl(workerId: number): string {
-  return `${TEST_DATABASE_URL}?schema=test_w${workerId}`;
+  return `${TEST_DATABASE_URL}?schema=${TEST_SCHEMA_PREFIX}${workerId}`;
 }
 
 /** Resolves false when nothing is listening on the test database port. */
