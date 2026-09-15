@@ -87,3 +87,20 @@ export function sendManualMessage(
     body: JSON.stringify({ text }),
   });
 }
+
+/**
+ * Retries a failed outbound message by its persisted id. The server
+ * resolves the original row (tenant-scoped), re-validates eligibility, and
+ * reuses its content and sender — the request body carries `retryOf` only,
+ * never `sentBy` or `text` (design decision "Retry sender").
+ */
+export function retryFailedMessage(
+  id: string,
+  messageId: string,
+): Promise<ConversationMessage> {
+  return requestJson(`/api/conversations/${id}/send`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ retryOf: messageId }),
+  });
+}

@@ -143,6 +143,36 @@ describe("ConversationDetailPage (prod-shaped data)", () => {
     ).toBe(true);
     expect(element.props.initialMessages.nextCursor).toBeNull();
   });
+
+  it("maps failureCode/failureDetail onto the message DTO (reply-window-ux-harmonization Unit 4)", async () => {
+    getSessionUser.mockResolvedValueOnce(admin);
+    const failed = await prisma.message.create({
+      data: {
+        conversationId: conversation.id,
+        role: "assistant",
+        content: "Perfecto, te confirmo enseguida",
+        sentBy: "bot",
+        status: "failed",
+        mediaType: "text",
+        failureCode: "rate_limit",
+        failureDetail: "code 4 title: rate limited",
+        createdAt: new Date(Date.UTC(2026, 0, 1, 0, 0, 30)),
+      },
+    });
+
+    const { default: ConversationDetailPage } = await import("../page");
+    const element = await ConversationDetailPage({
+      params: Promise.resolve({ id: conversation.id }),
+    });
+
+    const mapped = element.props.initialMessages.messages.find(
+      (m: { id: string }) => m.id === failed.id,
+    );
+    expect(mapped).toMatchObject({
+      failureCode: "rate_limit",
+      failureDetail: "code 4 title: rate limited",
+    });
+  });
 });
 
 describe("format helpers with prod-shaped edge inputs", () => {

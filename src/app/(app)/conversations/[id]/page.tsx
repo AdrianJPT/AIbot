@@ -71,6 +71,8 @@ export default async function ConversationDetailPage({
           status: m.status,
           createdAt: m.createdAt.toISOString(),
           paymentSessionId: m.paymentProofs[0]?.sessionId ?? null,
+          failureCode: m.failureCode,
+          failureDetail: m.failureDetail,
         })),
         nextCursor,
       }}

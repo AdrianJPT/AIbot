@@ -10,6 +10,16 @@ export type ConversationMessage = {
   // (PaymentProof.messageId), null otherwise — tasks #568 PR4. Drives the
   // inline payment card rendered by MessageBubble.
   paymentSessionId?: string | null;
+  // Classified reason a failed outbound delivery failed (one of
+  // SendFailureCode from `@/lib/channels/send-failure`, but read as a plain
+  // string since Prisma stores it as `String?`) — null/absent when the
+  // message never failed. Drives MessageBubble's cause-specific retry copy
+  // and gating (reply-window-ux-harmonization Unit 4).
+  failureCode?: string | null;
+  // Sanitized provider detail paired with `failureCode` — see
+  // `sanitizeFailureDetail`. Never rendered raw; not currently surfaced in
+  // the UI beyond the code-driven copy.
+  failureDetail?: string | null;
 };
 
 export type ConversationListItem = {
