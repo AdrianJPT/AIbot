@@ -21,6 +21,7 @@ import {
   setConversationStatus,
 } from "@/features/conversations/api";
 import { useRealtimeMessages } from "@/features/conversations/hooks/use-realtime-messages";
+import { markMessageRetried } from "@/features/conversations/lib/mark-message-retried";
 import { conversationKeys } from "@/features/conversations/query-keys";
 import type {
   ConversationDetail,
@@ -217,10 +218,22 @@ export function ConversationThreadContainer({
   const retryMutation = useMutation({
     mutationFn: (messageId: string) =>
       retryFailedMessage(initialConversation.id, messageId),
-    onSuccess: (msg) => {
+    onSuccess: (msg, originalId) => {
       seedConfirmedMessage(msg);
       if (msg.status === "failed") {
         toast.error("No se pudo entregar el mensaje reintentado");
+      } else {
+        // Patches the ORIGINAL failed bubble's cache entry immediately, so
+        // its "Reintentar" disables without waiting for a refetch — see
+        // markMessageRetried (retry-duplicate-and-visible-cause defect 1).
+        queryClient.setQueryData<{
+          pages: MessagesPage[];
+          pageParams: unknown[];
+        }>(conversationKeys.messages(initialConversation.id), (old) =>
+          old
+            ? { ...old, pages: markMessageRetried(old.pages, originalId) }
+            : old,
+        );
       }
     },
     onError: (error: Error) => {
