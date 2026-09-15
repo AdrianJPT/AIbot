@@ -15,6 +15,7 @@ import {
   deleteConversation,
   fetchMessages,
   markConversationRead,
+  retryFailedMessage,
   sendManualMessage,
   setConversationNickname,
   setConversationStatus,
@@ -151,6 +152,28 @@ export function ConversationThreadContainer({
     onError: () => toast.error("No se pudo eliminar la conversación"),
   });
 
+  // Seeds a confirmed message straight from a send/retry response instead of
+  // invalidating — invalidation triggers a refetch (or waits for the
+  // Realtime INSERT event) that can lag a few seconds behind the temp
+  // bubble being removed, causing a visible disappear/reappear flicker.
+  function seedConfirmedMessage(msg: RenderableMessage) {
+    queryClient.setQueryData<{
+      pages: MessagesPage[];
+      pageParams: unknown[];
+    }>(conversationKeys.messages(initialConversation.id), (old) => {
+      if (!old) return old;
+      const [firstPage, ...rest] = old.pages;
+      return {
+        ...old,
+        pages: [
+          { ...firstPage, messages: [msg, ...firstPage.messages] },
+          ...rest,
+        ],
+      };
+    });
+    queryClient.invalidateQueries({ queryKey: conversationKeys.list() });
+  }
+
   const sendMutation = useMutation({
     mutationFn: ({ text }: { text: string; tempId: string }) =>
       sendManualMessage(initialConversation.id, text),
@@ -171,33 +194,37 @@ export function ConversationThreadContainer({
     },
     onSuccess: (msg, { tempId }) => {
       setPending((prev) => prev.filter((m) => m.id !== tempId));
-      // Seed the confirmed message straight from the response instead of
-      // invalidating — invalidation triggers a refetch (or waits for the
-      // Realtime INSERT event) that can lag a few seconds behind the temp
-      // bubble being removed, causing a visible disappear/reappear flicker.
-      queryClient.setQueryData<{
-        pages: MessagesPage[];
-        pageParams: unknown[];
-      }>(conversationKeys.messages(initialConversation.id), (old) => {
-        if (!old) return old;
-        const [firstPage, ...rest] = old.pages;
-        return {
-          ...old,
-          pages: [
-            { ...firstPage, messages: [msg, ...firstPage.messages] },
-            ...rest,
-          ],
-        };
-      });
-      queryClient.invalidateQueries({ queryKey: conversationKeys.list() });
+      seedConfirmedMessage(msg);
     },
     onError: (_error, { tempId }) => {
       setPending((prev) =>
         prev.map((m) =>
-          m.id === tempId ? { ...m, pending: false, failed: true } : m,
+          m.id === tempId
+            ? { ...m, pending: false, failed: true, status: "failed" }
+            : m,
         ),
       );
       toast.error("No se pudo enviar el mensaje");
+    },
+  });
+
+  // Retries a failed OUTBOUND message by its persisted id — never re-sends
+  // via the composer path, so the request body carries `retryOf` only
+  // (never `sentBy` or `text`, design decision "Retry sender"). The server
+  // re-validates eligibility (tenant scope, role/status/failureCode), so a
+  // stale/ineligible id surfaces as a 404/409 toast rather than a silent
+  // no-op.
+  const retryMutation = useMutation({
+    mutationFn: (messageId: string) =>
+      retryFailedMessage(initialConversation.id, messageId),
+    onSuccess: (msg) => {
+      seedConfirmedMessage(msg);
+      if (msg.status === "failed") {
+        toast.error("No se pudo entregar el mensaje reintentado");
+      }
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || "No se pudo reintentar el mensaje");
     },
   });
 
@@ -206,10 +233,26 @@ export function ConversationThreadContainer({
   }
 
   function handleRetry(id: string) {
-    const failedMessage = pending.find((m) => m.id === id);
-    if (!failedMessage) return;
-    sendMutation.mutate({ text: failedMessage.content, tempId: id });
+    // A client-side optimistic bubble that failed before the request ever
+    // reached the server (network error, 5xx) has no persisted row, so
+    // `retryOf` would 404. Re-send it through the composer path with its
+    // original text instead; only server-persisted failures use `retryOf`.
+    const neverPersisted = pending.find((m) => m.id === id);
+    if (neverPersisted) {
+      sendMutation.mutate({ text: neverPersisted.content, tempId: id });
+      return;
+    }
+    retryMutation.mutate(id);
   }
+
+  // Which message id's retry is currently in flight, if any — passed down
+  // so only that message's bubble disables its retry button
+  // (`retryMutation.isPending` alone would disable every failed bubble at
+  // once). A composer-path re-send re-enters the pending state, which the
+  // bubble already renders as pending, so it needs no id here.
+  const retryingId = retryMutation.isPending
+    ? (retryMutation.variables ?? null)
+    : null;
 
   return (
     <ConversationThread
@@ -226,6 +269,7 @@ export function ConversationThreadContainer({
       loadingOlder={isFetchingNextPage}
       onSend={handleSend}
       onRetry={handleRetry}
+      retryingId={retryingId}
       sending={sendMutation.isPending}
       onHandoffChange={(next) => handoffMutation.mutate(next)}
       handoffLoading={handoffMutation.isPending}

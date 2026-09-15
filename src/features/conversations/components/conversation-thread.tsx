@@ -44,6 +44,7 @@ export function ConversationThread({
   loadingOlder,
   onSend,
   onRetry,
+  retryingId,
   sending,
   onHandoffChange,
   handoffLoading,
@@ -61,6 +62,9 @@ export function ConversationThread({
   loadingOlder: boolean;
   onSend: (text: string) => void;
   onRetry: (id: string) => void;
+  // The id of the message currently being retried, if any — drives the
+  // in-flight/disabled state on that specific bubble's retry button.
+  retryingId: string | null;
   sending: boolean;
   onHandoffChange: (next: string) => void;
   handoffLoading: boolean;
@@ -255,7 +259,7 @@ export function ConversationThread({
               Cargando…
             </p>
           )}
-          {renderWithSeparators(messages, onRetry)}
+          {renderWithSeparators(messages, onRetry, retryingId)}
         </div>
 
         {showNewPill && (
@@ -305,6 +309,7 @@ export function ConversationThread({
 function renderWithSeparators(
   messages: RenderableMessage[],
   onRetry: (id: string) => void,
+  retryingId: string | null,
 ) {
   const nodes: React.ReactNode[] = [];
   let lastDay: string | null = null;
@@ -325,7 +330,12 @@ function renderWithSeparators(
       <MessageBubble
         key={message.id}
         message={message}
-        onRetry={message.failed ? () => onRetry(message.id) : undefined}
+        // MessageBubble decides internally whether the message is failed
+        // and, if so, whether it is eligible for retry (canRetryFailedMessage)
+        // — passing the callback unconditionally keeps that single source
+        // of truth in one place instead of duplicating the failed check here.
+        onRetry={() => onRetry(message.id)}
+        retrying={message.id === retryingId}
       />,
     );
   }
