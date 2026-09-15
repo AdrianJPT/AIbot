@@ -24,6 +24,7 @@ describe("executeToolWithAudit", () => {
     const tool: ToolDefinition<Record<string, never>, { alive: boolean }> = {
       name: "probe_tool",
       description: "test tool",
+      mutating: false,
       inputSchema: z.object({}),
       handler,
     };
@@ -53,6 +54,7 @@ describe("executeToolWithAudit", () => {
     const tool: ToolDefinition<{ count: number }, never> = {
       name: "strict_tool",
       description: "test tool",
+      mutating: false,
       inputSchema: z.object({ count: z.number() }),
       handler: () => {
         throw new Error("should not run for invalid input");
@@ -83,6 +85,7 @@ describe("executeToolWithAudit", () => {
     const tool: ToolDefinition<Record<string, never>, { echo: string }> = {
       name: "echo_tool",
       description: "test tool",
+      mutating: false,
       inputSchema: z.object({}),
       handler,
     };
