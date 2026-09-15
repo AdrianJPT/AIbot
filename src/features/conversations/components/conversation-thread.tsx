@@ -29,10 +29,9 @@ import {
   type RenderableMessage,
 } from "@/features/conversations/components/message-bubble";
 import { MessageComposer } from "@/features/conversations/components/message-composer";
-import {
-  dateSeparatorLabel,
-  isOutsideWhatsAppWindow,
-} from "@/features/conversations/lib/format";
+import { CustomerServiceWindowBanner } from "@/features/conversations/components/customer-service-window-banner";
+import { dateSeparatorLabel } from "@/features/conversations/lib/format";
+import { customerServiceWindowState } from "@/features/conversations/lib/customer-service-window";
 import type { ConversationDetail } from "@/features/conversations/types";
 
 const SCROLL_BOTTOM_THRESHOLD_PX = 80;
@@ -45,6 +44,7 @@ export function ConversationThread({
   loadingOlder,
   onSend,
   onRetry,
+  retryingId,
   sending,
   onHandoffChange,
   handoffLoading,
@@ -62,6 +62,9 @@ export function ConversationThread({
   loadingOlder: boolean;
   onSend: (text: string) => void;
   onRetry: (id: string) => void;
+  // The id of the message currently being retried, if any — drives the
+  // in-flight/disabled state on that specific bubble's retry button.
+  retryingId: string | null;
   sending: boolean;
   onHandoffChange: (next: string) => void;
   handoffLoading: boolean;
@@ -123,7 +126,9 @@ export function ConversationThread({
     conversation.nickname ||
     conversation.customerName ||
     conversation.customerPhone;
-  const outsideWindow = isOutsideWhatsAppWindow(lastCustomerMessageAt);
+  // Only WhatsApp is supported today — hardcoded until multi-channel
+  // conversations carry their own channel identity.
+  const csw = customerServiceWindowState("whatsapp", lastCustomerMessageAt);
   const isClosed = conversation.status === "closed";
 
   function startEditingName() {
@@ -199,9 +204,7 @@ export function ConversationThread({
           <button
             type="button"
             onClick={() =>
-              isClosed
-                ? onHandoffChange("active")
-                : setArchiveConfirmOpen(true)
+              isClosed ? onHandoffChange("active") : setArchiveConfirmOpen(true)
             }
             className="flex h-11 w-11 items-center justify-center text-muted-foreground hover:text-foreground"
             title={isClosed ? "Reabrir conversación" : "Archivar conversación"}
@@ -241,12 +244,7 @@ export function ConversationThread({
         </div>
       </div>
 
-      {outsideWindow && (
-        <div className="border-b border-border bg-amber-500/10 px-3 py-2 text-xs text-amber-800 dark:text-amber-300">
-          Fuera de la ventana de 24h de WhatsApp — el mensaje puede ser
-          rechazado.
-        </div>
-      )}
+      <CustomerServiceWindowBanner state={csw} />
 
       <div className="relative flex-1 overflow-hidden">
         <div
@@ -261,7 +259,7 @@ export function ConversationThread({
               Cargando…
             </p>
           )}
-          {renderWithSeparators(messages, onRetry)}
+          {renderWithSeparators(messages, onRetry, retryingId)}
         </div>
 
         {showNewPill && (
@@ -311,6 +309,7 @@ export function ConversationThread({
 function renderWithSeparators(
   messages: RenderableMessage[],
   onRetry: (id: string) => void,
+  retryingId: string | null,
 ) {
   const nodes: React.ReactNode[] = [];
   let lastDay: string | null = null;
@@ -331,7 +330,12 @@ function renderWithSeparators(
       <MessageBubble
         key={message.id}
         message={message}
-        onRetry={message.failed ? () => onRetry(message.id) : undefined}
+        // MessageBubble decides internally whether the message is failed
+        // and, if so, whether it is eligible for retry (canRetryFailedMessage)
+        // — passing the callback unconditionally keeps that single source
+        // of truth in one place instead of duplicating the failed check here.
+        onRetry={() => onRetry(message.id)}
+        retrying={message.id === retryingId}
       />,
     );
   }

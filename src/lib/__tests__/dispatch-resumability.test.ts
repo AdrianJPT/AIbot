@@ -7,6 +7,7 @@ import {
 } from "@/lib/__tests__/fixtures/ownership";
 import { buildInboundTextPayload } from "@/lib/__tests__/fixtures/webhook-payload";
 import { buildAiReply } from "@/lib/__tests__/fixtures/ai-reply";
+import { ChannelSendError } from "@/lib/channels/send-failure";
 
 /**
  * Real-Postgres tests for the properties resumable dispatch exists to
@@ -454,7 +455,13 @@ describe("stranded-send reaper (real DB)", () => {
       },
     });
     sendFromNumber.mockRejectedValueOnce(
-      new Error("permanent WhatsApp failure"),
+      new ChannelSendError(
+        "WhatsApp send failed: Request failed with status code 400",
+        {
+          code: "invalid_recipient",
+          detail: "131026 Message undeliverable",
+        },
+      ),
     );
 
     await reapStrandedSends();
@@ -465,6 +472,11 @@ describe("stranded-send reaper (real DB)", () => {
     });
     expect(terminal.status).toBe("failed");
     expect(terminal.dispatchAttempts).toBe(MAX_DISPATCH_ATTEMPTS);
+    // The reaper's catch site classifies and persists the failure reason on
+    // this Message row too, same as the inline claimAndSendOnce catch site
+    // (spec `outbound-failure-reasons`: "every outbound send path").
+    expect(terminal.failureCode).toBe("invalid_recipient");
+    expect(terminal.failureDetail).toBe("131026 Message undeliverable");
 
     // A second reap tick must not touch it again — it's terminal, not just
     // out of budget for this run.

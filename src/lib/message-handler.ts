@@ -13,6 +13,7 @@ import { buildSystemPrompt } from "./prompt";
 import { describeImageFromBuffer, transcribeAudioBuffer } from "./media";
 import { sendFromNumber } from "./whatsapp";
 import { logEvent } from "./log";
+import { sendFailureFromError } from "./channels/send-failure";
 import { maybeEnqueuePaymentAnalysis } from "./payments/ingest";
 import { whatsappAdapter } from "./channels/whatsapp";
 import { fetchChannelMedia } from "./channels/media";
@@ -175,7 +176,14 @@ async function handleStatusUpdate(
 
   await prisma.message.update({
     where: { id: message.id },
-    data: { status: status.status },
+    data:
+      status.status === "failed"
+        ? {
+            status: status.status,
+            failureCode: status.failure?.code ?? "unknown",
+            failureDetail: status.failure?.detail ?? null,
+          }
+        : { status: status.status },
   });
 
   if (status.status === "failed") {
@@ -500,6 +508,7 @@ async function claimAndSendOnce(
       data: wamid ? { wamid, status: "sent" } : { status: "sent" },
     });
   } catch (err) {
+    const failure = sendFailureFromError(err);
     await logEvent(
       "error",
       "whatsapp-send",
@@ -510,7 +519,11 @@ async function claimAndSendOnce(
     );
     await prisma.message.update({
       where: { id: messageId },
-      data: { status: "failed" },
+      data: {
+        status: "failed",
+        failureCode: failure.code,
+        failureDetail: failure.detail,
+      },
     });
   }
 }
@@ -561,9 +574,14 @@ async function claimAndRetrySend(
       phoneNumber.id,
     );
     if (attempts >= MAX_DISPATCH_ATTEMPTS) {
+      const failure = sendFailureFromError(err);
       await prisma.message.update({
         where: { id: message.id },
-        data: { status: "failed" },
+        data: {
+          status: "failed",
+          failureCode: failure.code,
+          failureDetail: failure.detail,
+        },
       });
     }
     // Otherwise leave status "pending": the lease claimDispatch just set

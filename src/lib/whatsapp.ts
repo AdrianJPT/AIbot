@@ -7,8 +7,19 @@ import {
   CredentialAuthorizationError,
   resolveChannelCredential,
 } from "./channels/credentials";
+import { ChannelSendError } from "./channels/send-failure";
+import { classifyMetaError } from "./channels/whatsapp-send-failure";
 
 const API_VERSION = "v21.0";
+
+/** Extracts a failed axios response body, or `undefined` for a network/timeout error with no response (e.g. `ETIMEDOUT`). */
+function extractResponseBody(err: unknown): unknown {
+  if (err && typeof err === "object" && "response" in err) {
+    const response = (err as { response?: { data?: unknown } }).response;
+    return response?.data;
+  }
+  return undefined;
+}
 
 export async function sendMessage(
   phoneNumberId: string,
@@ -16,22 +27,32 @@ export async function sendMessage(
   to: string,
   text: string,
 ): Promise<string | undefined> {
-  const res = await axios.post<{ messages?: Array<{ id?: string }> }>(
-    `https://graph.facebook.com/${API_VERSION}/${phoneNumberId}/messages`,
-    {
-      messaging_product: "whatsapp",
-      to,
-      type: "text",
-      text: { body: text },
-    },
-    {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
+  try {
+    const res = await axios.post<{ messages?: Array<{ id?: string }> }>(
+      `https://graph.facebook.com/${API_VERSION}/${phoneNumberId}/messages`,
+      {
+        messaging_product: "whatsapp",
+        to,
+        type: "text",
+        text: { body: text },
       },
-    },
-  );
-  return res.data?.messages?.[0]?.id;
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      },
+    );
+    return res.data?.messages?.[0]?.id;
+  } catch (err) {
+    const failure = classifyMetaError(extractResponseBody(err));
+    const originalMessage = err instanceof Error ? err.message : String(err);
+    throw new ChannelSendError(
+      `WhatsApp send failed: ${originalMessage}`,
+      failure,
+      { cause: err },
+    );
+  }
 }
 
 /**

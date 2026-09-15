@@ -3,12 +3,14 @@ import type {
   ChannelConnection,
   ChannelContent,
   DeliveryState,
+  DeliveryStatus,
   IgnoredEvent,
   InboundMessage,
   NormalizedEvent,
   RawChannelEvent,
 } from "./contracts";
 import { registerAdapter } from "./registry";
+import { classifyMetaError } from "./whatsapp-send-failure";
 
 type RecordValue = Record<string, unknown>;
 
@@ -248,12 +250,23 @@ function normalizeStatus(
     return ignored(connection, "unknown", "unsupported_status");
   }
 
-  return {
+  const base: DeliveryStatus = {
     kind: "status",
     ...context(connection, status.id),
     externalMessageId: status.id,
     status: status.status,
   };
+
+  // Classification only applies to a failed delivery — a success or
+  // unclassified status envelope carries no `failure` key at all (design's
+  // "Async status" decision: "success/unclassified envelopes carry no
+  // `failure` key").
+  if (status.status !== "failed") {
+    return base;
+  }
+
+  const errors = Array.isArray(status.errors) ? status.errors : [];
+  return { ...base, failure: classifyMetaError(errors[0]) };
 }
 
 export const whatsappAdapter: ChannelAdapter = {

@@ -1,12 +1,10 @@
-import {
-  AlertTriangle,
-  Check,
-  CheckCheck,
-  Clock,
-  RotateCcw,
-} from "lucide-react";
+import { Check, CheckCheck, Clock, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { MEDIA_ICON } from "@/features/conversations/lib/format";
+import {
+  canRetryFailedMessage,
+  sendFailureCopy,
+} from "@/features/conversations/lib/send-failure-copy";
 import { PaymentCardContainer } from "@/features/payments/containers/payment-card-container";
 import type { ConversationMessage } from "@/features/conversations/types";
 
@@ -19,15 +17,11 @@ export type RenderableMessage = ConversationMessage & {
  * WhatsApp-style delivery ticks for outbound (bot/human) bubbles, driven by
  * `Message.status`. Customer-originated messages never show ticks — WhatsApp
  * only reports delivery/read receipts for messages the business sends out.
+ * `status === "failed"` is handled by the retry row below instead of here —
+ * a failed message always renders cause-specific copy there, so this
+ * component never runs with that status.
  */
 function DeliveryTicks({ status }: { status: string }) {
-  if (status === "failed") {
-    return (
-      <span title="No se pudo entregar" aria-label="No se pudo entregar">
-        <AlertTriangle className="h-3 w-3 text-destructive" />
-      </span>
-    );
-  }
   if (status === "pending") {
     // Message.status starts "pending" (message-handler.ts's
     // sendAndPersistReply) until the WhatsApp send resolves — distinct from
@@ -63,12 +57,28 @@ function DeliveryTicks({ status }: { status: string }) {
 export function MessageBubble({
   message,
   onRetry,
+  retrying,
 }: {
   message: RenderableMessage;
   onRetry?: () => void;
+  /**
+   * Whether THIS message's retry request is currently in flight. Owned by
+   * the container (the mutation's `isPending` state) and passed down as a
+   * plain prop — the button stays purely presentational and needs no
+   * internal state to disable itself immediately on click and re-enable
+   * once the request settles.
+   */
+  retrying?: boolean;
 }) {
   const isCustomer = message.sentBy === "customer";
   const isHuman = message.sentBy === "human";
+  // Covers both a server-persisted failure (reload-safe, carries a real
+  // failureCode) and the legacy client-only optimistic failure flag — the
+  // container also sets status:"failed" on the latter, but this keeps
+  // rendering correct even if a caller only ever sets `failed`.
+  const isFailed = message.status === "failed" || Boolean(message.failed);
+  const retryEligible = isFailed && canRetryFailedMessage(message);
+  const failureCopy = isFailed ? sendFailureCopy(message.failureCode) : null;
   const time = new Date(message.createdAt).toLocaleTimeString("es-MX", {
     hour: "2-digit",
     minute: "2-digit",
@@ -82,7 +92,7 @@ export function MessageBubble({
           isCustomer
             ? "rounded-bl-sm bg-muted text-foreground"
             : "rounded-br-sm bg-emerald-600/15 text-foreground dark:bg-emerald-500/20",
-          message.failed && "border border-destructive/50",
+          isFailed && "border border-destructive/50",
         )}
       >
         {isHuman && (
@@ -104,13 +114,22 @@ export function MessageBubble({
           {message.pending && (
             <Clock className="h-3 w-3" aria-label="Enviando" />
           )}
-          {message.failed && onRetry ? (
+          {isFailed && failureCopy ? (
             <button
               type="button"
-              onClick={onRetry}
-              className="flex items-center gap-1 text-destructive hover:underline"
+              onClick={retryEligible ? onRetry : undefined}
+              disabled={!retryEligible || retrying}
+              title={failureCopy.title}
+              aria-label={failureCopy.title}
+              className={cn(
+                "flex items-center gap-1",
+                retryEligible
+                  ? "text-destructive hover:underline"
+                  : "cursor-not-allowed text-muted-foreground",
+              )}
             >
-              <RotateCcw className="h-3 w-3" /> Reintentar
+              <RotateCcw className="h-3 w-3" />
+              {retrying ? "Reintentando…" : failureCopy.retryLabel}
             </button>
           ) : (
             !message.pending && (
